@@ -1,0 +1,122 @@
+import pytest
+
+from fellowship_sim.base_classes import Entity, State
+from fellowship_sim.base_classes.stats import RawStatsFromPercents
+from fellowship_sim.elarion.entity import Elarion
+from fellowship_sim.elarion.setup import ElarionSetup
+from tests.conftest import FixedRNG
+
+
+class TestFocusCosts:
+    """Net focus change after casting equals regen_during_cast - cost.
+
+    For non-channel abilities: regen_during_cast = focus_regen_rate × base_cast_time
+    (haste cancels out: faster cast × faster regen = constant). Parametrized to confirm independence.
+
+    Exception: HeartseekerBarrage is a channel — its window is fixed at 2.0s regardless of haste,
+    so regen = focus_regen_rate × (1 + haste) × 2.0 and is haste-dependent.
+    """
+
+    @pytest.fixture(params=[0.0, 0.2, 0.5])
+    def haste_percent(self, request: pytest.FixtureRequest) -> float:
+        return request.param  # type: ignore[no-any-return]
+
+    @pytest.fixture
+    def state(self) -> State:
+        return State(enemies=[Entity()], rng=FixedRNG(value=0.0)).activate()
+
+    @pytest.fixture
+    def elarion(self, state: State, haste_percent: float) -> Elarion:
+        return ElarionSetup(
+            raw_stats=RawStatsFromPercents(
+                main_stat=1000.0,
+                crit_percent=0.0,
+                expertise_percent=0.0,
+                haste_percent=haste_percent,
+                spirit_percent=0.0,
+            ),
+        ).finalize(state)
+
+    def test_focused_shot_net_gain(self, state: State, elarion: Elarion) -> None:
+        """FocusedShot: no cost, +20 focus gain, +5 regen during 1.5s cast. Net: +25."""
+        elarion.focus = 0.0  # prevent cap from masking the gain
+        elarion.focused_shot.cast(state.enemies[0])
+
+        assert elarion.focus == pytest.approx(25, rel=1e-6)
+
+    def test_celestial_shot_net_cost(self, state: State, elarion: Elarion) -> None:
+        """CelestialShot: 15 focus cost; with regen, effective -10, regardless of haste."""
+        focus_before = elarion.focus
+
+        elarion.celestial_shot.cast(state.enemies[0])
+
+        assert elarion.focus == pytest.approx(focus_before - 10, rel=1e-6)
+
+    def test_multishot_net_cost(self, state: State, elarion: Elarion) -> None:
+        """Multishot: 20 focus cost; regen during 1.5s cast = focus_regen_rate × 1.5.
+
+        Multishot starts with 0 charges; _add_charge() bypasses the charge mechanic.
+        """
+        focus_before = elarion.focus
+
+        elarion.multishot._add_charge()
+        elarion.multishot.cast(state.enemies[0])
+
+        assert elarion.focus == pytest.approx(focus_before - 15, rel=1e-6)
+
+    def test_empowered_multishot_net_cost(self, state: State, elarion: Elarion) -> None:
+        """Multishot: 20 focus cost; regen during 1.5s cast = focus_regen_rate × 1.5.
+
+        Multishot starts with 0 charges; _add_charge() bypasses the charge mechanic.
+        """
+        focus_before = elarion.focus
+
+        elarion.skystrider_supremacy.cast(state.enemies[0])
+        elarion.multishot.cast(state.enemies[0])
+
+        assert elarion.focus == pytest.approx(focus_before - 5, rel=1e-6)
+
+    def test_highwind_arrow_net_cost(self, state: State, elarion: Elarion) -> None:
+        """HighwindArrow: 30 focus cost; regen during 2.0s cast = focus_regen_rate × 2.0."""
+        focus_before = elarion.focus
+
+        elarion.highwind_arrow.cast(state.enemies[0])
+
+        assert elarion.focus == pytest.approx(focus_before - 30 + 2 / 1.5 * 5, rel=1e-6)
+
+    def test_volley_net_cost(self, state: State, elarion: Elarion) -> None:
+        """Volley: 30 focus cost; regen during 1.5s cast = focus_regen_rate × 1.5."""
+        focus_before = elarion.focus
+
+        elarion.volley.cast(state.enemies[0])
+
+        assert elarion.focus == pytest.approx(focus_before - 25, rel=1e-6)
+
+    def test_heartseeker_barrage_net_cost(self, state: State, elarion: Elarion) -> None:
+        """HeartseekerBarrage: 30 focus cost; channel window is 2.0s regardless of haste.
+
+        Regen = focus_regen_rate × (1 + haste) × 2.0 — unlike other abilities, this IS haste-dependent.
+        """
+        focus_before = elarion.focus
+
+        elarion.heartseeker_barrage.cast(state.enemies[0])
+
+        regen = 5 * (1 + elarion.stats.haste_percent) * elarion.heartseeker_barrage.base_cast_time / 1.5
+        assert elarion.focus == pytest.approx(focus_before - 30 + regen, rel=1e-6)
+
+    def test_focus_cost__five_cs_two_fs_loop(self, state: State, elarion: Elarion) -> None:
+        """Rotation of 5× CelestialShot + 2× FocusedShot stays focus-neutral over a full loop."""
+        elarion.focus = 70
+        target = state.enemies[0]
+
+        for _ in range(5):
+            elarion.celestial_shot.cast(target)
+            assert elarion.focus < 70
+
+        assert elarion.focus == 20
+
+        elarion.focused_shot.cast(target)
+        assert elarion.focus < 70
+
+        elarion.focused_shot.cast(target)
+        assert elarion.focus == 70
