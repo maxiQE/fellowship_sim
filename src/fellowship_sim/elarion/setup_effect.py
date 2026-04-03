@@ -9,7 +9,7 @@ from loguru import logger
 from fellowship_sim.base_classes import SetupEffectEarly
 from fellowship_sim.base_classes.setup import SetupContext, SetupEffectLate
 from fellowship_sim.elarion.effect import (
-    CelestialImpetusProc,
+    CelestialImpetusAura,
     FinalCrescendo,
     FocusedExpanseEffect,
     Fusillade,
@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 
 class ElarionDefaultEffectSetup(SetupEffectEarly["Elarion"]):
     def apply(self, character: "Elarion", context: SetupContext) -> None:
-        character.effects.add(CelestialImpetusProc(owner=character))
+        character.effects.add(CelestialImpetusAura(owner=character))
         character.effects.add(SpiritEffectProc(owner=character))
 
 
@@ -133,7 +133,7 @@ class ImpendingHeartseekerSetup(SetupEffectLate["Elarion"]):
     """
 
     def apply(self, character: "Elarion", context: SetupContext) -> None:
-        ci: CelestialImpetusProc = character.effects.get("celestial_impetus")  # ty:ignore[invalid-assignment]
+        ci = character.effects.get(CelestialImpetusAura)
         if ci is None:
             raise Exception("Incorrect elarion setup: IBH talent could not modify CI buff")  # noqa: TRY002, TRY003
         else:
@@ -178,6 +178,9 @@ class ElarionLegendarySelection(SetupEffectLate["Elarion"]):
 
     selected_legendary: Literal["Boots", "Cloak", "Neck"]
 
+    def __str__(self) -> str:
+        return f"Legendary: {self.selected_legendary}"
+
     def apply(self, character: "Elarion", context: SetupContext) -> None:
         if self.selected_legendary == "Neck":
             self._apply_neck(character)
@@ -210,50 +213,50 @@ class ElarionLegendarySelection(SetupEffectLate["Elarion"]):
 
 ElarionTalentName = Literal[
     # cost 2
-    "FocusedExpanse",
-    "PiercingSeekers",
-    "FinalCrescendo",
+    "Focused Expanse",
+    "Piercing Seekers",
+    "Final Crescendo",
     # cost 1
-    "SkylitGrace",
+    "Skylit Grace",
     "Fusillade",
-    "SkywardMunitions",
+    "Skyward Munitions",
     # cost 2
-    "RepeatingStars",
-    "LunarFury",
-    "LethalShots",
+    "Repeating Stars",
+    "Lunar Fury",
+    "Lethal Shots",
     # cost 1
-    "PathOfTwilight",
-    "LunarlightAffinity",
-    "MagicWard",
+    "Path Of Twilight",
+    "Lunarlight Affinity",
+    "Magic Ward",
     # cost 3
-    "FerventSupremacy",
-    "ImpendingHeartseeker",
-    "ResurgentWinds",
+    "Fervent Supremacy",
+    "Impending Heartseeker",
+    "Resurgent Winds",
     # cost 1
-    "LastLights",
-    "SpiritedFortitude",
-    "TheWeightOfGravity",
+    "Last Lights",
+    "Spirited Fortitude",
+    "The Weight Of Gravity",
 ]
 
 _TALENT_COSTS: dict[str, int] = {
-    "FocusedExpanse": 2,
-    "PiercingSeekers": 2,
-    "FinalCrescendo": 2,
-    "SkylitGrace": 1,
+    "Focused Expanse": 2,
+    "Piercing Seekers": 2,
+    "Final Crescendo": 2,
+    "Skylit Grace": 1,
     "Fusillade": 1,
-    "SkywardMunitions": 1,
-    "RepeatingStars": 2,
-    "LunarFury": 2,
-    "LethalShots": 2,
-    "PathOfTwilight": 1,
-    "LunarlightAffinity": 1,
-    "MagicWard": 1,
-    "FerventSupremacy": 3,
-    "ImpendingHeartseeker": 3,
-    "ResurgentWinds": 3,
-    "LastLights": 1,
-    "SpiritedFortitude": 1,
-    "TheWeightOfGravity": 1,
+    "Skyward Munitions": 1,
+    "Repeating Stars": 2,
+    "Lunar Fury": 2,
+    "Lethal Shots": 2,
+    "Path Of Twilight": 1,
+    "Lunarlight Affinity": 1,
+    "Magic Ward": 1,
+    "Fervent Supremacy": 3,
+    "Impending Heartseeker": 3,
+    "Resurgent Winds": 3,
+    "Last Lights": 1,
+    "Spirited Fortitude": 1,
+    "The Weight Of Gravity": 1,
 }
 
 
@@ -277,24 +280,24 @@ class PiercingSeekerSetup(SetupEffectLate["Elarion"]):
 
 
 _TALENT_SETUP: dict[ElarionTalentName, type[SetupEffectLate["Elarion"]]] = {
-    "FocusedExpanse": FocusedExpanseSetup,
-    "PiercingSeekers": PiercingSeekerSetup,
-    "FinalCrescendo": FinalCrescendoSetup,
-    "SkylitGrace": SkylitGraceSetup,
+    "Focused Expanse": FocusedExpanseSetup,
+    "Piercing Seekers": PiercingSeekerSetup,
+    "Final Crescendo": FinalCrescendoSetup,
+    "Skylit Grace": SkylitGraceSetup,
     "Fusillade": FusilladeSetup,
-    "SkywardMunitions": SkywardMunitionsSetup,
-    "RepeatingStars": RepeatingStarsSetup,
-    "LunarFury": LunarFurySetup,
-    "LethalShots": LethalShotsSetup,
-    "PathOfTwilight": PathOfTwilightSetup,
-    "LunarlightAffinity": LunarlightAffinitySetup,
-    "MagicWard": MagicWardSetup,
-    "FerventSupremacy": FerventSupremacySetup,
-    "ImpendingHeartseeker": ImpendingHeartseekerSetup,
-    "ResurgentWinds": ResurgentWindsSetup,
-    "LastLights": LastLightsSetup,
-    "SpiritedFortitude": SpiritedFortitudeSetup,
-    "TheWeightOfGravity": TheWeightOfGravitySetup,
+    "Skyward Munitions": SkywardMunitionsSetup,
+    "Repeating Stars": RepeatingStarsSetup,
+    "Lunar Fury": LunarFurySetup,
+    "Lethal Shots": LethalShotsSetup,
+    "Path Of Twilight": PathOfTwilightSetup,
+    "Lunarlight Affinity": LunarlightAffinitySetup,
+    "Magic Ward": MagicWardSetup,
+    "Fervent Supremacy": FerventSupremacySetup,
+    "Impending Heartseeker": ImpendingHeartseekerSetup,
+    "Resurgent Winds": ResurgentWindsSetup,
+    "Last Lights": LastLightsSetup,
+    "Spirited Fortitude": SpiritedFortitudeSetup,
+    "The Weight Of Gravity": TheWeightOfGravitySetup,
 }
 
 
@@ -316,6 +319,9 @@ class ElarionTalentSelection(SetupEffectLate["Elarion"]):
                 f"(talents: {self.talents})"
             )
         logger.debug(f"setup: {total_cost}/{self.total_talent_points} talent points used")
+
+    def __str__(self) -> str:
+        return f"Talents: {', '.join(self.talents)}"
 
     def apply(self, character: "Elarion", context: SetupContext) -> None:
         for talent in self.talents:

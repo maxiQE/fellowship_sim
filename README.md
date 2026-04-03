@@ -40,12 +40,12 @@ For the time being, usage is only through manual interaction with the library co
 The [script folder](scripts) contains multiple examples.
 Run them as `python scripts/NAME.py`
 
-- Running a single simulation:
+- [Running multiple runs to compare builds and rotations accross multiple scenarios](scripts/compare.py)
+- Running a single simulation, to understand the mechancics of the sim and check interactions:
     - [barrage build simple rotation](scripts/simple_example__barrage.py)
     - [hwa build simple rotation](scripts/simple_example__highwind.py)
 - [Interacting via the python console with the simulation (barrage build)](scripts/interactive_example__barrage.py).
     Run this script as `python -i scripts/interactive_example__barrage.py`.
-- [Running multiple runs (**WIP**)](scripts/run_sim.py)
 
 ## Development
 

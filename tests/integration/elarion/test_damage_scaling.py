@@ -10,7 +10,7 @@ Haste is fixed at 0 to decouple per-tick damage from tick count.
 
 import pytest
 
-from fellowship_sim.base_classes import Entity, State
+from fellowship_sim.base_classes import Enemy, State
 from fellowship_sim.base_classes.events import AbilityDamage
 from fellowship_sim.base_classes.stats import RawStatsFromPercents
 from fellowship_sim.elarion.ability import (
@@ -107,8 +107,8 @@ class TestMultishotDamageScaling:
         self, main_stat: float, expertise_percent: float, crit_percent: float
     ) -> None:
         """Both hits match the grievous-crit formula (2 enemies → main + 1 secondary)."""
-        enemies = [Entity(), Entity()]
-        state = State(enemies=enemies, rng=FixedRNG(value=0.0)).activate()
+        enemies = [Enemy(), Enemy()]
+        state = State(enemies=enemies, rng=FixedRNG(value=0.0))
         elarion = Elarion(
             raw_stats=RawStatsFromPercents(
                 main_stat=main_stat,
@@ -139,7 +139,7 @@ class TestMultishotDamageScaling:
         "provider_class,provider_damage_multiplier",
         [
             (SkystriderSupremacyBuff, 1.0),
-            (FerventSupremacyBuff, 1.5),
+            (FerventSupremacyBuff, 1.25),
             (EmpoweredMultishotChargeBuff, 1.0),
         ],
     )
@@ -153,8 +153,8 @@ class TestMultishotDamageScaling:
     ) -> None:
         """With FocusedExpanse active, each provider's per-arrow damage is multiplied by
         1.2 × provider_damage_multiplier. With 1 enemy, all 3 arrows land on the main target."""
-        enemies = [Entity()]
-        state = State(enemies=enemies, rng=FixedRNG(value=0.0)).activate()
+        enemies = [Enemy()]
+        state = State(enemies=enemies, rng=FixedRNG(value=0.0))
         elarion = Elarion(
             raw_stats=RawStatsFromPercents(
                 main_stat=main_stat,
@@ -218,8 +218,8 @@ class TestHighwindArrowDamageScaling:
         self, main_stat: float, expertise_percent: float, crit_percent: float
     ) -> None:
         """Secondary hit matches the formula applied to base * secondary_damage_multiplier."""
-        enemies = [Entity(), Entity()]
-        state = State(enemies=enemies, rng=FixedRNG(value=0.0)).activate()
+        enemies = [Enemy(), Enemy()]
+        state = State(enemies=enemies, rng=FixedRNG(value=0.0))
         elarion = Elarion(
             raw_stats=RawStatsFromPercents(
                 main_stat=main_stat,
@@ -475,8 +475,8 @@ class TestLunarlightSalvoDamageScaling:
         expertise = 0.0
         crit = 1.2  # grievous
 
-        enemies = [Entity()]
-        state = State(enemies=enemies, rng=FixedRNG(value=0.0)).activate()
+        enemies = [Enemy()]
+        state = State(enemies=enemies, rng=FixedRNG(value=0.0))
         elarion = Elarion(
             raw_stats=RawStatsFromPercents(
                 main_stat=main_stat_initial,

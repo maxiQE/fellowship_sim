@@ -29,6 +29,12 @@ Theory:
 
 ## Open questions
 
+### Spirit point regen
+
+- base rate per second
+- in combat rate for high level dungeon on AOE
+- in combat rate for boss fights
+
 ### Focus
 
 - Focus cost of celestial shot (15 base) under event horizon: 7 or 8? Floor or ceiling?
@@ -46,6 +52,8 @@ Theory:
 
 - Does kindle damage increase with event horizon (snapshotting or dynamic)?
 - Does it scale with expertise?
+
+Theory: probably works like any dot: scaling on all, and dynamic
 
 ### Brave machinations
 

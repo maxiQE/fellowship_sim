@@ -34,7 +34,7 @@ from fellowship_sim.base_classes.real_ppm import RealPPM
 from fellowship_sim.base_classes.setup import SetupContext, SetupEffectLate
 from fellowship_sim.base_classes.state import get_state
 from fellowship_sim.base_classes.timed_events import GenericTimedEvent
-from fellowship_sim.generic_game_logic.gems import FirstStrike
+from fellowship_sim.generic_game_logic.gems import FirstStrike, HarmoniousSoulBuff
 from fellowship_sim.generic_game_logic.weapon_abilities import CurseOfAnzhyr
 
 # ---------------------------------------------------------------------------
@@ -275,11 +275,11 @@ class DiamondStrike(Effect):
         unscaled_base_damage = self._base_dmg_table[self.trait_level - 1]
 
         # HarmoniousSoul stacks on caster
-        hs = char.effects.get("harmonious_soul_buff")
+        hs = char.effects.get(HarmoniousSoulBuff)
         k = hs.stacks if hs is not None else 0
 
         # DiamondStrikeEcho stacks on target
-        echo = target.effects.get("diamond_strike_echo")
+        echo = target.effects.get(DiamondStrikeEcho)
         s = echo.stacks if echo is not None else 0
 
         base_damage = unscaled_base_damage * (1 + k * 0.35) * (1 + s * 0.40)
@@ -347,7 +347,7 @@ class EmeraldJudgement(Effect):
 
     def _fire(self, char: Player, target: Entity) -> None:
         # Reset FirstStrike so the hit triggers the buff
-        fs: FirstStrike | None = char.effects.get("first_strike_aura")  # ty:ignore[invalid-assignment]
+        fs = char.effects.get(FirstStrike)
         if fs is not None:
             fs.apply_first_strike()
 
@@ -521,7 +521,7 @@ class VisionsOfGrandeur(Effect):
         char = self.owner
         for ability in char.abilities:
             if isinstance(ability, WeaponAbility):
-                ability.cooldown = 0.0
+                ability._reset_cooldown()
                 logger.debug(f"Visions of Grandeur: {ability} CD reset on ultimate cast")
 
 
@@ -797,7 +797,7 @@ class HiddenPower(Effect):
     def _try_gain_stack(self) -> None:
         if not self._rppm.check():
             return
-        if self.owner.effects.has("power_revealed"):
+        if self.owner.effects.has(PowerRevealedBuff):
             return
         self._stacks += 1
         gen = self._decay_generation
@@ -874,7 +874,7 @@ class HuntersFocus(Effect):
             return  # self-targeted ability — not a "targeted offensive" cast
 
         if self._focus_target is not None and event.target is not self._focus_target:
-            existing = self.owner.effects.get("hunters_focus_buff")
+            existing = self.owner.effects.get(HuntersFocusBuff)
             if existing is not None:
                 existing.remove()
             logger.debug("Hunter's Focus: target changed, stacks reset")
@@ -1158,7 +1158,7 @@ class SeizedOpportunity(Effect):
             self._count_crit()
 
     def _count_crit(self) -> None:
-        if self.owner.effects.has("seized_opportunity_buff"):
+        if self.owner.effects.has(SeizedOpportunityBuff):
             return
         self._crit_count += 1
         if self._crit_count >= self._CRITS_REQUIRED:

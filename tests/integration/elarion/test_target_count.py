@@ -11,17 +11,18 @@ Volley simultaneous stacking tests have moved to test_timing.py.
 
 import pytest
 
-from fellowship_sim.base_classes import Entity, State
+from fellowship_sim.base_classes import Enemy, State
 from fellowship_sim.base_classes.events import AbilityDamage
 from fellowship_sim.base_classes.stats import RawStatsFromPercents
 from fellowship_sim.elarion.ability import Volley
+from fellowship_sim.elarion.effect import LunarlightMarkEffect
 from fellowship_sim.elarion.entity import Elarion
 from tests.integration.fixtures import FixedRNG, count_hits
 
 
-def _make_state(num_enemies: int) -> tuple[State, Elarion, list[Entity]]:
-    enemies = [Entity() for _ in range(num_enemies)]
-    state = State(enemies=enemies, rng=FixedRNG(value=0.0)).activate()
+def _make_state(num_enemies: int) -> tuple[State, Elarion, list[Enemy]]:
+    enemies = [Enemy() for _ in range(num_enemies)]
+    state = State(enemies=enemies, rng=FixedRNG(value=0.0))
     elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0))
     state.character = elarion
     return state, elarion, enemies
@@ -82,7 +83,7 @@ class TestLunarlightMarkTargetCount:
         elarion.lunarlight_mark._do_cast(enemies[0])
         # marks applied synchronously in _do_cast; no step needed to avoid expiry at t=15
 
-        marked_count = sum(1 for e in enemies if e.effects.has("lunarlight_mark"))
+        marked_count = sum(1 for e in enemies if e.effects.has(LunarlightMarkEffect))
         assert marked_count == min(num_enemies, 12)
 
 

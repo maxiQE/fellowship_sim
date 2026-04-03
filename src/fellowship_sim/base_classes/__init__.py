@@ -7,7 +7,7 @@ from .ability import (
 )
 from .combat import create_standard_damage, deal_damage, schedule_damage
 from .effect import Buff, DoTEffect, Effect
-from .entity import Entity, Player
+from .entity import Enemy, Entity, Player
 from .events import (
     AbilityCastSuccess,
     AbilityDamage,
@@ -26,7 +26,7 @@ from .setup import (
     SetupEffectNormal,
     SetupTiming,
 )
-from .state import State
+from .state import State, StateInformation
 from .stats import (
     CritMultiplierMultiplicativeCharacter,
     CritPercentAdditive,
@@ -64,6 +64,7 @@ __all__ = [
     "CritScoreAdditive",
     "DoTEffect",
     "Effect",
+    "Enemy",
     "Entity",
     "EventBus",
     "ExpertisePercentAdditive",
@@ -93,6 +94,7 @@ __all__ = [
     "SpiritScoreAdditive",
     "StatModifier",
     "State",
+    "StateInformation",
     "WeaponAbility",
     "WeaponAbilityNotInitialized",
     "create_standard_damage",

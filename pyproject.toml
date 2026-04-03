@@ -16,6 +16,7 @@ classifiers = [
 ]
 dependencies = [
     "loguru>=0.7",
+    "plotly>=6.6.0",
 ]
 
 [project.urls]
@@ -101,6 +102,8 @@ ignore = [
     "E731",
     # typing.Any is acceptable for sentinel __getattr__/__setattr__ and noop implementations
     "ANN401",
+    # Standard random is acceptable for simulation RNG seeding
+    "S311",
 ]
 exclude = [
     "scripts/*.py",
@@ -112,7 +115,7 @@ exclude = [
     # Variable is unused
     "RUF059", "F841",
 ]
-"scripts/*" = ["S101", "S311"]
+"scripts/*" = ["S101"]
 
 [tool.ruff.format]
 preview = true

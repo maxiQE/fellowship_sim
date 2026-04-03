@@ -6,7 +6,7 @@ compose correctly with the event bus, damage pipeline, and stat system.
 
 import pytest
 
-from fellowship_sim.base_classes import Entity, State
+from fellowship_sim.base_classes import Enemy, State
 from fellowship_sim.base_classes.events import AbilityDamage, AbilityPeriodicDamage
 from fellowship_sim.base_classes.stats import RawStatsFromPercents
 from fellowship_sim.elarion.entity import Elarion
@@ -26,10 +26,10 @@ class TestVoidbringersTouch:
     """VoidbringersTouch: absorbs 10% of owner damage, explodes at max or on expiry."""
 
     @pytest.fixture
-    def state_1e(self) -> tuple[State, Elarion, Entity, VoidbringersTouch]:
+    def state_1e(self) -> tuple[State, Elarion, Enemy, VoidbringersTouch]:
         """One enemy, RNG never crits, Elarion with VBT weapon ability."""
-        target = Entity()
-        state = State(enemies=[target], rng=FixedRNG(value=0.99)).activate()
+        target = Enemy()
+        state = State(enemies=[target], rng=FixedRNG(value=0.99))
         elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0))
         state.character = elarion
         vbt = VoidbringersTouch(owner=elarion)
@@ -37,19 +37,19 @@ class TestVoidbringersTouch:
         elarion.voidbringers_touch = vbt
         return state, elarion, target, vbt
 
-    def test_effect_applied_on_cast(self, state_1e: tuple[State, Elarion, Entity, VoidbringersTouch]) -> None:
+    def test_effect_applied_on_cast(self, state_1e: tuple[State, Elarion, Enemy, VoidbringersTouch]) -> None:
         """Casting VBT applies VoidbringersTouchEffect to the target."""
         state, elarion, target, vbt = state_1e
         vbt._do_cast(target)
-        assert target.effects.has("voidbringers_touch")
+        assert target.effects.has(VoidbringersTouchEffect)
 
     def test_absorbs_10_percent_of_owner_damage(
-        self, state_1e: tuple[State, Elarion, Entity, VoidbringersTouch]
+        self, state_1e: tuple[State, Elarion, Enemy, VoidbringersTouch]
     ) -> None:
         """Every damage event owned by the caster accumulates 10% in stored_damage."""
         state, elarion, target, vbt = state_1e
         vbt._do_cast(target)
-        vbt_effect = target.effects.get("voidbringers_touch")
+        vbt_effect = target.effects.get(VoidbringersTouchEffect)
         assert isinstance(vbt_effect, VoidbringersTouchEffect)
 
         damage_events: list[AbilityDamage] = []
@@ -63,12 +63,12 @@ class TestVoidbringersTouch:
         assert vbt_effect.stored_damage == pytest.approx(focused_hits[0].damage * 0.10)
 
     def test_explosion_fires_when_storage_fills(
-        self, state_1e: tuple[State, Elarion, Entity, VoidbringersTouch]
+        self, state_1e: tuple[State, Elarion, Enemy, VoidbringersTouch]
     ) -> None:
         """When stored_damage reaches max, removal is scheduled and explosion fires."""
         state, elarion, target, vbt = state_1e
         vbt._do_cast(target)
-        vbt_effect = target.effects.get("voidbringers_touch")
+        vbt_effect = target.effects.get(VoidbringersTouchEffect)
         assert isinstance(vbt_effect, VoidbringersTouchEffect)
 
         explosion_events: list[AbilityDamage] = []
@@ -83,11 +83,11 @@ class TestVoidbringersTouch:
 
         assert len(explosion_events) == 1
 
-    def test_explosion_is_grievous_crit(self, state_1e: tuple[State, Elarion, Entity, VoidbringersTouch]) -> None:
+    def test_explosion_is_grievous_crit(self, state_1e: tuple[State, Elarion, Enemy, VoidbringersTouch]) -> None:
         """VBT explosion carries is_grievous_crit=True (crit_percent ≥ 1.0)."""
         state, elarion, target, vbt = state_1e
         vbt._do_cast(target)
-        vbt_effect = target.effects.get("voidbringers_touch")
+        vbt_effect = target.effects.get(VoidbringersTouchEffect)
         assert isinstance(vbt_effect, VoidbringersTouchEffect)
 
         explosion_events: list[AbilityDamage] = []
@@ -103,11 +103,11 @@ class TestVoidbringersTouch:
         assert len(explosion_events) == 1
         assert explosion_events[0].is_grievous_crit
 
-    def test_renewal_keeps_stored_damage(self, state_1e: tuple[State, Elarion, Entity, VoidbringersTouch]) -> None:
+    def test_renewal_keeps_stored_damage(self, state_1e: tuple[State, Elarion, Enemy, VoidbringersTouch]) -> None:
         """Re-applying VBT fuses the effect: stored_damage is preserved, duration resets."""
         state, elarion, target, vbt = state_1e
         vbt._do_cast(target)
-        vbt_effect = target.effects.get("voidbringers_touch")
+        vbt_effect = target.effects.get(VoidbringersTouchEffect)
         assert isinstance(vbt_effect, VoidbringersTouchEffect)
 
         elarion.focused_shot._do_cast(target)
@@ -119,11 +119,11 @@ class TestVoidbringersTouch:
 
         assert vbt_effect.stored_damage == pytest.approx(stored_before)
 
-    def test_explodes_on_expiry(self, state_1e: tuple[State, Elarion, Entity, VoidbringersTouch]) -> None:
+    def test_explodes_on_expiry(self, state_1e: tuple[State, Elarion, Enemy, VoidbringersTouch]) -> None:
         """When the 15s duration expires, the explosion fires as a grievous crit."""
         state, elarion, target, vbt = state_1e
         vbt._do_cast(target)
-        vbt_effect = target.effects.get("voidbringers_touch")
+        vbt_effect = target.effects.get(VoidbringersTouchEffect)
         assert isinstance(vbt_effect, VoidbringersTouchEffect)
 
         elarion.focused_shot._do_cast(target)
@@ -145,10 +145,10 @@ class TestChronoshift:
     """Chronoshift: 3s channel, haste-scaled ticks, 9x CDR on all abilities during channel."""
 
     @pytest.fixture
-    def state_1e(self) -> tuple[State, Elarion, Entity, Chronoshift]:
+    def state_1e(self) -> tuple[State, Elarion, Enemy, Chronoshift]:
         """One enemy, no crits, Elarion with Chronoshift weapon ability."""
-        target = Entity()
-        state = State(enemies=[target], rng=FixedRNG(value=0.99)).activate()
+        target = Enemy()
+        state = State(enemies=[target], rng=FixedRNG(value=0.99))
         elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0))
         state.character = elarion
         cs = Chronoshift(owner=elarion)
@@ -157,13 +157,13 @@ class TestChronoshift:
         elarion.abilities.append(cs)
         return state, elarion, target, cs
 
-    def test_channel_advances_time_by_3s(self, state_1e: tuple[State, Elarion, Entity, Chronoshift]) -> None:
+    def test_channel_advances_time_by_3s(self, state_1e: tuple[State, Elarion, Enemy, Chronoshift]) -> None:
         """After the 3s channel completes, state.time == 3.0."""
         state, elarion, target, cs = state_1e
         cs.cast(target)
         assert state.time == pytest.approx(3.0)
 
-    def test_fires_2_full_ticks_at_zero_haste(self, state_1e: tuple[State, Elarion, Entity, Chronoshift]) -> None:
+    def test_fires_2_full_ticks_at_zero_haste(self, state_1e: tuple[State, Elarion, Enemy, Chronoshift]) -> None:
         """At zero haste: tick_interval=1.5s, num_full_ticks=2, no partial tick."""
         state, elarion, target, cs = state_1e
         damage_events: list[AbilityDamage] = []
@@ -176,8 +176,8 @@ class TestChronoshift:
 
     def test_fires_3_full_ticks_with_haste(self) -> None:
         """At haste_percent=0.5: tick_interval=1.0s, num_full_ticks=3, no partial."""
-        target = Entity()
-        state = State(enemies=[target], rng=FixedRNG(value=0.99)).activate()
+        target = Enemy()
+        state = State(enemies=[target], rng=FixedRNG(value=0.99))
         elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0, haste_percent=0.5))
         state.character = elarion
         cs = Chronoshift(owner=elarion)
@@ -194,8 +194,8 @@ class TestChronoshift:
 
     def test_fires_partial_tick_at_fractional_haste(self) -> None:
         """At haste_percent=0.25: tick_interval=1.2s, 2 full ticks + 1 partial (0.5x damage)."""
-        target = Entity()
-        state = State(enemies=[target], rng=FixedRNG(value=0.99)).activate()
+        target = Enemy()
+        state = State(enemies=[target], rng=FixedRNG(value=0.99))
         elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0, haste_percent=0.25))
         state.character = elarion
         cs = Chronoshift(owner=elarion)
@@ -212,13 +212,13 @@ class TestChronoshift:
         # partial tick = (3.0 % 1.2) / 1.2 = 0.5 of full tick
         assert cs_hits[-1].damage == pytest.approx(cs_hits[0].damage * 0.5)
 
-    def test_cdr_effect_applied_after_do_cast(self, state_1e: tuple[State, Elarion, Entity, Chronoshift]) -> None:
+    def test_cdr_effect_applied_after_do_cast(self, state_1e: tuple[State, Elarion, Enemy, Chronoshift]) -> None:
         """ChronoshiftChannelCDR is present on the owner immediately after _do_cast."""
         state, elarion, target, cs = state_1e
         cs._do_cast(target)
-        assert elarion.effects.has("chronoshift_cdr")
+        assert elarion.effects.has(ChronoshiftChannelCDR)
 
-    def test_cdr_multiplier_applied_to_abilities(self, state_1e: tuple[State, Elarion, Entity, Chronoshift]) -> None:
+    def test_cdr_multiplier_applied_to_abilities(self, state_1e: tuple[State, Elarion, Enemy, Chronoshift]) -> None:
         """With ChronoshiftChannelCDR active, ability CDR multiplier is greater than 1."""
         state, elarion, target, cs = state_1e
         assert elarion.heartseeker_barrage._cdr_multiplier == pytest.approx(1.0)
@@ -227,24 +227,24 @@ class TestChronoshift:
 
         assert elarion.heartseeker_barrage._cdr_multiplier > 1.0
 
-    def test_ability_drains_faster_during_channel(self, state_1e: tuple[State, Elarion, Entity, Chronoshift]) -> None:
+    def test_ability_drains_faster_during_channel(self, state_1e: tuple[State, Elarion, Enemy, Chronoshift]) -> None:
         """With CDR active, an ability at 24s cooldown fully drains in 3s channel."""
         state, elarion, target, cs = state_1e
         elarion.heartseeker_barrage.cooldown = 24.0
         cs.cast(target)
         assert elarion.heartseeker_barrage.cooldown <= 0.0
 
-    def test_cdr_effect_removed_after_channel(self, state_1e: tuple[State, Elarion, Entity, Chronoshift]) -> None:
+    def test_cdr_effect_removed_after_channel(self, state_1e: tuple[State, Elarion, Enemy, Chronoshift]) -> None:
         """ChronoshiftChannelCDR expires at channel end; CDR multiplier returns to 1."""
         state, elarion, target, cs = state_1e
         cs.cast(target)
-        assert not elarion.effects.has("chronoshift_cdr")
+        assert not elarion.effects.has(ChronoshiftChannelCDR)
         assert elarion.heartseeker_barrage._cdr_multiplier == pytest.approx(1.0)
 
     def test_hits_multiple_enemies(self) -> None:
         """Each tick hits all enemies up to the 12-enemy cap."""
-        enemies = [Entity() for _ in range(3)]
-        state = State(enemies=enemies, rng=FixedRNG(value=0.99)).activate()
+        enemies = [Enemy() for _ in range(3)]
+        state = State(enemies=enemies, rng=FixedRNG(value=0.99))
         elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0))
         state.character = elarion
         cs = Chronoshift(owner=elarion)
@@ -267,10 +267,10 @@ class TestNaturesFury:
     """NaturesFury: 2x main damage, up to 3 secondaries, +30% crit on all hits."""
 
     @pytest.fixture
-    def state_5e(self) -> tuple[State, Elarion, list[Entity], NaturesFury]:
+    def state_5e(self) -> tuple[State, Elarion, list[Enemy], NaturesFury]:
         """Five enemies, no crits, Elarion with NaturesFury weapon ability."""
-        enemies = [Entity() for _ in range(5)]
-        state = State(enemies=enemies, rng=FixedRNG(value=0.99)).activate()
+        enemies = [Enemy() for _ in range(5)]
+        state = State(enemies=enemies, rng=FixedRNG(value=0.99))
         elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0))
         state.character = elarion
         nf = NaturesFury(owner=elarion)
@@ -278,7 +278,7 @@ class TestNaturesFury:
         elarion.natures_fury = nf
         return state, elarion, enemies, nf
 
-    def test_main_target_takes_double_damage(self, state_5e: tuple[State, Elarion, list[Entity], NaturesFury]) -> None:
+    def test_main_target_takes_double_damage(self, state_5e: tuple[State, Elarion, list[Enemy], NaturesFury]) -> None:
         """Main target damage is 2x the secondary target damage (main_damage_multiplier=2.0)."""
         state, elarion, enemies, nf = state_5e
         damage_events: list[AbilityDamage] = []
@@ -295,8 +295,8 @@ class TestNaturesFury:
 
     def test_all_hits_gain_30_percent_crit(self) -> None:
         """NaturesFuryAura adds +30% crit: at RNG=0.29, NaturesFury crits but FocusedShot does not."""
-        target = Entity()
-        state = State(enemies=[target], rng=FixedRNG(value=0.29)).activate()
+        target = Enemy()
+        state = State(enemies=[target], rng=FixedRNG(value=0.29))
         elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0, crit_percent=0.0))
         state.character = elarion
         nf = NaturesFury(owner=elarion)
@@ -318,7 +318,7 @@ class TestNaturesFury:
         assert len(nf_hits) > 0
         assert all(e.is_crit for e in nf_hits)
 
-    def test_hits_up_to_3_secondary_targets(self, state_5e: tuple[State, Elarion, list[Entity], NaturesFury]) -> None:
+    def test_hits_up_to_3_secondary_targets(self, state_5e: tuple[State, Elarion, list[Enemy], NaturesFury]) -> None:
         """With 5 enemies, NaturesFury hits main + exactly 3 secondary targets (4 total hits)."""
         state, elarion, enemies, nf = state_5e
         damage_events: list[AbilityDamage] = []
@@ -332,7 +332,7 @@ class TestNaturesFury:
         target_ids_hit = {id(e.target) for e in nf_hits}
         assert len(target_ids_hit) == 4
 
-    def test_cast_time_is_1_5s(self, state_5e: tuple[State, Elarion, list[Entity], NaturesFury]) -> None:
+    def test_cast_time_is_1_5s(self, state_5e: tuple[State, Elarion, list[Enemy], NaturesFury]) -> None:
         """NaturesFury.cast() advances time by 1.5s (base_cast_time, not haste-scaled for test)."""
         state, elarion, enemies, nf = state_5e
         elarion.weapon_ability = nf
@@ -345,10 +345,10 @@ class TestIciclesOfAnzhyr:
     """IciclesOfAnzhyr: 3 waves, final wave applies CurseOfAnzhyr, cursed targets take +200% damage."""
 
     @pytest.fixture
-    def state_2e(self) -> tuple[State, Elarion, list[Entity], IciclesOfAnzhyr]:
+    def state_2e(self) -> tuple[State, Elarion, list[Enemy], IciclesOfAnzhyr]:
         """Two enemies, no crits, Elarion with IciclesOfAnzhyr weapon ability."""
-        enemies = [Entity(), Entity()]
-        state = State(enemies=enemies, rng=FixedRNG(value=0.99)).activate()
+        enemies = [Enemy(), Enemy()]
+        state = State(enemies=enemies, rng=FixedRNG(value=0.99))
         elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0))
         state.character = elarion
         icicles = IciclesOfAnzhyr(owner=elarion)
@@ -356,7 +356,7 @@ class TestIciclesOfAnzhyr:
         elarion.icicles_of_anzhyr = icicles
         return state, elarion, enemies, icicles
 
-    def test_fires_3_waves(self, state_2e: tuple[State, Elarion, list[Entity], IciclesOfAnzhyr]) -> None:
+    def test_fires_3_waves(self, state_2e: tuple[State, Elarion, list[Enemy], IciclesOfAnzhyr]) -> None:
         """Three waves of damage fire, one per second after cast."""
         state, elarion, enemies, icicles = state_2e
         wave_times: list[float] = []
@@ -372,17 +372,17 @@ class TestIciclesOfAnzhyr:
         unique_times = sorted(set(wave_times))
         assert unique_times == pytest.approx([1.0, 2.0, 3.0])
 
-    def test_third_wave_applies_curse(self, state_2e: tuple[State, Elarion, list[Entity], IciclesOfAnzhyr]) -> None:
+    def test_third_wave_applies_curse(self, state_2e: tuple[State, Elarion, list[Enemy], IciclesOfAnzhyr]) -> None:
         """After the 3rd wave fires, every target has CurseOfAnzhyr."""
         state, elarion, enemies, icicles = state_2e
         icicles._do_cast(enemies[0])
         state.advance_time(4.0)
 
         for enemy in enemies:
-            assert enemy.effects.has("curse_of_anzhyr")
+            assert enemy.effects.has(CurseOfAnzhyr)
 
     def test_first_two_waves_do_not_apply_curse(
-        self, state_2e: tuple[State, Elarion, list[Entity], IciclesOfAnzhyr]
+        self, state_2e: tuple[State, Elarion, list[Enemy], IciclesOfAnzhyr]
     ) -> None:
         """Curse is not present before the 3rd wave fires (at t=2.5, after waves 1 and 2)."""
         state, elarion, enemies, icicles = state_2e
@@ -390,10 +390,10 @@ class TestIciclesOfAnzhyr:
         state.advance_time(2.5)
 
         for enemy in enemies:
-            assert not enemy.effects.has("curse_of_anzhyr")
+            assert not enemy.effects.has(CurseOfAnzhyr)
 
     def test_cursed_target_takes_3x_direct_damage(
-        self, state_2e: tuple[State, Elarion, list[Entity], IciclesOfAnzhyr]
+        self, state_2e: tuple[State, Elarion, list[Enemy], IciclesOfAnzhyr]
     ) -> None:
         """Targets with CurseOfAnzhyr take +200% damage (3x) from IciclesOfAnzhyr hits."""
         state, elarion, enemies, icicles = state_2e
@@ -417,24 +417,24 @@ class TestIciclesOfAnzhyr:
 
         assert cursed_damage == pytest.approx(uncursed_damage * 3.0)
 
-    def test_curse_reapplication_is_noop(self, state_2e: tuple[State, Elarion, list[Entity], IciclesOfAnzhyr]) -> None:
+    def test_curse_reapplication_is_noop(self, state_2e: tuple[State, Elarion, list[Enemy], IciclesOfAnzhyr]) -> None:
         """Re-applying CurseOfAnzhyr via the 3rd wave of a second cast is a no-op (fuse ignored)."""
         state, elarion, enemies, icicles = state_2e
         icicles._do_cast(enemies[0])
         state.advance_time(4.0)
 
-        curse_before = enemies[0].effects.get("curse_of_anzhyr")
+        curse_before = enemies[0].effects.get(CurseOfAnzhyr)
         assert isinstance(curse_before, CurseOfAnzhyr)
 
         # Second cast re-applies curse (no-op fuse)
         icicles._do_cast(enemies[0])
         state.advance_time(4.0)
 
-        curse_after = enemies[0].effects.get("curse_of_anzhyr")
+        curse_after = enemies[0].effects.get(CurseOfAnzhyr)
         assert curse_after is curse_before  # same object, not replaced
 
     def test_curse_ticks_as_periodic_damage(
-        self, state_2e: tuple[State, Elarion, list[Entity], IciclesOfAnzhyr]
+        self, state_2e: tuple[State, Elarion, list[Enemy], IciclesOfAnzhyr]
     ) -> None:
         """CurseOfAnzhyr fires AbilityPeriodicDamage events as a DoT after being applied."""
         state, elarion, enemies, icicles = state_2e

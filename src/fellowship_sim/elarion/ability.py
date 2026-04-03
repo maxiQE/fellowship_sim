@@ -242,6 +242,10 @@ class Multishot(ElarionAbility):
         - overwrite normal charge logic
         - pay standard focus cost
         """
+        # Standard behavior: pay focus cost
+        # !! Pay focus cost first before removing the charge from the empowered provider !!
+        self._pay_focus_cost(target)
+
         # NON-STANDARD: consume charges from empowered provider instead
         provider = self._empowered_by__instance()
 
@@ -254,9 +258,6 @@ class Multishot(ElarionAbility):
             logger.debug(f"{self} charge consumed ({self.charges}/{self.max_charges})")
         else:
             raise Exception(f"Ability cast despite no charges being availabe; {self.charges = }")  # noqa: TRY002, TRY003
-
-        # Standard behavior: pay focus cost
-        self._pay_focus_cost(target)
 
 
 @dataclass(kw_only=True, repr=False)
@@ -365,7 +366,7 @@ class HighwindArrow(ElarionAbility):
         if not isinstance(event.damage_source, HighwindArrow):
             return
 
-        if event.target.effects.has(LunarlightMarkEffect.name):
+        if event.target.effects.has(LunarlightMarkEffect):
             event.snapshot = event.snapshot.scale_average_damage(self.resurgent_winds_damage_multiplier)
             logger.trace(f"Resurgent Winds: Highwind Arrow x1.5 on marked target {event.target}")
 
@@ -489,7 +490,7 @@ class HeartseekerBarrage(ElarionAbility):
         from fellowship_sim.elarion.effect import LunarlightMarkEffect
 
         def priority_target_marked_enemies(enemy: Entity) -> float:
-            if enemy.effects.get(LunarlightMarkEffect.name) is not None:
+            if enemy.effects.get(LunarlightMarkEffect) is not None:
                 return 1.0
             else:
                 return 0.0

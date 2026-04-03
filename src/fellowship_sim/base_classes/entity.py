@@ -46,6 +46,10 @@ class Entity:
     def __post_init__(self) -> None:
         self.effects._entity = self
 
+    @property
+    def is_alive(self) -> bool:
+        return self.percent_hp > 0
+
     def __str__(self) -> str:
         name = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", type(self).__name__)
         return f"{name}({self.id}, dmg taken={self.damage_tracker.total:.0f})"
@@ -54,18 +58,34 @@ class Entity:
         return str(self)
 
     def _take_damage(self, event: "AbilityDamage | AbilityPeriodicDamage") -> None:
-        self.damage_tracker._register_damage(type(event.damage_source).__name__, event.damage)
+        if self.is_alive:
+            self.damage_tracker._register_damage(type(event.damage_source).__name__, event.damage)
+
+    def _tick(self, dt: float) -> None:
+        pass
+
+
+@dataclass(kw_only=True)
+class Enemy(Entity):
+    time_to_live: float = field(default=float("inf"), init=True)
+
+    def _tick(self, dt: float) -> None:
+        self.percent_hp -= dt / self.time_to_live
 
 
 @dataclass(kw_only=True, repr=False)
 class Player(Entity):
     raw_stats: RawStats
-    healthpoints: float = 300_000.0
+
+    healthpoints: float = field(default=300_000.0, init=False)
     stats: FinalStats = field(init=False)
     abilities: list[Ability] = field(default_factory=list)
-    spirit_points: float = 0.0
-    max_spirit_points: float = 100.0
-    spirit_ability_cost: float = 100.0
+
+    spirit_points: float = field(default=0.0, init=False)
+    max_spirit_points: float = field(default=100.0, init=False)
+    spirit_ability_cost: float = field(default=100.0, init=False)
+
+    spirit_point_per_s: float = field(default=0.2, init=False)
 
     # Weapon ability slots — one per available weapon ability type.
     # Unequipped slots hold WEAPON_ABILITY_NOT_INITIALIZED (logs a warning on access).
@@ -95,7 +115,11 @@ class Player(Entity):
         state.step()
 
     def _tick(self, dt: float) -> None:
-        pass
+        super()._tick(dt)
+        self._change_spirit_points(self.spirit_point_per_s * dt)
+
+    def _change_spirit_points(self, change: float) -> None:
+        self.spirit_points = max(0, min(self.max_spirit_points, self.spirit_points + change))
 
     def _recalculate_stats(self) -> None:
         """Recompute stats by firing ComputeFinalStats and applying collected modifiers."""

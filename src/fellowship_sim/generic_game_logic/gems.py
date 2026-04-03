@@ -84,7 +84,7 @@ class BlessingOfTheConqueror(Effect):
         get_state().bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
 
     def _on_pre_damage(self, event: PreDamageSnapshotUpdate) -> None:
-        if not get_state().is_boss_fight:
+        if not get_state().information.is_boss_fight:
             return
         multiplier = 1.15 if self.is_level_2 else 1.05
         event.snapshot = event.snapshot.scale_average_damage(multiplier)
@@ -452,7 +452,7 @@ class GemOvercap(Buff):
     (multiplier = 1 + k * 0.00005).
     """
 
-    name: str = field(default="gem_overcap", init=True)
+    name: str = field(default="gem_overcap", init=False)
     overcap: int = 0
 
     def __post_init__(self) -> None:

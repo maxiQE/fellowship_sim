@@ -4,7 +4,7 @@ from collections.abc import Callable
 
 import pytest
 
-from fellowship_sim.base_classes import Entity, State
+from fellowship_sim.base_classes import Enemy, State
 from fellowship_sim.base_classes.stats import RawStatsFromPercents
 from fellowship_sim.elarion.entity import Elarion
 
@@ -37,14 +37,16 @@ class SequenceRNG:
 
 @pytest.fixture
 def state_no_procs__st() -> State:
-    entity = Entity()
-    return State(enemies=[entity], rng=FixedRNG(value=0.0)).activate()
+    entity = Enemy()
+    state = State(enemies=[entity], rng=FixedRNG(value=0.0))
+    state.information.delay_since_last_fight = None
+    return state
 
 
 @pytest.fixture
 def state_always_procs__st() -> State:
-    entity = Entity()
-    return State(enemies=[entity], rng=FixedRNG(value=1.0)).activate()
+    entity = Enemy()
+    return State(enemies=[entity], rng=FixedRNG(value=1.0))
 
 
 @pytest.fixture

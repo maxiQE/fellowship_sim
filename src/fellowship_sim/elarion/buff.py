@@ -148,7 +148,7 @@ class FerventSupremacyBuff(EmpoweredMultishotProvider):
     stacks: int = field(default=4, init=False)
     max_stacks: int = field(default=4, init=False)
 
-    damage_multiplier: float = field(default=1.5, init=False)
+    damage_multiplier: float = field(default=1.25, init=False)
     consume_priority: int = field(default=0, init=False)  # highest priority
 
 

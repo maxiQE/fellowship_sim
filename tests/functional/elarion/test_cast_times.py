@@ -1,6 +1,6 @@
 import pytest
 
-from fellowship_sim.base_classes import AbilityDamage, Entity, State
+from fellowship_sim.base_classes import AbilityDamage, Enemy, State
 from fellowship_sim.base_classes.stats import RawStatsFromPercents
 from fellowship_sim.elarion.ability import HeartseekerBarrage
 from fellowship_sim.elarion.entity import Elarion
@@ -21,7 +21,7 @@ class TestCastTimes:
 
     @pytest.fixture
     def state(self) -> State:
-        return State(enemies=[Entity()], rng=FixedRNG(value=0.0)).activate()
+        return State(enemies=[Enemy()], rng=FixedRNG(value=0.0))
 
     @pytest.fixture
     def elarion(self, state: State, haste_percent: float) -> Elarion:
@@ -141,7 +141,7 @@ class TestComplexBreakpoints:
         NB: these are probably impossible in-game since they require sending the first multishot immediately after the supremacy cast.
         """
         # Note the "no-crits" RNG
-        state = State(enemies=[Entity()], rng=FixedRNG(value=1.0)).activate()
+        state = State(enemies=[Enemy()], rng=FixedRNG(value=1.0))
         target = state.enemies[0]
         setup = ElarionSetup(
             raw_stats=RawStatsFromPercents(
@@ -208,7 +208,7 @@ class TestComplexBreakpoints:
         - 54% -> 84% -> 23
         - 62% -> 92% -> 24
         """
-        state = State(enemies=[Entity()], rng=FixedRNG(value=1.0)).activate()
+        state = State(enemies=[Enemy()], rng=FixedRNG(value=1.0))
         target = state.enemies[0]
         setup = ElarionSetup(
             raw_stats=RawStatsFromPercents(

@@ -13,6 +13,7 @@ from fellowship_sim.generic_game_logic.set_effects import (
     DeathsGrasp,
     DraconicMightBuff,
     DrakheimsAbsolution,
+    DrakheimsAbsolutionBuff,
     EldrinDeceit,
     HauntingLament,
     SintharasVeil,
@@ -129,7 +130,7 @@ class TestDrakheimsAbsolution:
         elarion.effects.add(DrakheimsAbsolution(owner=elarion))
         before = elarion.stats.main_stat
         state_no_procs__st.bus.emit(UltimateCast(ability=elarion.skystrider_supremacy, owner=elarion, target=enemy))
-        assert elarion.effects.has("drakheims_absolution")
+        assert elarion.effects.has(DrakheimsAbsolutionBuff)
         assert elarion.stats.main_stat == pytest.approx(before * 1.20)
 
 

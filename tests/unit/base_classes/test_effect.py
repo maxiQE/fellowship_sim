@@ -61,7 +61,7 @@ class TestEffectExpiry:
         entity = Entity()
         entity.effects.add(_DummyEffect(owner=entity, name="expire", duration=2.0))
         state_no_procs__st.advance_time(3.0)
-        assert not entity.effects.has("expire")
+        assert not entity.effects.has(_DummyEffect)
 
     def test_effect_renewal_defers_expiry(self, state_no_procs__st: State) -> None:
         """Refreshing an effect cancels the stale expiry callback and schedules a new one."""
@@ -71,10 +71,10 @@ class TestEffectExpiry:
 
         entity.effects.add(_DummyEffect(owner=entity, name="x", duration=2.0))  # refresh → expiry at t=3.0
         state_no_procs__st.advance_time(1.5)  # t=2.5: old expiry (t=2.0) was stale
-        assert entity.effects.has("x")
+        assert entity.effects.has(_DummyEffect)
 
         state_no_procs__st.advance_time(1.0)  # t=3.5: new expiry (t=3.0) fires
-        assert not entity.effects.has("x")
+        assert not entity.effects.has(_DummyEffect)
 
     def test_effect_renewal_merges_stacks(self, state_no_procs__st: State) -> None:
         entity = Entity()
@@ -83,7 +83,7 @@ class TestEffectExpiry:
         entity.effects.add(_StackEffect(owner=entity))  # stacks=3 (cap)
         entity.effects.add(_StackEffect(owner=entity))  # stacks stays at 3
 
-        effect = entity.effects.get("s")
+        effect = entity.effects.get(_StackEffect)
         assert effect is not None
         assert effect.stacks == 3
 

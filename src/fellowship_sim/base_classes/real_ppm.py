@@ -21,7 +21,13 @@ class RealPPM:
     is_crit_scaled: bool
     owner: "Player"
 
+    # NB: optional value here is very important; the first cast is always a missed proc
     last_attempt_time: float | None = field(default=None, init=False)
+
+    def __post_init__(self) -> None:
+        time_since_last_fight = get_state().information.delay_since_last_fight
+        current_time = get_state().time
+        self.last_attempt_time = current_time - time_since_last_fight if time_since_last_fight is not None else None
 
     @property
     def current_ppm(self) -> float:

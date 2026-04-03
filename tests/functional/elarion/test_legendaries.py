@@ -1,6 +1,6 @@
 import pytest
 
-from fellowship_sim.base_classes import Entity, State
+from fellowship_sim.base_classes import Enemy, State
 from fellowship_sim.base_classes.events import SpiritProc
 from fellowship_sim.base_classes.stats import RawStatsFromPercents
 from fellowship_sim.elarion.effect import FinalCrescendo, ImpendingHeartseeker, Shimmer, VolleyEffect
@@ -26,7 +26,7 @@ class TestBootsLegendary:
 
     @pytest.fixture
     def state(self) -> State:
-        return State(enemies=[Entity()], rng=FixedRNG(value=0.0)).activate()
+        return State(enemies=[Enemy()], rng=FixedRNG(value=0.0))
 
     @pytest.fixture
     def elarion(self, state: State, haste_percent: float) -> Elarion:
@@ -113,7 +113,7 @@ class TestNeckLegendary:
 
     @pytest.fixture
     def state(self) -> State:
-        return State(enemies=[Entity()], rng=FixedRNG(value=0.0)).activate()
+        return State(enemies=[Enemy()], rng=FixedRNG(value=0.0))
 
     @pytest.fixture
     def elarion(self, state: State) -> Elarion:
@@ -122,14 +122,14 @@ class TestNeckLegendary:
     def test_spirit_proc_applies_impending_heartseeker(self, state: State, elarion: Elarion) -> None:
         """RNG(0.0) < 0.5 proc_chance → ImpendingHeartseeker is granted on spirit proc."""
         state.bus.emit(SpiritProc(ability=elarion.celestial_shot, owner=elarion, resource_amount=15.0))
-        assert isinstance(elarion.effects.get("impending_heartseeker"), ImpendingHeartseeker)
+        assert isinstance(elarion.effects.get(ImpendingHeartseeker), ImpendingHeartseeker)
 
     def test_spirit_proc_no_buff_when_rng_fails(self) -> None:
         """RNG(1.0) >= 0.5 proc_chance → ImpendingHeartseeker is not granted."""
-        state = State(enemies=[Entity()], rng=FixedRNG(value=1.0)).activate()
+        state = State(enemies=[Enemy()], rng=FixedRNG(value=1.0))
         elarion = ElarionSetup(raw_stats=_ZERO_STATS, legendary="Neck").finalize(state)
         state.bus.emit(SpiritProc(ability=elarion.celestial_shot, owner=elarion, resource_amount=15.0))
-        assert elarion.effects.get("impending_heartseeker") is None
+        assert elarion.effects.get(ImpendingHeartseeker) is None
 
 
 class TestCloakLegendary:
@@ -137,7 +137,7 @@ class TestCloakLegendary:
 
     @pytest.fixture
     def state(self) -> State:
-        return State(enemies=[Entity()], rng=FixedRNG(value=0.0)).activate()
+        return State(enemies=[Enemy()], rng=FixedRNG(value=0.0))
 
     @pytest.fixture
     def elarion(self, state: State) -> Elarion:
@@ -147,12 +147,12 @@ class TestCloakLegendary:
         """Casting HighwindArrow applies Shimmer to the target."""
         target = state.enemies[0]
         elarion.highwind_arrow.cast(target)
-        assert isinstance(target.effects.get("shimmer"), Shimmer)
+        assert isinstance(target.effects.get(Shimmer), Shimmer)
 
     def test_highwind_arrow_applies_shimmer__final_crescendo_interaction(self, state: State, elarion: Elarion) -> None:
         """Casting HighwindArrow from a FC HWA applies Shimmer to 8 enemies in a group of 12."""
         for _ in range(11):
-            state.enemies.append(Entity())
+            state.enemies.append(Enemy())
         assert state.num_enemies == 12
 
         final_crescendo = FinalCrescendo(owner=elarion)
@@ -163,7 +163,7 @@ class TestCloakLegendary:
         elarion.highwind_arrow.cast(target)
 
         # 3 shimmer debuffs present after first cast
-        assert len([e for e in state.enemies if e.effects.has(Shimmer.name)]) == 3
+        assert len([e for e in state.enemies if e.effects.has(Shimmer)]) == 3
 
         elarion.highwind_arrow.cast(target)
         elarion.highwind_arrow.cast(target)
@@ -175,9 +175,9 @@ class TestCloakLegendary:
         assert elarion.highwind_arrow.has_final_crescendo_buff is True
 
         # no shimmer debuff present
-        assert len([e for e in state.enemies if e.effects.has(Shimmer.name)]) == 0
+        assert len([e for e in state.enemies if e.effects.has(Shimmer)]) == 0
 
         # final crescendo HWA
         elarion.highwind_arrow.cast(target)
 
-        assert len([e for e in state.enemies if e.effects.has(Shimmer.name)]) == 8
+        assert len([e for e in state.enemies if e.effects.has(Shimmer)]) == 8

@@ -1,6 +1,34 @@
 # Code objectives
 
+## Known issues
+
+- DOTs mechanics are not game accurate:
+    - tick rate is dynamic in-game; fixed in sim
+    - accumulation mechanic is not correct (splinters)
+
+- CDA / CDR stacking from:
+    - HWA base hasted CDA
+    - EH: CDA on all abilities
+    - Chronoshift
+    - Skylit Grace talent (2a)
+
+- diamond strike: coded as multiplicative between number of echo stacks and number of harmonious souls stacks
+
+- brave machinations: coding as triggering on the DOT
+
+- green 1/6 is downplayed when no adds are present
+
 ## Todo
+
+- a quel point est ce que le CI proc est interessant pour un ult
+- improve rotations
+    - get to second ult with good CDs
+- compare gear sets on good rotation + good scenario
+
+- plot
+    - make filtering better, somehow
+    - one plot per scenario
+
 
 - documentation:
     - all abilities with non trivial implementations should have a detailed description of the model

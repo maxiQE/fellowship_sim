@@ -9,7 +9,7 @@ from loguru import logger
 from fellowship_sim.base_classes import Effect
 from fellowship_sim.base_classes.entity import Player
 from fellowship_sim.base_classes.setup import SetupContext, SetupEffectEarly, SetupEffectLate
-from fellowship_sim.generic_game_logic.buff import BaseCritPercent, SpiritOfHeroismAura
+from fellowship_sim.generic_game_logic.buff import BaseCritPercent, RandomizePlayerPercentHP, SpiritOfHeroismAura
 from fellowship_sim.generic_game_logic.gems import (
     AdrenalineRush,
     AncientsWisdom,
@@ -80,6 +80,10 @@ class WeaponMasterTraitSelection(SetupEffectLate[Player]):
     master_trait: WeaponMasterTraitName
     trait_level: int = 4
 
+    def __str__(self) -> str:
+        level_str = "" if self.trait_level == 4 else f" (lv.{self.trait_level})"
+        return f"Master Trait: {self.master_trait}{level_str}"
+
     def apply(self, character: Player, context: SetupContext) -> None:
         setup = _MASTER_TRAITS[self.master_trait](trait_level=self.trait_level)
         setup.apply(character, context)
@@ -97,6 +101,10 @@ class WeaponHeroicTraitSelection(SetupEffectLate[Player]):
         if len(self.heroic_traits) > 2:
             raise ValueError(f"Up to 2 heroic traits allowed, got {len(self.heroic_traits)}")  # noqa: TRY003
 
+    def __str__(self) -> str:
+        level_str = "" if self.trait_level == 4 else f" (lv.{self.trait_level})"
+        return f"Heroic Traits: {', '.join(self.heroic_traits)}{level_str}"
+
     def apply(self, character: Player, context: SetupContext) -> None:
         for name in self.heroic_traits:
             setup = _HEROIC_TRAITS[name](trait_level=self.trait_level)
@@ -110,10 +118,32 @@ class SetEffectSelection(SetupEffectLate[Player]):
 
     sets: list[SetEffectName]
 
+    def __str__(self) -> str:
+        return f"Sets: {', '.join(self.sets)}"
+
     def apply(self, character: Player, context: SetupContext) -> None:
         for name in self.sets:
             character.effects.add(_SET_EFFECTS[name](owner=character))
             logger.debug(f"setup: set effect '{name}' applied")
+
+
+@dataclass(kw_only=True)
+class RandomizePlayerPercentHPSetup(SetupEffectLate[Player]):
+    """Setup effect to randomly shift player HP from 100% to low_hp_percent."""
+
+    high_hp_uptime: float = field(default=0.80, init=True)
+
+    def __str__(self) -> str:
+        return f"High HP uptime: {100 * self.high_hp_uptime:.0f}%"
+
+    def apply(self, character: Player, context: SetupContext) -> None:
+        if self.high_hp_uptime < 1.0:
+            character.effects.add(RandomizePlayerPercentHP(owner=character, high_hp_uptime=self.high_hp_uptime))
+            logger.debug("setup: 'randomize player percent hp' applied")
+        else:
+            logger.warning(
+                "setup: 'randomize player percent hp' NOT APPLIED because requested uptime of 100% disables it. Set to `None` to disable this warning."
+            )
 
 
 @dataclass(kw_only=True)
@@ -197,11 +227,6 @@ class BlessingOfTheProphetSetup(_GenericGemSetupEffectLate):
         )
 
 
-# ---------------------------------------------------------------------------
-# Gem effect registry
-# ---------------------------------------------------------------------------
-
-
 GEM_COLORS = Literal[
     "red__ruby",
     "purple__amethyst",
@@ -270,6 +295,8 @@ class GemSetupEffect(SetupEffectLate[Player]):
     gem_power: dict[GEM_COLORS, int]
 
     total_gem_power: int = field(default=5256, init=True)
+    gem_trait_level: dict[GEM_COLORS, tuple[int, int]] = field(init=False)
+    overcap_power: int = field(init=False)
 
     def __post_init__(self) -> None:
         invalid_keys = [k for k in self.gem_power if k not in get_args(GEM_COLORS)]
@@ -278,12 +305,44 @@ class GemSetupEffect(SetupEffectLate[Player]):
         total_gem_power = sum(self.gem_power.values())
         if total_gem_power > self.total_gem_power:
             raise ValueError(f"Configured gem power {total_gem_power} exceeds maximum {self.total_gem_power}")  # noqa: TRY003
+        self.gem_trait_level = {
+            gem_color: (
+                sum(1 for t in _UNLOCK_THRESHOLDS if power >= t),
+                sum(1 for t in _LEVELUP_THRESHOLDS if power >= t),
+            )
+            for gem_color, power in self.gem_power.items()
+        }
+        self.overcap_power = sum(
+            power - _OVERCAP_THRESHOLD for gem_color, power in self.gem_power.items() if power > _OVERCAP_THRESHOLD
+        )
+
+    def __str__(self) -> str:
+        trait_level_info = []
+        for gem_color in get_args(GEM_COLORS):
+            if gem_color not in self.gem_power:
+                continue
+            num_unlocked, num_leveled = self.gem_trait_level[gem_color]
+            total_trait_level = num_unlocked + num_leveled
+            prefix = gem_color.split("__")[0][0]
+            trait_level_info.append((total_trait_level, prefix))
+
+        # Sort by total_trait_level, ignore color to keep order unchanged
+        trait_level_info.sort(key=lambda tup: tup[0], reverse=True)
+
+        trait_level_info = [f"{total_trait_level}{prefix}" for total_trait_level, prefix in trait_level_info]
+
+        power_level_info = sorted(
+            [(power, gem_color.split("__")[0][0]) for gem_color, power in self.gem_power.items()],
+            key=lambda tup: tup[0],
+            reverse=True,
+        )
+
+        return f"Gems: {' '.join(trait_level_info)} (+{self.overcap_power}) [{', '.join(f'{p}{c}' for p, c in power_level_info)}]"
 
     def apply(self, character: Player, context: SetupContext) -> None:
-        for gem_color, power in self.gem_power.items():
+        for gem_color in self.gem_power:
             effects = _GEM_EFFECTS[gem_color]
-            num_unlocked = sum(1 for t in _UNLOCK_THRESHOLDS if power >= t)
-            num_leveled = sum(1 for t in _LEVELUP_THRESHOLDS if power >= t)
+            num_unlocked, num_leveled = self.gem_trait_level[gem_color]
 
             for i, effect_cls in enumerate(effects[:num_unlocked]):
                 is_level_2 = i < num_leveled
@@ -302,13 +361,5 @@ class GemSetupEffect(SetupEffectLate[Player]):
                     2 if is_level_2 else 1,
                 )
 
-            if power > _OVERCAP_THRESHOLD:
-                k = power - _OVERCAP_THRESHOLD
-                character.effects.add(GemOvercap(name=f"gem_overcap_{gem_color}", overcap=k, owner=character))
-                gem_label = gem_color.replace("__", ": ").replace("_", " ")
-                logger.debug(
-                    "gem setup: {} overcap k={} (+{:.3f}% main stat)",
-                    gem_label,
-                    k,
-                    k * 0.005,
-                )
+        if self.overcap_power > 0:
+            character.effects.add(GemOvercap(overcap=self.overcap_power, owner=character))

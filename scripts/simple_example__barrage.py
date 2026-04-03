@@ -9,7 +9,7 @@ import random
 from loguru import logger
 
 from fellowship_sim import configure_logging
-from fellowship_sim.base_classes import Entity, State
+from fellowship_sim.base_classes import Enemy, State
 from fellowship_sim.base_classes.stats import RawStatsFromScores
 from fellowship_sim.elarion.entity import Elarion
 from fellowship_sim.elarion.setup import ElarionSetup
@@ -45,13 +45,13 @@ character_setup = ElarionSetup(
         "Inspired Allegiance",
     ],
     talents=[
-        "PiercingSeekers",
+        "Piercing Seekers",
         "Fusillade",
-        "LunarFury",
-        "LunarlightAffinity",
-        "FerventSupremacy",
-        "ImpendingHeartseeker",
-        "LastLights",
+        "Lunar Fury",
+        "Lunarlight Affinity",
+        "Fervent Supremacy",
+        "Impending Heartseeker",
+        "Last Lights",
     ],
     gem_power={
         # 10b, 6r, 6p
@@ -72,8 +72,8 @@ if NUM_TARGETS <= 0:
     raise ValueError(f"Configuration error: the number of targets is negative {NUM_TARGETS}")
 
 configure_logging(LOG_LEVEL)
-enemies: list[Entity] = [Entity() for _ in range(NUM_TARGETS)]
-state = State(enemies=enemies, rng=random.Random(x=SEED)).activate()
+enemies: list[Enemy] = [Enemy() for _ in range(NUM_TARGETS)]
+state = State(enemies=enemies, rng=random.Random(x=SEED))
 
 elarion: Elarion = character_setup.finalize(state)
 

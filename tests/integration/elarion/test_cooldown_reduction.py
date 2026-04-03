@@ -12,7 +12,7 @@ RepeatingStars: each Multishot damage hit → Volley CD -0.3s.
 
 import pytest
 
-from fellowship_sim.base_classes import Entity, State
+from fellowship_sim.base_classes import Enemy, State
 from fellowship_sim.base_classes.stats import RawStatsFromPercents
 from fellowship_sim.elarion.effect import (
     RepeatingStars,
@@ -151,8 +151,8 @@ class TestRepeatingStars:
     @pytest.mark.parametrize("num_enemies", [1, 2, 3])
     def test_reduces_volley_cd_per_hit(self, num_enemies: int) -> None:
         """N enemies hit → Volley CD reduced by N×0.3s."""
-        enemies = [Entity() for _ in range(num_enemies)]
-        state = State(enemies=enemies, rng=FixedRNG(value=0.0)).activate()
+        enemies = [Enemy() for _ in range(num_enemies)]
+        state = State(enemies=enemies, rng=FixedRNG(value=0.0))
         elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0))
         state.character = elarion
 

@@ -9,11 +9,21 @@ from typing import TYPE_CHECKING, Protocol
 
 from loguru import logger
 
+from fellowship_sim.base_classes.entity import Enemy
+
 from .events import EventBus
-from .timed_events import TimedEvent
+from .timed_events import FightOverTimedEvent, TimedEvent
 
 if TYPE_CHECKING:
     from .entity import Entity, Player
+
+
+@dataclass(kw_only=True)
+class StateInformation:
+    is_boss_fight: bool = False
+    duration: float = float("inf")
+    delay_since_last_fight: float | None = 20.0
+    is_ult_authorized: bool = True
 
 
 class RNG(Protocol):
@@ -30,7 +40,7 @@ _state_var: contextvars.ContextVar[State | None] = contextvars.ContextVar("state
 def get_state() -> State:
     state = _state_var.get()
     if state is None:
-        raise RuntimeError("call State(...).activate() before running the sim")  # noqa: TRY003
+        raise RuntimeError("no active State — construct a State before running the sim")  # noqa: TRY003
     return state
 
 
@@ -45,14 +55,22 @@ def get_bus() -> EventBus:
 
 @dataclass(kw_only=True)
 class State:
-    enemies: list[Entity]
-    time: float = 0.0
-    bus: EventBus = field(default_factory=EventBus)
-    rng: RNG = field(default_factory=random.Random)
-    character: Player | None = None
-    is_boss_fight: bool = False
+    enemies: list[Enemy] = field(default_factory=list, init=True)
+    bus: EventBus = field(default_factory=EventBus, init=True)
+    rng: RNG = field(default_factory=random.Random, init=True)
+
+    time: float = field(default=0.0, init=False)
+    character: Player | None = field(default=None, init=False)
+
+    information: StateInformation = field(default_factory=StateInformation)
+
     _queue: list[tuple[float, int, TimedEvent]] = field(default_factory=list, init=False, repr=False)
     _queue_seq: int = field(default=0, init=False, repr=False)
+
+    def __post_init__(self) -> None:
+        if self.information.duration != float("inf"):
+            self.schedule(time_delay=self.information.duration, callback=FightOverTimedEvent())
+        _state_var.set(self)
 
     def __str__(self) -> str:
         return f"State(t={self.time:.3f}, enemies={len(self.enemies)})"
@@ -63,11 +81,6 @@ class State:
     @property
     def num_enemies(self) -> int:
         return len(self.enemies)
-
-    def activate(self) -> State:
-        _state_var.set(self)
-        logger.success(f"simulation state activated: {self}")
-        return self
 
     def deactivate(self) -> None:
         """Clear the active state in the current context.

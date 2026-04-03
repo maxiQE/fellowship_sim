@@ -1,7 +1,8 @@
 import pytest
 
-from fellowship_sim.base_classes import Entity, State
+from fellowship_sim.base_classes import Enemy, State
 from fellowship_sim.base_classes.stats import RawStatsFromPercents
+from fellowship_sim.elarion.buff import EmpoweredMultishotChargeBuff
 from fellowship_sim.elarion.entity import Elarion
 from fellowship_sim.elarion.setup import ElarionSetup
 from tests.conftest import FixedRNG
@@ -23,7 +24,7 @@ class TestFocusCosts:
 
     @pytest.fixture
     def state(self) -> State:
-        return State(enemies=[Entity()], rng=FixedRNG(value=0.0)).activate()
+        return State(enemies=[Enemy()], rng=FixedRNG(value=0.0))
 
     @pytest.fixture
     def elarion(self, state: State, haste_percent: float) -> Elarion:
@@ -53,10 +54,7 @@ class TestFocusCosts:
         assert elarion.focus == pytest.approx(focus_before - 10, rel=1e-6)
 
     def test_multishot_net_cost(self, state: State, elarion: Elarion) -> None:
-        """Multishot: 20 focus cost; regen during 1.5s cast = focus_regen_rate × 1.5.
-
-        Multishot starts with 0 charges; _add_charge() bypasses the charge mechanic.
-        """
+        """Multishot has 15 net cost."""
         focus_before = elarion.focus
 
         elarion.multishot._add_charge()
@@ -64,17 +62,80 @@ class TestFocusCosts:
 
         assert elarion.focus == pytest.approx(focus_before - 15, rel=1e-6)
 
-    def test_empowered_multishot_net_cost(self, state: State, elarion: Elarion) -> None:
-        """Multishot: 20 focus cost; regen during 1.5s cast = focus_regen_rate × 1.5.
-
-        Multishot starts with 0 charges; _add_charge() bypasses the charge mechanic.
+    def test_empowered_multishot_net_cost__skystrider_supremacy(self, state: State, elarion: Elarion) -> None:
+        """Empowered Multishot has net cost 5 instead.
+        Once buff decays, back to normal 15 net cost.
         """
         focus_before = elarion.focus
 
         elarion.skystrider_supremacy.cast(state.enemies[0])
+
+        for idx in range(3):
+            elarion.multishot.cast(state.enemies[0])
+
+            assert elarion.focus == pytest.approx(focus_before - 5 * (idx + 1), rel=1e-6)
+
+        # wait for buff to clear and full energy regen
+        elarion.wait(20)
+
+        focus_before = elarion.focus
+
+        elarion.multishot.charges = 5
         elarion.multishot.cast(state.enemies[0])
 
-        assert elarion.focus == pytest.approx(focus_before - 5, rel=1e-6)
+        # net focus cost is back to normal
+        assert elarion.focus == pytest.approx(focus_before - 15, rel=1e-6)
+
+    def test_empowered_multishot_net_cost__fervent_supremacy(self, state: State, elarion: Elarion) -> None:
+        """Empowered Multishot has net cost 5 instead.
+        Once buff decays, back to normal 15 net cost.
+        """
+        focus_before = elarion.focus
+
+        elarion.skystrider_supremacy.is_fervent_supremacy = True
+
+        elarion.skystrider_supremacy.cast(state.enemies[0])
+
+        for idx in range(4):
+            elarion.multishot.cast(state.enemies[0])
+
+            assert elarion.focus == pytest.approx(focus_before - 5 * (idx + 1), rel=1e-6)
+
+        # wait for buff to clear and full energy regen
+        elarion.wait(20)
+
+        focus_before = elarion.focus
+
+        elarion.multishot.charges = 5
+        elarion.multishot.cast(state.enemies[0])
+
+        # net focus cost is back to normal
+        assert elarion.focus == pytest.approx(focus_before - 15, rel=1e-6)
+
+    def test_empowered_multishot_net_cost__empowered_multishot(self, state: State, elarion: Elarion) -> None:
+        """Empowered Multishot has net cost 5 instead.
+        Once buff decays, back to normal 15 net cost.
+        """
+        focus_before = elarion.focus
+
+        elarion.effects.add(EmpoweredMultishotChargeBuff(owner=elarion))
+        elarion.effects.add(EmpoweredMultishotChargeBuff(owner=elarion))
+
+        for idx in range(2):
+            elarion.multishot.cast(state.enemies[0])
+
+            assert elarion.focus == pytest.approx(focus_before - 5 * (idx + 1), rel=1e-6)
+
+        # wait for buff to clear and full energy regen
+        elarion.wait(20)
+
+        focus_before = elarion.focus
+
+        elarion.multishot.charges = 5
+        elarion.multishot.cast(state.enemies[0])
+
+        # net focus cost is back to normal
+        assert elarion.focus == pytest.approx(focus_before - 15, rel=1e-6)
 
     def test_highwind_arrow_net_cost(self, state: State, elarion: Elarion) -> None:
         """HighwindArrow: 30 focus cost; regen during 2.0s cast = focus_regen_rate × 2.0."""

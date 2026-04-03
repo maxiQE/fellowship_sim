@@ -53,7 +53,10 @@ class VoidbringersTouchEffect(Effect):
         """Keep existing stored_damage; renew duration only."""
         self.duration = incoming.duration
         self._schedule_expiry()
-        logger.debug("Voidbringer's Touch: renewed (stored={:.0f}/{:.0f})", self.stored_damage, self.max_stored_damage)
+        logger.warning("Voidbringer's Touch: double apply to same target wastes damage!")
+        logger.debug(
+            "Voidbringer's Touch: renewed duration (stored={:.0f}/{:.0f})", self.stored_damage, self.max_stored_damage
+        )
 
     def _on_damage(self, event: AbilityDamage | AbilityPeriodicDamage) -> None:
         if event.damage_source is self:
@@ -66,7 +69,8 @@ class VoidbringersTouchEffect(Effect):
             self.stored_damage,
             self.max_stored_damage,
         )
-        if self.stored_damage >= self.max_stored_damage:
+        if self.stored_damage >= self.max_stored_damage and not self._exploded:
+            self._exploded = True
             state = get_state()
             state.schedule(
                 time_delay=0.0, callback=GenericTimedEvent(name="voidbringers_touch explode", callback=self.remove)
@@ -76,10 +80,6 @@ class VoidbringersTouchEffect(Effect):
         self._fire_explosion()
 
     def _fire_explosion(self) -> None:
-        if self._exploded:
-            return
-        self._exploded = True
-
         if self.attached_to is None:
             raise Exception(f"{self!s} unattached during _fire_explosion")  # noqa: TRY002, TRY003
 
@@ -343,6 +343,9 @@ class IciclesOfAnzhyr(WeaponAbility):
 
 
 class EquipVoidbringersTouch(SetupEffectLate[Player]):
+    def __str__(self) -> str:
+        return "Weapon: Voidbringer's Touch"
+
     def apply(self, character: Player, context: SetupContext) -> None:
         ability = VoidbringersTouch(owner=character)
         character.weapon_ability = ability
@@ -351,6 +354,9 @@ class EquipVoidbringersTouch(SetupEffectLate[Player]):
 
 
 class EquipChronoshift(SetupEffectLate[Player]):
+    def __str__(self) -> str:
+        return "Weapon: Chronoshift"
+
     def apply(self, character: Player, context: SetupContext) -> None:
         ability = Chronoshift(owner=character)
         character.weapon_ability = ability
@@ -359,6 +365,9 @@ class EquipChronoshift(SetupEffectLate[Player]):
 
 
 class EquipNaturesFury(SetupEffectLate[Player]):
+    def __str__(self) -> str:
+        return "Weapon: Nature's Fury"
+
     def apply(self, character: Player, context: SetupContext) -> None:
         ability = NaturesFury(owner=character)
         character.weapon_ability = ability
@@ -367,6 +376,9 @@ class EquipNaturesFury(SetupEffectLate[Player]):
 
 
 class EquipIcicles(SetupEffectLate[Player]):
+    def __str__(self) -> str:
+        return "Weapon: Icicles of Anzhyr"
+
     def apply(self, character: Player, context: SetupContext) -> None:
         ability = IciclesOfAnzhyr(owner=character)
         character.weapon_ability = ability

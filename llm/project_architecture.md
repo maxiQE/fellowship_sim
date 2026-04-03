@@ -208,7 +208,7 @@ def rotation(elarion: Elarion, state: State):
         assert state.time == 1.2
         assert elarion.volley.cooldown == 28.8
         elarion.lunarlight_mark.cast()
-        assert state.enemies[0].effects.has("lunarlight_mark")
+        assert state.enemies[0].effects.has(LunarlightMarkEffect)
         elarion.heartseeker_barrage.cast()
 
         if elarion.volley.info.available:
@@ -220,7 +220,7 @@ def rotation(elarion: Elarion, state: State):
         mark_then_barrage.cast()
         elarion.volley.cast()
         elarion.heartseeker_barrage.cast()
-        Conditional(elarion.effects.has("fervent supremacy"), elarion.multishot).cast()
+        Conditional(elarion.effects.has(FerventSupremacyBuff), elarion.multishot).cast()
 ```
 
 

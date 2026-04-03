@@ -12,7 +12,8 @@ def get_game_time() -> str:
 
 def patch_game_time(record: Any) -> None:
     """Injects the current game time into every log record's 'extra' dict."""
-    record["extra"]["game_time"] = get_game_time()
+    if "pytest" not in sys.modules:
+        record["extra"]["game_time"] = get_game_time()
 
 
 def configure_logging(

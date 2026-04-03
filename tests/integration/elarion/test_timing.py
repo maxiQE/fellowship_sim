@@ -13,7 +13,7 @@ from collections.abc import Callable
 
 import pytest
 
-from fellowship_sim.base_classes import Entity, State
+from fellowship_sim.base_classes import Enemy, State
 from fellowship_sim.base_classes.events import AbilityDamage
 from fellowship_sim.base_classes.stats import RawStatsFromPercents
 from fellowship_sim.elarion.ability import HeartseekerBarrage, Volley
@@ -58,8 +58,8 @@ class TestVolleyTickCount:
         Cast with haste=0.5 (13 ticks, tick_interval=0.667s).
         Haste at tick time does not affect tick scheduling — rate is baked in at cast.
         """
-        enemies = [Entity()]
-        state = State(enemies=enemies, rng=FixedRNG(value=0.0)).activate()
+        enemies = [Enemy()]
+        state = State(enemies=enemies, rng=FixedRNG(value=0.0))
         elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0, haste_percent=0.5))
         state.character = elarion
 
@@ -147,8 +147,8 @@ class TestImpendingHeartseeker:
         At haste=0: 10 ticks (k=0..9)
         Total multiplier sum = sum(1 + k*0.10, k=0..9) = 10 + 0.1*45 = 14.5
         """
-        enemies = [Entity()]
-        state = State(enemies=enemies, rng=FixedRNG(value=0.0)).activate()
+        enemies = [Enemy()]
+        state = State(enemies=enemies, rng=FixedRNG(value=0.0))
         elarion = Elarion(
             raw_stats=RawStatsFromPercents(
                 main_stat=main_stat,

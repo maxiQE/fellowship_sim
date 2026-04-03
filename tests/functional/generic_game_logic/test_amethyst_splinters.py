@@ -1,6 +1,6 @@
 import pytest
 
-from fellowship_sim.base_classes import AbilityDamage, AbilityPeriodicDamage, Entity, State
+from fellowship_sim.base_classes import AbilityDamage, AbilityPeriodicDamage, Enemy, State
 from fellowship_sim.base_classes.stats import RawStatsFromPercents
 from fellowship_sim.base_classes.timed_events import GenericTimedEvent
 from fellowship_sim.elarion.entity import Elarion
@@ -20,7 +20,7 @@ class TestAmethystSplinters:
 
     @pytest.fixture
     def state(self) -> State:
-        return State(enemies=[Entity()], rng=FixedRNG(value=0.0)).activate()
+        return State(enemies=[Enemy()], rng=FixedRNG(value=0.0))
 
     @pytest.fixture
     def elarion(self, state: State, haste_percent: float) -> Elarion:

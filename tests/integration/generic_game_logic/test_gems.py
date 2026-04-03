@@ -2,7 +2,7 @@
 
 import pytest
 
-from fellowship_sim.base_classes import Entity, SnapshotStats, State
+from fellowship_sim.base_classes import Enemy, SnapshotStats, State, StateInformation
 from fellowship_sim.base_classes.events import (
     AbilityDamage,
     ComputeCooldownReduction,
@@ -13,6 +13,7 @@ from fellowship_sim.base_classes.stats import RawStatsFromPercents
 from fellowship_sim.elarion.setup import Elarion
 from fellowship_sim.generic_game_logic.gems import (
     AdrenalineRush,
+    AdrenalineRushBuff,
     AncientsWisdom,
     BerserkersZeal,
     BlessingOfTheCommander,
@@ -22,8 +23,10 @@ from fellowship_sim.generic_game_logic.gems import (
     ChampionsHeart,
     FelineGrace,
     FirstStrike,
+    FirstStrikeBuff,
     GemOvercap,
     HarmoniousSoul,
+    HarmoniousSoulBuff,
     KillerInstinct,
     MightOfTheMinotaur,
     MysticsIntuition,
@@ -272,7 +275,7 @@ class TestAdrenalineRush:
                 damage=100.0,
             )
         )
-        assert elarion.effects.has("adrenaline_rush")
+        assert elarion.effects.has(AdrenalineRushBuff)
 
     def test_no_buff_above_30_percent_hp(self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion) -> None:
         elarion = unit_elarion__zero_stats
@@ -289,7 +292,7 @@ class TestAdrenalineRush:
                 damage=100.0,
             )
         )
-        assert not elarion.effects.has("adrenaline_rush")
+        assert not elarion.effects.has(AdrenalineRushBuff)
 
 
 class TestFirstStrike:
@@ -309,7 +312,7 @@ class TestFirstStrike:
                 damage=100.0,
             )
         )
-        assert elarion.effects.has("first_strike_buff")
+        assert elarion.effects.has(FirstStrikeBuff)
 
     def test_second_hit_same_enemy_does_not_reapply(
         self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion
@@ -376,7 +379,7 @@ class TestBlessingOfTheConqueror:
     """BlessingOfTheConqueror: +5% damage in boss fights (+15% at level 2); no-op otherwise."""
 
     def test_scales_snapshot_in_boss_fight(self, unit_elarion__zero_stats: Elarion) -> None:
-        state = State(enemies=[Entity()], rng=FixedRNG(value=0.0), is_boss_fight=True).activate()
+        state = State(enemies=[Enemy()], rng=FixedRNG(value=0.0), information=StateInformation(is_boss_fight=True))
         elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0))
         state.character = elarion
         enemy = state.enemies[0]
@@ -387,7 +390,7 @@ class TestBlessingOfTheConqueror:
         assert event.snapshot.average_damage == pytest.approx(1050.0)
 
     def test_level_2_scales_snapshot_by_1_15_in_boss_fight(self, unit_elarion__zero_stats: Elarion) -> None:
-        state = State(enemies=[Entity()], rng=FixedRNG(value=0.0), is_boss_fight=True).activate()
+        state = State(enemies=[Enemy()], rng=FixedRNG(value=0.0), information=StateInformation(is_boss_fight=True))
         elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0))
         state.character = elarion
         enemy = state.enemies[0]
@@ -433,7 +436,7 @@ class TestHarmoniousSoul:
         enemy = state_no_procs__st.enemies[0]
         elarion.effects.add(HarmoniousSoul(owner=elarion))
         state_no_procs__st.bus.emit(UnitDestroyed(entity=enemy))
-        assert elarion.effects.has("harmonious_soul")
+        assert elarion.effects.has(HarmoniousSoulBuff)
 
     def test_five_kills_give_five_stacks(self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion) -> None:
         elarion = unit_elarion__zero_stats
@@ -441,7 +444,7 @@ class TestHarmoniousSoul:
         elarion.effects.add(HarmoniousSoul(owner=elarion))
         for _ in range(5):
             state_no_procs__st.bus.emit(UnitDestroyed(entity=enemy))
-        buff = elarion.effects.get("harmonious_soul")
+        buff = elarion.effects.get(HarmoniousSoulBuff)
         assert buff is not None
         assert buff.stacks == 5
 
@@ -451,7 +454,7 @@ class TestHarmoniousSoul:
         elarion.effects.add(HarmoniousSoul(owner=elarion))
         for _ in range(5):
             state_no_procs__st.bus.emit(UnitDestroyed(entity=enemy))
-        buff = elarion.effects.get("harmonious_soul")
+        buff = elarion.effects.get(HarmoniousSoulBuff)
         assert buff is not None
 
         state_no_procs__st.advance_time(4.999)
@@ -472,7 +475,7 @@ class TestHarmoniousSoul:
 
         state_no_procs__st.advance_time(4.0)
         state_no_procs__st.bus.emit(UnitDestroyed(entity=enemy))  # t=4, fuse → stacks=2, expiry=t+5=9
-        buff = elarion.effects.get("harmonious_soul")
+        buff = elarion.effects.get(HarmoniousSoulBuff)
         assert buff is not None
         assert buff.stacks == 2
 
@@ -486,7 +489,7 @@ class TestHarmoniousSoul:
         assert buff.stacks == 1
 
         state_no_procs__st.advance_time(0.003)  # t≈14.002, crosses t=14: stacks=0 → buff removed
-        assert not elarion.effects.has("harmonious_soul")
+        assert not elarion.effects.has(HarmoniousSoulBuff)
 
     def test_max_stacks_capped_at_10(self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion) -> None:
         elarion = unit_elarion__zero_stats
@@ -494,6 +497,6 @@ class TestHarmoniousSoul:
         elarion.effects.add(HarmoniousSoul(owner=elarion))
         for _ in range(15):
             state_no_procs__st.bus.emit(UnitDestroyed(entity=enemy))
-        buff = elarion.effects.get("harmonious_soul")
+        buff = elarion.effects.get(HarmoniousSoulBuff)
         assert buff is not None
         assert buff.stacks == 10

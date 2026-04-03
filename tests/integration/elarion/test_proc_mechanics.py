@@ -18,7 +18,7 @@ Spirit proc: proc_chance = spirit / (1 + spirit).
 
 from collections.abc import Callable
 
-from fellowship_sim.base_classes import Entity, State
+from fellowship_sim.base_classes import Enemy, State
 from fellowship_sim.base_classes.events import (
     AbilityCastSuccess,
     ResourceSpent,
@@ -26,6 +26,7 @@ from fellowship_sim.base_classes.events import (
 )
 from fellowship_sim.base_classes.stats import RawStatsFromPercents
 from fellowship_sim.elarion.effect import (
+    CelestialImpetusAura,
     CelestialImpetusProc,
     ImpendingHeartseeker,
     LunarlightMarkEffect,
@@ -43,49 +44,45 @@ class TestCelestialImpetus:
         """At t=0, CI proc_chance=0 → AbilityCastSuccess on FocusedShot does not gain a stack."""
         state = state_no_procs__st
         elarion = unit_elarion__zero_stats
-        elarion.effects.add(CelestialImpetusProc(owner=elarion))
-        ci = elarion.effects.get("celestial_impetus")
-        assert isinstance(ci, CelestialImpetusProc)
+        elarion.effects.add(CelestialImpetusAura(owner=elarion))
 
         state.bus.emit(AbilityCastSuccess(ability=elarion.focused_shot, owner=elarion, target=state.enemies[0]))
         state.advance_time(0.0)
 
-        assert ci.stacks == 0
+        assert elarion.celestial_impetus_stacks == 0
 
     def test_procs_after_full_interval(self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion) -> None:
         """At t=30 (haste=0, PPM=2): proc_chance=1.0 → stack gained on FocusedShot cast."""
         state = state_no_procs__st
         elarion = unit_elarion__zero_stats
-        elarion.effects.add(CelestialImpetusProc(owner=elarion))
-        ci = elarion.effects.get("celestial_impetus")
-        assert isinstance(ci, CelestialImpetusProc)
+        elarion.effects.add(CelestialImpetusAura(owner=elarion))
+        ci_aura = elarion.effects.get(CelestialImpetusAura)
+        assert isinstance(ci_aura, CelestialImpetusAura)
 
         # First cast at t=0: sets last_attempt_time, no proc (elapsed=0)
         state.bus.emit(AbilityCastSuccess(ability=elarion.focused_shot, owner=elarion, target=state.enemies[0]))
         state.advance_time(0.0)
-        assert ci.stacks == 0
+        assert elarion.celestial_impetus_stacks == 0
 
         state.advance_time(30.0)
 
         # Second cast at t=30: proc_chance = 30/30 = 1.0 → procs
         state.bus.emit(AbilityCastSuccess(ability=elarion.focused_shot, owner=elarion, target=state.enemies[0]))
         state.advance_time(0.0)
-        assert ci.stacks == 1
+        assert elarion.celestial_impetus_stacks == 1
 
     def test_haste_scales_proc_interval(
         self, state_no_procs__st: State, setup_hasted_elarion: Callable[..., Elarion]
     ) -> None:
         """With haste=0.5: effective_ppm=3.0 → proc_interval=20s → proc at t=20."""
         elarion = setup_hasted_elarion(haste=0.5)
-        elarion.effects.add(CelestialImpetusProc(owner=elarion))
-        ci = elarion.effects.get("celestial_impetus")
-        assert isinstance(ci, CelestialImpetusProc)
+        elarion.effects.add(CelestialImpetusAura(owner=elarion))
 
         state_no_procs__st.bus.emit(
             AbilityCastSuccess(ability=elarion.focused_shot, owner=elarion, target=state_no_procs__st.enemies[0])
         )
         state_no_procs__st.advance_time(0.0)
-        assert ci.stacks == 0
+        assert elarion.celestial_impetus_stacks == 0
 
         state_no_procs__st.advance_time(20.0)
 
@@ -93,7 +90,7 @@ class TestCelestialImpetus:
             AbilityCastSuccess(ability=elarion.focused_shot, owner=elarion, target=state_no_procs__st.enemies[0])
         )
         state_no_procs__st.advance_time(0.0)
-        assert ci.stacks == 1
+        assert elarion.celestial_impetus_stacks == 1
 
     def test_stack_consumed_on_celestial_shot(
         self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion
@@ -101,32 +98,26 @@ class TestCelestialImpetus:
         """CelestialShot with 1 CI stack → stack consumed → main_target_mark_count marks on target."""
         state = state_no_procs__st
         elarion = unit_elarion__zero_stats
-        elarion.effects.add(CelestialImpetusProc(owner=elarion))
-        ci = elarion.effects.get("celestial_impetus")
-        assert isinstance(ci, CelestialImpetusProc)
-        ci.stacks = 1
+
+        main_target_mark_count = 3
+        elarion.effects.add(
+            CelestialImpetusProc(
+                owner=elarion,
+                main_target_mark_count=main_target_mark_count,
+                triggers_impending_barrage=False,
+            )
+        )
+        assert elarion.celestial_impetus_stacks == 1
 
         state.bus.emit(AbilityCastSuccess(ability=elarion.celestial_shot, owner=elarion, target=state.enemies[0]))
         state.advance_time(0.0)
 
-        assert ci.stacks == 0
-        mark = state.enemies[0].effects.get("lunarlight_mark")
+        assert elarion.celestial_impetus_stacks == 0
+
+        mark = state.enemies[0].effects.get(LunarlightMarkEffect)
         assert mark is not None
         assert isinstance(mark, LunarlightMarkEffect)
-        assert mark.stacks == ci.main_target_mark_count
-
-    def test_no_stack_consumed_when_no_stacks(
-        self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion
-    ) -> None:
-        """CelestialShot with 0 CI stacks → no marks applied."""
-        state = state_no_procs__st
-        elarion = unit_elarion__zero_stats
-        elarion.effects.add(CelestialImpetusProc(owner=elarion))
-
-        state.bus.emit(AbilityCastSuccess(ability=elarion.celestial_shot, owner=elarion, target=state.enemies[0]))
-        state.advance_time(0.0)
-
-        assert state.enemies[0].effects.get("lunarlight_mark") is None
+        assert mark.stacks == main_target_mark_count
 
     def test_applies_impending_heartseeker_when_talented(
         self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion
@@ -134,11 +125,17 @@ class TestCelestialImpetus:
         """CI with triggers_impending_barrage=True → ImpendingHeartseeker applied on stack consumption."""
         state = state_no_procs__st
         elarion = unit_elarion__zero_stats
-        elarion.effects.add(CelestialImpetusProc(owner=elarion))
-        ci = elarion.effects.get("celestial_impetus")
-        assert isinstance(ci, CelestialImpetusProc)
-        ci.triggers_impending_barrage = True
-        ci.stacks = 1
+        elarion.effects.add(CelestialImpetusAura(owner=elarion))
+
+        main_target_mark_count = 3
+        elarion.effects.add(
+            CelestialImpetusProc(
+                owner=elarion,
+                main_target_mark_count=main_target_mark_count,
+                triggers_impending_barrage=True,
+            )
+        )
+        assert elarion.celestial_impetus_stacks == 1
 
         elarion.heartseeker_barrage.cooldown = 20.0
         elarion.heartseeker_barrage.charges = 0
@@ -146,10 +143,9 @@ class TestCelestialImpetus:
         state.bus.emit(AbilityCastSuccess(ability=elarion.celestial_shot, owner=elarion, target=state.enemies[0]))
         state.advance_time(0.0)  # avoid ImpendingHeartseeker expiry at t=15
 
-        assert ci.stacks == 0
+        assert elarion.celestial_impetus_stacks == 0
         assert elarion.heartseeker_barrage.cooldown == 0.0
-        ih = elarion.effects.get("impending_heartseeker")
-        assert ih is not None
+        ih = elarion.effects.get(ImpendingHeartseeker)
         assert isinstance(ih, ImpendingHeartseeker)
 
 
@@ -193,8 +189,8 @@ class TestSpiritProc:
 
     def test_does_not_fire_at_threshold(self) -> None:
         """spirit=1.0 → proc_chance=0.5; roll=0.5 >= 0.5 → no SpiritProc."""
-        enemies = [Entity()]
-        state = State(enemies=enemies, rng=SequenceRNG(values=[0.5])).activate()
+        enemies = [Enemy()]
+        state = State(enemies=enemies, rng=SequenceRNG(values=[0.5]))
         elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0, spirit_percent=1.0))
         state.character = elarion
         elarion.effects.add(SpiritEffectProc(owner=elarion))
@@ -211,8 +207,8 @@ class TestSpiritProc:
 
     def test_fires_just_below_threshold(self) -> None:
         """spirit=1.0 → proc_chance=0.5; roll=0.499 < 0.5 → SpiritProc emitted."""
-        enemies = [Entity()]
-        state = State(enemies=enemies, rng=SequenceRNG(values=[0.499])).activate()
+        enemies = [Enemy()]
+        state = State(enemies=enemies, rng=SequenceRNG(values=[0.499]))
         elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0, spirit_percent=1.0))
         state.character = elarion
         elarion.effects.add(SpiritEffectProc(owner=elarion))
@@ -233,8 +229,8 @@ class TestStartstrikersAscent:
 
     def test_applies_impending_on_spirit_proc(self) -> None:
         """SpiritProc emitted + startstrikers roll < 0.50 → ImpendingHeartseeker applied."""
-        enemies = [Entity()]
-        state = State(enemies=enemies, rng=SequenceRNG(values=[0.0])).activate()  # roll: 0.0 < 0.5 → procs
+        enemies = [Enemy()]
+        state = State(enemies=enemies, rng=SequenceRNG(values=[0.0]))  # roll: 0.0 < 0.5 → procs
         elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0))
         state.character = elarion
         elarion.effects.add(StarstrikersAscentLegendary(owner=elarion))
@@ -245,14 +241,14 @@ class TestStartstrikersAscent:
         state.advance_time(0.0)
 
         assert elarion.heartseeker_barrage.cooldown == 0.0
-        ih = elarion.effects.get("impending_heartseeker")
+        ih = elarion.effects.get(ImpendingHeartseeker)
         assert ih is not None
         assert isinstance(ih, ImpendingHeartseeker)
 
     def test_does_not_apply_impending_when_roll_misses(self) -> None:
         """SpiritProc emitted + startstrikers roll >= 0.50 → no ImpendingHeartseeker."""
-        enemies = [Entity()]
-        state = State(enemies=enemies, rng=SequenceRNG(values=[0.5])).activate()  # at threshold → no proc
+        enemies = [Enemy()]
+        state = State(enemies=enemies, rng=SequenceRNG(values=[0.5]))  # at threshold → no proc
         elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0))
         state.character = elarion
         elarion.effects.add(StarstrikersAscentLegendary(owner=elarion))
@@ -260,4 +256,4 @@ class TestStartstrikersAscent:
         state.bus.emit(SpiritProc(ability=elarion.celestial_shot, owner=elarion, resource_amount=15))
         state.advance_time(0.0)
 
-        assert elarion.effects.get("impending_heartseeker") is None
+        assert elarion.effects.get(ImpendingHeartseeker) is None

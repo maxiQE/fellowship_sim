@@ -42,21 +42,60 @@ if TYPE_CHECKING:
 
 @dataclass(kw_only=True, repr=False)
 class CelestialImpetusProc(Effect):
-    """Permanent aura on Elarion tracking Celestial Impetus charges.
+    """Celestial Impetus: on celestial shot, apply 3 marks to target."""
 
-    - Each Focused Shot cast adds one charge (up to max_stacks), gated by RealPPM (base 2, haste-scaled).
-    - Each Celestial Shot cast with a charge applies main_target_mark_count LunarlightMark stacks
-      to the main target and consumes one charge.
+    owner: "Elarion" = field(init=True)
+
+    name: str = field(default="celestial_impetus_proc", init=False)
+    max_stacks: int = field(default=2, init=False)
+    duration: float = field(default=15.0, init=False)
+
+    main_target_mark_count: int = field(init=True)
+    triggers_impending_barrage: bool = field(init=True)
+
+    def on_add(self) -> None:
+        bus = get_state().bus
+        bus.subscribe(AbilityCastSuccess, self._on_ability_cast, owner=self)
+
+    def _on_ability_cast(self, event: AbilityCastSuccess) -> None:
+        state = get_state()
+        if isinstance(event.ability, CelestialShot) and self.stacks > 0:
+            target = event.target
+            state.schedule(
+                time_delay=0.0,
+                callback=GenericTimedEvent(
+                    name="celestial_impetus consume stack", callback=lambda: self._consume_stack(target)
+                ),
+            )
+            logger.trace(f"CI: consume-stack scheduled ({self.stacks} stacks → {target})")
+
+    def _consume_stack(self, target: Entity) -> None:
+        logger.debug(f"CI stack consumed: {self.main_target_mark_count} marks → {target}")
+        target.effects.add(LunarlightMarkEffect(owner=self.owner, stacks=self.main_target_mark_count))
+
+        if self.triggers_impending_barrage:
+            self.owner.effects.add(ImpendingHeartseeker(owner=self.owner))
+            logger.debug(f"CI: Impending Heartseeker applied to {self.owner}")
+
+        self.stacks -= 1
+        if self.stacks == 0:
+            self.remove()
+
+
+@dataclass(kw_only=True, repr=False)
+class CelestialImpetusAura(Effect):
+    """Permanent aura on Elarion: gain CelestialImpetusProc on focused shot.
+
+    - Each Focused Shot cast may one charge of CIProc, gated by RealPPM (base 2, haste-scaled).
     """
 
     owner: "Elarion" = field(init=True)
 
-    name: str = field(default="celestial_impetus", init=False)
-    stacks: int = field(default=0, init=False)
-    max_stacks: int = field(default=2, init=False)
+    name: str = field(default="celestial_impetus_aura", init=False)
 
     main_target_mark_count: int = field(default=3, init=False)
     triggers_impending_barrage: bool = field(default=False, init=False)
+
     real_ppm: RealPPM = field(init=False)
 
     def __post_init__(self) -> None:
@@ -72,35 +111,14 @@ class CelestialImpetusProc(Effect):
         bus.subscribe(AbilityCastSuccess, self._on_ability_cast, owner=self)
 
     def _on_ability_cast(self, event: AbilityCastSuccess) -> None:
-        state = get_state()
-        if isinstance(event.ability, FocusedShot):
-            if self.stacks < self.max_stacks and self.real_ppm.check():
-                state.schedule(
-                    time_delay=0.0,
-                    callback=GenericTimedEvent(name="celestial_impetus gain stack", callback=self._gain_stack),
+        if isinstance(event.ability, FocusedShot) and self.real_ppm.check():
+            self.owner.effects.add(
+                CelestialImpetusProc(
+                    owner=self.owner,
+                    main_target_mark_count=self.main_target_mark_count,
+                    triggers_impending_barrage=self.triggers_impending_barrage,
                 )
-                logger.trace(f"CI: gain-stack scheduled (currently {self.stacks}/{self.max_stacks})")
-        elif isinstance(event.ability, CelestialShot) and self.stacks > 0:
-            target = event.target
-            state.schedule(
-                time_delay=0.0,
-                callback=GenericTimedEvent(
-                    name="celestial_impetus consume stack", callback=lambda: self._consume_stack(target)
-                ),
             )
-            logger.trace(f"CI: consume-stack scheduled ({self.stacks} stacks → {target})")
-
-    def _gain_stack(self) -> None:
-        self.stacks += 1
-        logger.debug(f"CI stack gained (now {self.stacks}/{self.max_stacks})")
-
-    def _consume_stack(self, target: Entity) -> None:
-        logger.debug(f"CI stack consumed: {self.main_target_mark_count} marks → {target}")
-        target.effects.add(LunarlightMarkEffect(owner=self.owner, stacks=self.main_target_mark_count))
-        self.stacks -= 1
-        if self.triggers_impending_barrage:
-            self.owner.effects.add(ImpendingHeartseeker(owner=self.owner))
-            logger.debug(f"CI: Impending Heartseeker applied to {self.owner}")
 
 
 @dataclass(kw_only=True, repr=False)

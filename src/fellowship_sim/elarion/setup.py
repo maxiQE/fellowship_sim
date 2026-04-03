@@ -9,6 +9,7 @@ from fellowship_sim.generic_game_logic.setup_effect import (
     GEM_COLORS,
     DefaultEffectSetup,
     GemSetupEffect,
+    RandomizePlayerPercentHPSetup,
     SetEffectSelection,
     WeaponHeroicTraitSelection,
     WeaponMasterTraitSelection,
@@ -36,7 +37,7 @@ class ElarionSetup:
 
     Attaches the fixed ability list, optional weapon ability, optional legendary,
     and default permanent effects.
-    Must be called after State(...).activate() so effects can subscribe to the bus.
+    Must be called after State(...) so effects can subscribe to the bus.
     """
 
     raw_stats: RawStats
@@ -61,6 +62,8 @@ class ElarionSetup:
     gem_power: dict[GEM_COLORS, int] | None = None
     total_gem_power: int | None = None
 
+    high_hp_uptime: float | None = field(default=None, init=True)
+
     # List of numbers of sets to optimal gem power
     # num_slots = 11
     # t4 = 480
@@ -68,7 +71,7 @@ class ElarionSetup:
     # 0-1 sets: all T3; 2 * t3 + (num_slots - 1 - 2 * num_set) * 1.35 * t3
     # 2 sets: T4 in +100%; all T3; 2 * t4 + (num_slots - 1 - 2 * num_set) * 1.35 * t3
     # 3 sets: T4 in +100%, T4 in +35%; rest T3; 2 * t4 + 1.35 * t4 + (num_slots - 2 - 2 * num_set) * 1.35 * t3
-    # 4 sets: only 3 slots; 3 T4; 2 * t4 + 2 * 1.35 *
+    # 4 sets: only 3 slots; 3 T4; 2 * t4 + 2 * 1.35 * t4
     total_gem_power_default: list[int] = field(default_factory=lambda: [5256, 4608, 3876, 2256], init=False)
     setup_effect_list: list[SetupEffect[Player]] = field(init=False)
 
@@ -89,7 +92,7 @@ class ElarionSetup:
         except ValueError as e:
             raise ValueError(f"ElarionSetup configuration error: {e}") from e  # noqa: TRY003
 
-    def _validate_inputs(self) -> None:
+    def _validate_inputs(self) -> None:  # noqa: C901
         if self.weapon_ability is not None and self.weapon_ability not in get_args(WeaponName):
             raise ValueError(f"invalid weapon_ability {self.weapon_ability!r}; must be one of {get_args(WeaponName)}")  # noqa: TRY003
         if self.legendary is not None and self.legendary not in get_args(ElarionLegendaryName):
@@ -110,6 +113,10 @@ class ElarionSetup:
             invalid_sets = [s for s in self.sets if s not in get_args(SetEffectName)]
             if invalid_sets:
                 raise ValueError(f"invalid sets {invalid_sets!r}; must be one of {get_args(SetEffectName)}")  # noqa: TRY003
+        if self.high_hp_uptime is not None and not (0 <= self.high_hp_uptime <= 1.0):
+            raise ValueError(  # noqa: TRY003
+                f"invalid high_hp_uptime argument: {self.high_hp_uptime}; the value should be between 0.0 and 1.0"
+            )
 
     def _build_setup_effect_list(self, *, resolved_gem_power: int) -> list[SetupEffect[Player]]:
         setup_effects: list[SetupEffect[Player]] = [
@@ -136,7 +143,19 @@ class ElarionSetup:
             setup_effects.append(GemSetupEffect(gem_power=self.gem_power, total_gem_power=resolved_gem_power))
         if self.sets is not None:
             setup_effects.append(SetEffectSelection(sets=self.sets))
+        if self.high_hp_uptime is not None:
+            setup_effects.append(RandomizePlayerPercentHPSetup(high_hp_uptime=self.high_hp_uptime))
         return setup_effects
+
+    def __str__(self) -> str:
+        # create a temporary state
+        state = State()
+        elarion = self.finalize(state)
+        stats = f"{100 * elarion.stats.crit_percent:<4.2f}%, {100 * elarion.stats.expertise_percent:<4.2f}%, {100 * elarion.stats.haste_percent:<4.2f}%, {100 * elarion.stats.spirit_percent:<4.2f}%"
+        derived = (
+            f"S_proc={100 * elarion.stats.spirit_proc_chance:<4.2f}, crit_mult={elarion.stats.crit_multiplier:<4.2f}"
+        )
+        return "\n".join([stats, derived] + [str(elem) for elem in self.setup_effect_list[2:]])
 
     def finalize(self, state: State) -> Elarion:
         elarion = Elarion(raw_stats=self.raw_stats, focus=self.initial_focus)
@@ -168,7 +187,7 @@ def create_elarion(
 ) -> Elarion:
     """One-shot factory: build a simulation-ready Elarion from stats.
 
-    Requires State(...).activate() to have been called first.
+    Requires State(...) to have been called first.
 
     Args:
         raw_stats:            Character stats (use RawStatsFromPercents or RawStatsFromScores).

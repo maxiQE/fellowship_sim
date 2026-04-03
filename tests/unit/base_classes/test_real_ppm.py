@@ -2,7 +2,7 @@
 
 import pytest
 
-from fellowship_sim.base_classes import Entity, State
+from fellowship_sim.base_classes import Enemy, State
 from fellowship_sim.base_classes.real_ppm import RealPPM
 from fellowship_sim.base_classes.stats import RawStatsFromPercents
 from fellowship_sim.elarion.entity import Elarion
@@ -28,8 +28,9 @@ def _setup_rppm(
     crit: float = 0.0,
     rng_value: float = 0.0,
 ) -> tuple[RealPPM, State]:
-    entity = Entity()
-    state = State(enemies=[entity], rng=FixedRNG(rng_value)).activate()
+    entity = Enemy()
+    state = State(enemies=[entity], rng=FixedRNG(rng_value))
+    state.information.delay_since_last_fight = None
     player = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0, haste_percent=haste, crit_percent=crit))
     state.character = player
     rppm = RealPPM(

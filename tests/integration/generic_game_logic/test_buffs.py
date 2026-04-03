@@ -6,7 +6,7 @@ the stat pipeline and event bus.
 
 import pytest
 
-from fellowship_sim.base_classes import Entity, State
+from fellowship_sim.base_classes import Enemy, State
 from fellowship_sim.base_classes.events import UltimateCast
 from fellowship_sim.base_classes.stats import RawStatsFromPercents
 from fellowship_sim.elarion.entity import Elarion
@@ -20,8 +20,8 @@ class TestSpiritOfHeroism:
     @pytest.fixture
     def state_and_elarion(self) -> tuple[State, Elarion]:
         """Single enemy state, Elarion with no setup effects applied."""
-        enemy = Entity()
-        state = State(enemies=[enemy], rng=FixedRNG(value=0.99)).activate()
+        enemy = Enemy()
+        state = State(enemies=[enemy], rng=FixedRNG(value=0.99))
         elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0))
         state.character = elarion
         return state, elarion
@@ -138,8 +138,8 @@ class TestSpiritOfHeroismAura:
     @pytest.fixture
     def state_and_elarion(self) -> tuple[State, Elarion]:
         """Single enemy state, Elarion with SpiritOfHeroismAura manually added."""
-        enemy = Entity()
-        state = State(enemies=[enemy], rng=FixedRNG(value=0.99)).activate()
+        enemy = Enemy()
+        state = State(enemies=[enemy], rng=FixedRNG(value=0.99))
         elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0))
         state.character = elarion
         elarion.effects.add(SpiritOfHeroismAura(owner=elarion))
@@ -158,5 +158,5 @@ class TestSpiritOfHeroismAura:
             )
         )
 
-        assert elarion.effects.has("spirit_of_heroism")
+        assert elarion.effects.has(SpiritOfHeroism)
         assert elarion.stats.haste_percent == pytest.approx(haste_before + 0.30)

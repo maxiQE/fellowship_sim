@@ -16,6 +16,7 @@ class CastReturnCode(Enum):
     OK = "ok"
     ON_COOLDOWN = "on_cooldown"
     INSUFFICENT_RESOURCES = "insufficient_resources"
+    ULTIMATE_FORBIDDEN = "ultimate_forbidden_by_state_information"
 
 
 # ---------------------------------------------------------------------------
@@ -73,7 +74,6 @@ class Ability(Generic[TCharacter]):  # noqa: UP046
         self.charges = self.initial_charges
 
     def __str__(self) -> str:
-
         return re.sub(r"(?<=[a-z])(?=[A-Z])", " ", type(self).__name__)
 
     def __repr__(self) -> str:
@@ -133,10 +133,14 @@ class Ability(Generic[TCharacter]):  # noqa: UP046
 
     @can_cast_check
     def _check_spirit(self) -> CastReturnCode:
+        from fellowship_sim.base_classes.state import get_state
+
         if not self.is_ultimate_ability:
             return CastReturnCode.OK
         if self.owner.spirit_points < self.spirit_cost:
             return CastReturnCode.INSUFFICENT_RESOURCES
+        if not get_state().information.is_ult_authorized:
+            return CastReturnCode.ULTIMATE_FORBIDDEN
         return CastReturnCode.OK
 
     def can_cast(self) -> bool:

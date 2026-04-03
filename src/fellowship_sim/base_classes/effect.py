@@ -172,11 +172,14 @@ class EffectCollection:
         self._effects: dict[str, Effect] = {}
         self._entity: Entity | None = None
 
-    def get(self, name: str) -> Effect | None:
-        return self._effects.get(name)
+    def get[T: Effect](self, effect_type: type[T]) -> T | None:
+        for effect in self._effects.values():
+            if isinstance(effect, effect_type):
+                return effect
+        return None
 
-    def has(self, name: str) -> bool:
-        return name in self._effects
+    def has[T: Effect](self, effect_type: type[T]) -> bool:
+        return any(isinstance(e, effect_type) for e in self._effects.values())
 
     def add(self, effect: Effect) -> None:
         existing = self._effects.get(effect.name)

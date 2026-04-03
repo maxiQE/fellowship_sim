@@ -3,6 +3,7 @@
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
+from fellowship_sim.base_classes import Player
 from fellowship_sim.base_classes.effect import Buff, Effect
 from fellowship_sim.base_classes.events import UltimateCast
 from fellowship_sim.base_classes.state import get_state
@@ -11,6 +12,7 @@ from fellowship_sim.base_classes.stats import (
     MainStatAdditiveMultiplierCharacter,
     StatModifier,
 )
+from fellowship_sim.generic_game_logic.weapon_traits import SapphireAurastonePulse
 
 if TYPE_CHECKING:
     from fellowship_sim.base_classes.events import UltimateCast
@@ -71,7 +73,7 @@ class SpiritOfHeroism(Buff):
             self.owner.effects.add(SapphireAurastonePulse(trait_level=self.sapphire_aurastone_level, owner=self.owner))
 
     def on_remove(self) -> None:
-        pulse = self.owner.effects.get("sapphire_aurastone_pulse")
+        pulse = self.owner.effects.get(SapphireAurastonePulse)
         if pulse is not None:
             pulse.remove()
         super().on_remove()
@@ -122,3 +124,55 @@ class BaseCritPercent(Buff):
         from fellowship_sim.base_classes import CritPercentAdditive
 
         return [CritPercentAdditive(value=self.base_crit_percent)]
+
+
+@dataclass(kw_only=True, repr=False)
+class RandomizePlayerPercentHP(Effect):
+    """Randomly shift player HP from 100% to low_hp_percent.
+
+    This enables effects which depend on player HP.
+    """
+
+    owner: Player
+
+    name: str = field(default="randomize_player_percent_hp", init=False)
+
+    high_hp_uptime: float = field(default=0.80, init=True)
+
+    low_hp_percent: float = field(default=0.70, init=True)
+
+    def __post_init__(self) -> None:
+        self.schedule_set_hp(to_high=False)
+
+    def set_hp(self, to_high: bool) -> None:
+        if to_high:
+            self.owner.percent_hp = 1.0
+        else:
+            self.owner.percent_hp = self.low_hp_percent
+
+        self.owner._recalculate_stats()
+
+        self.schedule_set_hp(to_high=not to_high)
+
+    def schedule_set_hp(self, to_high: bool) -> None:
+        from fellowship_sim.base_classes.state import get_state
+        from fellowship_sim.base_classes.timed_events import GenericTimedEvent
+
+        state = get_state()
+
+        base = sum(state.rng.random() for _ in range(6))  # mean = 3
+        if to_high:
+            # Low-HP period duration: mean = 3 s, no scaling needed
+            time_delay = base
+        else:
+            # High-HP period duration: mean = 3 * high_hp_uptime / (1 - high_hp_uptime)
+            scale = self.high_hp_uptime / (1.0 - self.high_hp_uptime)
+            time_delay = base * scale
+
+        state.schedule(
+            time_delay=time_delay,
+            callback=GenericTimedEvent(
+                name=f"set_hp_{'high' if to_high else 'low'}",
+                callback=lambda: self.set_hp(to_high=to_high),
+            ),
+        )

@@ -3,6 +3,7 @@ from dataclasses import dataclass, field
 from loguru import logger
 
 from fellowship_sim.base_classes import Ability, Player
+from fellowship_sim.elarion.effect import CelestialImpetusProc
 
 from .ability import (
     CelestialShot,
@@ -46,6 +47,11 @@ class Elarion(Player):
     event_horizon: "EventHorizon" = field(init=False)
     skystrider_supremacy: "SkystriderSupremacy" = field(init=False)
 
+    @property
+    def celestial_impetus_stacks(self) -> int:
+        ci_proc_effect = self.effects.get(CelestialImpetusProc)
+        return ci_proc_effect.stacks if ci_proc_effect is not None else 0
+
     def __str__(self) -> str:
         spirit_info = f"spirit={self.spirit_points}/{self.max_spirit_points}"
         if self.spirit_points >= self.spirit_ability_cost:
@@ -53,8 +59,10 @@ class Elarion(Player):
         return f"Elarion(focus={self.focus:.1f}, {spirit_info}, effects={len(self.effects)})"
 
     def _tick(self, dt: float) -> None:
+        super()._tick(dt)
+
         gain = self.focus_regen_rate * (1 + self.stats.haste_percent) * dt
-        self.focus = min(self.focus + gain, self.max_focus)
+        self._change_focus(gain)
         logger.trace(f"focus regen: +{gain:.2f} -> {self.focus:.1f}/{self.max_focus}")
 
     def __post_init__(self) -> None:

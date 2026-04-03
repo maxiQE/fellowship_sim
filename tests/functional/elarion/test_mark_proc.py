@@ -1,6 +1,6 @@
-from fellowship_sim.base_classes import AbilityDamage, AbilityPeriodicDamage, Entity, State
+from fellowship_sim.base_classes import AbilityDamage, AbilityPeriodicDamage, Enemy, State, StateInformation
 from fellowship_sim.base_classes.stats import RawStatsFromPercents
-from fellowship_sim.elarion.effect import CelestialImpetusProc, LunarlightMarkEffect
+from fellowship_sim.elarion.effect import LunarlightMarkEffect
 from fellowship_sim.elarion.setup import ElarionSetup
 from fellowship_sim.generic_game_logic.weapon_traits import AmethystSplintersDoT, Kindling, KindlingDoT
 from tests.conftest import SequenceRNG
@@ -12,9 +12,9 @@ class TestDoTsCanClearMarks:
     def test_amethyst_splinters_procs_marks(self) -> None:
         """Amethyst splinters DOT triggers marks."""
         state = State(
-            enemies=[Entity()],
+            enemies=[Enemy()],
             rng=SequenceRNG(values=[0.0, 1.0]),  # proc mark -> not a crit -> proc mark -> not a crit
-        ).activate()
+        )
         target = state.enemies[0]
         setup = ElarionSetup(
             raw_stats=RawStatsFromPercents(
@@ -51,11 +51,11 @@ class TestDoTsCanClearMarks:
         )
         elarion.wait(0.1)
 
-        assert target.effects.has(AmethystSplintersDoT.name)
+        assert target.effects.has(AmethystSplintersDoT)
 
         elarion.wait(8)
 
-        assert not target.effects.has(AmethystSplintersDoT.name)
+        assert not target.effects.has(AmethystSplintersDoT)
 
         # all ticks cleared a mark
         assert len(periodic_damage) == 4
@@ -64,11 +64,11 @@ class TestDoTsCanClearMarks:
     def test_kindle_procs_marks(self) -> None:
         """Kindle DOT triggers marks."""
         state = State(
-            enemies=[Entity()],
+            enemies=[Enemy()],
             rng=SequenceRNG(
                 values=[0.0] + [1.0, 0.0, 1.0, 1.0] * 3
             ),  # proc kindle from artificial event -> (don't crit on kindle dot -> proc mark -> don't crit on salvo -> don't proc kindling aura from salvo) x 3
-        ).activate()
+        )
         target = state.enemies[0]
         setup = ElarionSetup(
             raw_stats=RawStatsFromPercents(
@@ -84,7 +84,8 @@ class TestDoTsCanClearMarks:
 
         start_stack_count = 10
 
-        kindle: Kindling = elarion.effects.get(Kindling.name)  # ty:ignore[invalid-assignment]
+        kindle = elarion.effects.get(Kindling)
+        assert kindle is not None
         assert kindle._rppm is not None
         kindle._rppm.last_attempt_time = -10_000
 
@@ -111,11 +112,11 @@ class TestDoTsCanClearMarks:
         standard_damage: list[AbilityDamage] = []
         state.bus.subscribe(AbilityDamage, standard_damage.append)
 
-        assert target.effects.has(KindlingDoT.name)
+        assert target.effects.has(KindlingDoT)
 
         elarion.wait(20)
 
-        assert not target.effects.has(KindlingDoT.name)
+        assert not target.effects.has(KindlingDoT)
 
         # all ticks cleared a mark
         assert len(periodic_damage) == 3
@@ -128,9 +129,10 @@ class TestImmediateMarkClearingFromProcs:
     def test_celestial_shot_can_proc_marks_from_ci_proc(self) -> None:
         """Celestial Shot consumes marks placed by a Celestial Impetus proc in the same cast."""
         state = State(
-            enemies=[Entity()],
+            enemies=[Enemy()],
             rng=SequenceRNG(values=[1.0, 0.99, 1.0, 1.0, 0.0]),  # FS crit, CI gain stack, FS crit, CS crit, mark proc
-        ).activate()
+            information=StateInformation(delay_since_last_fight=None),
+        )
         target = state.enemies[0]
         setup = ElarionSetup(
             raw_stats=RawStatsFromPercents(
@@ -143,12 +145,9 @@ class TestImmediateMarkClearingFromProcs:
         )
         elarion = setup.finalize(state)
 
-        ci_aura: CelestialImpetusProc = elarion.effects.get(CelestialImpetusProc.name)  # ty:ignore[invalid-assignment]
-        assert ci_aura is not None
-
-        # initiate rPPM
+        # initiate rPPM; delay_since_last_fight=None → last_attempt_time=None → no CI roll on first cast
         elarion.focused_shot.cast(target)
-        assert ci_aura.stacks == 0
+        assert elarion.celestial_impetus_stacks == 0
 
         # shortening the wait duration here makes the test fail because the CI proc roll is at 0.99
         elarion.wait(28.5)
@@ -156,10 +155,10 @@ class TestImmediateMarkClearingFromProcs:
         # Guaranteed proc
         elarion.focused_shot.cast(target)
 
-        assert ci_aura.stacks == 1
+        assert elarion.celestial_impetus_stacks == 1
 
         elarion.celestial_shot.cast(target)
 
-        mark: LunarlightMarkEffect = target.effects.get(LunarlightMarkEffect.name)  # ty:ignore[invalid-assignment]
+        mark = target.effects.get(LunarlightMarkEffect)
         assert mark is not None
         assert mark.stacks == 2
