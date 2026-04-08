@@ -337,7 +337,7 @@ class ResurgentWinds(Effect):
         if not isinstance(event.ability, HighwindArrow):
             return
 
-        self.remove()
+        get_state().schedule(0, GenericTimedEvent(name="Remove resurgent winds", callback=self.remove))
 
 
 @dataclass(kw_only=True, repr=False)
@@ -507,7 +507,7 @@ class VolleyEffect(Effect):
     def _on_compute_cdr(self, event: ComputeCooldownReduction) -> None:
         if not isinstance(event.ability, SkystriderGrace):
             return
-        event.cda_modifiers.append(1.0)
+        event.cdrecovery_modifiers.append(1.0)
         logger.trace("Volley (Skylit Grace): Skystrider Grace CDA +1.0")
 
     def _do_tick(self) -> None:

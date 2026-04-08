@@ -1,5 +1,6 @@
 import itertools
 import re
+from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
@@ -16,24 +17,57 @@ from .stats import FinalStats, RawStats
 
 if TYPE_CHECKING:
     from .events import AbilityDamage, AbilityPeriodicDamage
+    from .stats import MutableStats
+
 
 _entity_id_counter = itertools.count(1)
 
 
 @dataclass(kw_only=True)
-class DamageTracker:
-    _by_source: dict[str, float] = field(default_factory=dict)
+class DamageRecord:
+    total: float = field(default=0.0, init=False)
+    count: int = field(default=0, init=False)
+    crits: int = field(default=0, init=False)
+    grievous_crits: int = field(default=0, init=False)
 
-    def _register_damage(self, source_name: str, amount: float) -> None:
-        self._by_source[source_name] = self._by_source.get(source_name, 0.0) + amount
+    def _add(self, event: "AbilityDamage | AbilityPeriodicDamage") -> None:
+        self.total += event.damage
+        self.count += 1
+        if event.is_crit:
+            self.crits += 1
+        if event.is_grievous_crit:
+            self.grievous_crits += 1
+
+
+@dataclass(kw_only=True)
+class DamageTracker:
+    bin_key_size: float = field(default=10.0, init=True)
+
+    _by_source: defaultdict[str, DamageRecord] = field(default_factory=lambda: defaultdict(DamageRecord), init=False)
+    _by_time_bin: defaultdict[int, defaultdict[str, DamageRecord]] = field(
+        default_factory=lambda: defaultdict(lambda: defaultdict(DamageRecord)), init=False
+    )
+
+    def _register_damage(self, event: "AbilityDamage | AbilityPeriodicDamage") -> None:
+        source_name = type(event.damage_source).__name__
+        self._by_source[source_name]._add(event)
+        self._by_time_bin[int(event.time // self.bin_key_size)][source_name]._add(event)
 
     @property
     def total(self) -> float:
-        return sum(self._by_source.values())
+        return sum(record.total for record in self._by_source.values())
 
     @property
-    def by_source(self) -> dict[str, float]:
+    def by_source(self) -> dict[str, DamageRecord]:
         return dict(self._by_source)
+
+    @property
+    def by_time_bin(self) -> dict[int, dict[str, DamageRecord]]:
+        return {k: dict(v) for k, v in self._by_time_bin.items()}
+
+    @property
+    def total_by_time_bin(self) -> dict[int, float]:
+        return {k: sum(r.total for r in v.values()) for k, v in self._by_time_bin.items()}
 
 
 @dataclass(kw_only=True)
@@ -59,7 +93,7 @@ class Entity:
 
     def _take_damage(self, event: "AbilityDamage | AbilityPeriodicDamage") -> None:
         if self.is_alive:
-            self.damage_tracker._register_damage(type(event.damage_source).__name__, event.damage)
+            self.damage_tracker._register_damage(event=event)
 
     def _tick(self, dt: float) -> None:
         pass
@@ -77,9 +111,10 @@ class Enemy(Entity):
 class Player(Entity):
     raw_stats: RawStats
 
-    healthpoints: float = field(default=300_000.0, init=False)
     stats: FinalStats = field(init=False)
-    abilities: list[Ability] = field(default_factory=list)
+
+    healthpoints: float = field(default=300_000.0, init=False)
+    abilities: list[Ability] = field(default_factory=list, init=False)
 
     spirit_points: float = field(default=0.0, init=False)
     max_spirit_points: float = field(default=100.0, init=False)
@@ -106,6 +141,12 @@ class Player(Entity):
         default=WEAPON_ABILITY_NOT_INITIALIZED, init=False
     )
 
+    def __post_init__(self) -> None:
+        super().__post_init__()
+
+        # Initialize self.stats from init field self.raw_stats
+        self._recalculate_stats()
+
     def wait(self, duration: float) -> None:
         from .state import get_state  # lazy — avoids circular import
         from .timed_events import PlayerAvailableAgain
@@ -121,7 +162,7 @@ class Player(Entity):
     def _change_spirit_points(self, change: float) -> None:
         self.spirit_points = max(0, min(self.max_spirit_points, self.spirit_points + change))
 
-    def _recalculate_stats(self) -> None:
+    def _recalculate_stats(self) -> "MutableStats":
         """Recompute stats by firing ComputeFinalStats and applying collected modifiers."""
         from .events import ComputeFinalStats
         from .state import get_state
@@ -134,6 +175,8 @@ class Player(Entity):
         self.stats = mutable.finalize()
         logger.debug(f"stats recalculated for {self}: {self.stats}")
         self._recalculate_cdr_multipliers()
+
+        return mutable
 
     def _recalculate_cdr_multipliers(self) -> None:
         """Recompute cached CDR multipliers for all abilities.

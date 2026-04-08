@@ -41,7 +41,7 @@ class DarkProphecyBuff(Buff):
 
 @dataclass(kw_only=True, repr=False)
 class DarkProphecy(Effect):
-    """Proc aura: 0.8 rPPM (haste-scaled) on damage → DarkProphecyBuff (+25% haste, 20s)."""
+    """Proc aura: 0.8 rPPM (NOT haste-scaled??) on damage → DarkProphecyBuff (+25% haste, 20s)."""
 
     owner: Player
 
@@ -52,7 +52,7 @@ class DarkProphecy(Effect):
     def __post_init__(self) -> None:
         self._rppm = RealPPM(
             base_ppm=0.8,
-            is_haste_scaled=True,
+            is_haste_scaled=False,
             is_crit_scaled=False,
             owner=self.owner,
         )
@@ -264,7 +264,6 @@ class TuzariGrace(Buff):
 
     def stat_modifiers(self) -> list[StatModifier]:
         return [HastePercentAdditive(value=0.03)]
-
 
 
 # ---------------------------------------------------------------------------

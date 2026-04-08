@@ -103,9 +103,9 @@ class TestSpiritOfHeroismModifiers:
 
             soh = elarion.effects.get(SpiritOfHeroism)
             assert elarion.effects.has(EventHorizonBuff)
-            assert soh.duration == pytest.approx(20 - 0.7 + (18 if is_level_2 else 6))
+            assert soh.duration == pytest.approx(20 + (18 if is_level_2 else 6))
 
-            elarion.wait(20 - 0.7 + (18 if is_level_2 else 6) - 0.1)
+            elarion.wait(20 + (18 if is_level_2 else 6) - 0.1)
             assert elarion.effects.has(SpiritOfHeroism)
 
             elarion.wait(0.2)

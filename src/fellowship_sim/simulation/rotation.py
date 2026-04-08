@@ -1,9 +1,9 @@
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from fellowship_sim.base_classes import Ability, Enemy, Player
+from fellowship_sim.base_classes import Ability, Enemy
 
-type RotationCallable = Callable[[Player, Enemy], bool]
+type RotationCallable = Callable[[Enemy], bool]
 
 
 @dataclass
@@ -11,16 +11,16 @@ class Optional:
     ability: Ability | RotationCallable
     condition: RotationCallable
 
-    def __call__(self, character: Player, main_target: Enemy) -> bool:
-        if self.condition(character, main_target):
+    def __call__(self, target: Enemy) -> bool:
+        if self.condition(target):
             if isinstance(self.ability, Ability):
                 if self.ability.can_cast():
-                    self.ability.cast(main_target)
+                    self.ability.cast(target)
                     return True
                 else:
                     return False
             else:
-                return self.ability(character, main_target)
+                return self.ability(target)
         else:
             return False
 
@@ -29,14 +29,14 @@ class Optional:
 class PriorityList:
     ability_list: list[Ability | RotationCallable]
 
-    def __call__(self, character: Player, main_target: Enemy) -> bool:
+    def __call__(self, target: Enemy) -> bool:
         for elem in self.ability_list:
             if isinstance(elem, Ability):
                 if elem.can_cast():
-                    elem.cast(main_target)
+                    elem.cast(target)
                     return True
             else:
-                has_cast = elem(character, main_target)
+                has_cast = elem(target)
                 if has_cast:
                     return True
 

@@ -107,7 +107,7 @@ class VoidbringersTouch(WeaponAbility):
     max_stored_damage = 42.5 * character.main_stat.
     """
 
-    base_cast_time: float = field(default=0.0, init=False)
+    base_player_downtime: float = field(default=0.0, init=False)
     base_cooldown: float = field(default=90.0, init=False)
 
     def _do_cast(self, target: Entity) -> None:
@@ -162,7 +162,7 @@ class Chronoshift(WeaponAbility):
     at 9x their normal rate (+800% CDA).
     """
 
-    base_cast_time: float = field(default=3.0, init=False)
+    base_player_downtime: float = field(default=3.0, init=False)
     base_cooldown: float = field(default=180.0, init=False)
     average_damage: float = field(default=(5192 + 6345) / 2, init=False)
     is_channel: bool = field(default=True, init=False)
@@ -178,8 +178,8 @@ class Chronoshift(WeaponAbility):
 
         haste = self.owner.stats.haste_percent
         tick_interval = self.tick_time / (1 + haste)
-        num_full_ticks = int(self.base_cast_time // tick_interval)
-        partial_ratio = (self.base_cast_time % tick_interval) / tick_interval
+        num_full_ticks = int(self.player_downtime // tick_interval)
+        partial_ratio = (self.player_downtime % tick_interval) / tick_interval
 
         logger.debug(
             "chronoshift: {} full tick(s) + partial={:.3f}, interval={:.3f}s on up to {} enemies",
@@ -199,11 +199,11 @@ class Chronoshift(WeaponAbility):
         if partial_ratio > 1e-9:
             partial_snapshot = snapshot.scale_average_damage(partial_ratio)
             state.schedule(
-                time_delay=self.base_cast_time,
+                time_delay=self.player_downtime,
                 callback=DelayedDamage(damage_source=self, callback=lambda s=partial_snapshot: self._fire_tick_all(s)),
             )
 
-        self.owner.effects.add(ChronoshiftChannelCDR(duration=self.base_cast_time, owner=self.owner))
+        self.owner.effects.add(ChronoshiftChannelCDR(duration=self.player_downtime, owner=self.owner))
 
     def _fire_tick_all(self, snapshot: SnapshotStats) -> None:
         state = get_state()
@@ -246,7 +246,6 @@ class NaturesFury(WeaponAbility):
     Main target takes +100% damage (2x multiplier).
     """
 
-    base_cast_time: float = field(default=1.5, init=False)
     base_cooldown: float = field(default=60.0, init=False)
     average_damage: float = field(default=(12_579 + 15_374) / 2, init=False)
 
@@ -303,7 +302,6 @@ class IciclesOfAnzhyr(WeaponAbility):
     Enemies bearing CurseOfAnzhyr take +200% direct damage from this ability.
     """
 
-    base_cast_time: float = field(default=0.0, init=False)
     base_cooldown: float = field(default=30.0, init=False)
     average_damage: float = field(default=(1296 + 1584) / 2, init=False)
 

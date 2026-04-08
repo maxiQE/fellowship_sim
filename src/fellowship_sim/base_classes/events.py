@@ -263,6 +263,7 @@ class ComputeCooldownReduction:
     owner: Player
     cda_modifiers: list[float] = field(default_factory=list)
     cdr_modifiers: list[float] = field(default_factory=list)
+    cdrecovery_modifiers: list[float] = field(default_factory=list)
     time: float = field(default_factory=lambda: current_state_time())
 
     def __post_init__(self) -> None:
@@ -272,7 +273,7 @@ class ComputeCooldownReduction:
         cdr_multiplier = 1
         for elem in self.cdr_modifiers:
             cdr_multiplier *= elem
-        cooldown_reduction_multiplier = (1 + sum(self.cda_modifiers)) * cdr_multiplier
+        cooldown_reduction_multiplier = (1 + sum(self.cda_modifiers)) * cdr_multiplier + sum(self.cdrecovery_modifiers)
         return cooldown_reduction_multiplier
 
 

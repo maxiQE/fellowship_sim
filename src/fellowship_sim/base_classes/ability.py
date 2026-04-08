@@ -44,9 +44,8 @@ TCharacter = TypeVar("TCharacter", bound="Player", covariant=True)
 class Ability(Generic[TCharacter]):  # noqa: UP046
     owner: TCharacter
 
-    # Static info (set per ability subclass via field(init=False))
-    base_cast_time: float
-
+    base_cast_time: float = field(default=0.0, init=False)
+    base_player_downtime: float = field(default=1.5, init=False)
     average_damage: float = field(default=0.0, init=False)
     effect_list: list[type[Effect]] = field(default_factory=list, init=False)
     # cooldown and charges parameters
@@ -84,32 +83,52 @@ class Ability(Generic[TCharacter]):  # noqa: UP046
 
         NB: on abilities without a target, it is ignored silently.
         """
-        from .state import get_state  # lazy — state.py → events.py → ability.py at module level
-        from .timed_events import PlayerAvailableAgain
+        from .state import get_state
+        from .timed_events import GenericTimedEvent, PlayerAvailableAgain
 
-        logger.trace(f"attempting cast: {self}")
+        state = get_state()
+
+        logger.trace(f"Attempting cast: {self}")
 
         result = self._can_cast()
         if result is not CastReturnCode.OK:
-            logger.warning(f"cast blocked — {self} ({result.value.replace('_', ' ')})")
+            logger.warning(f"Cast blocked — {self} ({result.value.replace('_', ' ')})")
             return result
 
-        state = get_state()
-        logger.info(f"cast: {self} at t={state.time:.3f}")
+        logger.info(f"Starting cast: {self}")
 
-        # Cache cast_time ahead of _do_cast: abilities with modified cast time can handle that inside their _do_cast
+        # cache properties to enable their modification during the _finish_cast step
         cast_time = self.cast_time
+        down_time = self.player_downtime
+
+        if cast_time == 0:
+            self._finish_cast(target)
+
+        else:
+            state.schedule(
+                time_delay=cast_time,
+                callback=GenericTimedEvent(name=f"Finish cast {self}", callback=lambda: self._finish_cast(target)),
+            )
+
+        state.schedule(time_delay=down_time, callback=PlayerAvailableAgain())
+        state.step()
+
+        return CastReturnCode.OK
+
+    def _finish_cast(self, target: "Entity") -> None:
+        """Ability has finished casting: resolve effects."""
+
+        logger.trace(f"Cast finished: {self}")
+
+        result = self._can_cast()
+        if result is not CastReturnCode.OK:
+            logger.warning(f"Cast blocked DURING FINISH CAST — {self} ({result.value.replace('_', ' ')})")
+            return
 
         self._do_cast(target)
         self._pay_cost_for_cast(target)
 
-        logger.trace(f"cast finished: {self} at t={state.time:.3f}")
-
-        # Wait until character is available again
-        state.schedule(time_delay=cast_time, callback=PlayerAvailableAgain())
-        state.step()
-
-        return CastReturnCode.OK
+        logger.trace(f"Cast fully resolved: {self}")
 
     @property
     def is_available(self) -> bool:
@@ -117,11 +136,19 @@ class Ability(Generic[TCharacter]):  # noqa: UP046
 
     @property
     def cast_time(self) -> float:
-        """Effective cast time, reduced by haste when has_hasted_cdr is True."""
+        """Effective cast time, reduced by haste unless ."""
         if self.is_channel:
             return self.base_cast_time
         else:
             return self.base_cast_time / (1 + self.owner.stats.haste_percent)
+
+    @property
+    def player_downtime(self) -> float:
+        """Time during which player cannot take another action."""
+        if self.is_channel:
+            return self.base_player_downtime
+        else:
+            return self.base_player_downtime / (1 + self.owner.stats.haste_percent)
 
     @property
     def spirit_cost(self) -> float:

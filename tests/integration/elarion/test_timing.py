@@ -15,6 +15,7 @@ import pytest
 
 from fellowship_sim.base_classes import Enemy, State
 from fellowship_sim.base_classes.events import AbilityDamage
+from fellowship_sim.base_classes.state import get_state
 from fellowship_sim.base_classes.stats import RawStatsFromPercents
 from fellowship_sim.elarion.ability import HeartseekerBarrage, Volley
 from fellowship_sim.elarion.effect import ImpendingHeartseeker, VolleyEffect
@@ -85,8 +86,9 @@ class TestHeartseekerBarrageTickCount:
         "haste,expected_ticks",
         [
             (0.0, 10),
-            (0.5, 15),
             (0.2, 12),
+            (0.5, 15),
+            (0.9, 19),
         ],
     )
     def test_tick_count(
@@ -102,6 +104,7 @@ class TestHeartseekerBarrageTickCount:
 
         elarion.heartseeker_barrage.cast(state_no_procs__st.enemies[0])
 
+        assert get_state().time == pytest.approx(2.0)
         assert len(barrage_damages) == expected_ticks
 
     @pytest.mark.parametrize(
@@ -111,6 +114,9 @@ class TestHeartseekerBarrageTickCount:
             (0.04, 13),
             (0.12, 14),
             (0.2, 15),
+            (0.44, 18),
+            (0.84, 23),
+            (0.92, 24),
         ],
     )
     def test_tick_count__with_fusillade(

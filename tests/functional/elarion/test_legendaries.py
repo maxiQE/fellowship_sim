@@ -1,8 +1,11 @@
+from dataclasses import replace
+
 import pytest
 
-from fellowship_sim.base_classes import Enemy, State
+from fellowship_sim.base_classes import AbilityDamage, Enemy, State
 from fellowship_sim.base_classes.events import SpiritProc
 from fellowship_sim.base_classes.stats import RawStatsFromPercents
+from fellowship_sim.elarion.ability import HeartseekerBarrage
 from fellowship_sim.elarion.effect import FinalCrescendo, ImpendingHeartseeker, Shimmer, VolleyEffect
 from fellowship_sim.elarion.entity import Elarion
 from fellowship_sim.elarion.setup import ElarionSetup
@@ -131,6 +134,54 @@ class TestNeckLegendary:
         state.bus.emit(SpiritProc(ability=elarion.celestial_shot, owner=elarion, resource_amount=15.0))
         assert elarion.effects.get(ImpendingHeartseeker) is None
 
+    def test_chained_neck_procs_on_barrage(self, state: State) -> None:
+        """Getting both a spirit proc and a neck proc enables elarion to chain IHB."""
+        elarion = ElarionSetup(raw_stats=replace(_ZERO_STATS, spirit_percent=0.25), legendary="Neck").finalize(state)
+        # rng = SequenceRNG(values=[])
+        # state.rng = rng
+
+        target = state.enemies[0]
+
+        barrage_damage: list[AbilityDamage] = []
+
+        def record_barrage_damage(event: AbilityDamage) -> None:
+            if isinstance(event.damage_source, HeartseekerBarrage):
+                barrage_damage.append(event)
+
+        state.bus.subscribe(AbilityDamage, record_barrage_damage)
+
+        elarion.heartseeker_barrage.cast(target)
+
+        assert isinstance(elarion.effects.get(ImpendingHeartseeker), ImpendingHeartseeker)
+        assert elarion.heartseeker_barrage.has_impending_barrage
+        assert len(barrage_damage) == 10
+        # all damage is critical -> 2 * base_damage
+        assert all(
+            elem.damage == pytest.approx(2 * elarion.heartseeker_barrage.average_damage) for elem in barrage_damage
+        )
+
+        barrage_damage = []
+        elarion.heartseeker_barrage.cast(target)
+
+        assert isinstance(elarion.effects.get(ImpendingHeartseeker), ImpendingHeartseeker)
+        assert elarion.heartseeker_barrage.has_impending_barrage
+        assert len(barrage_damage) == 10
+        assert all(
+            elem.damage == pytest.approx(2 * elarion.heartseeker_barrage.average_damage * (1 + idx * 0.1))
+            for idx, elem in enumerate(barrage_damage)
+        )
+
+        barrage_damage = []
+        elarion.heartseeker_barrage.cast(target)
+
+        assert isinstance(elarion.effects.get(ImpendingHeartseeker), ImpendingHeartseeker)
+        assert elarion.heartseeker_barrage.has_impending_barrage
+        assert len(barrage_damage) == 10
+        assert all(
+            elem.damage == pytest.approx(2 * elarion.heartseeker_barrage.average_damage * (1 + idx * 0.1))
+            for idx, elem in enumerate(barrage_damage)
+        )
+
 
 class TestCloakLegendary:
     """Cloak legendary: each HighwindArrow damage hit applies Shimmer debuff to the target."""
@@ -168,10 +219,11 @@ class TestCloakLegendary:
         elarion.highwind_arrow.cast(target)
         elarion.highwind_arrow.cast(target)
 
-        # wait for shimmer debuff to expire
-        elarion.wait(10.0)
+        # wait for shimmer debuff to expire and for hwa to recharge
+        elarion.wait(20.0)
 
         assert final_crescendo.stacks == 3
+        assert elarion.highwind_arrow.charges == 1
         assert elarion.highwind_arrow.has_final_crescendo_buff is True
 
         # no shimmer debuff present

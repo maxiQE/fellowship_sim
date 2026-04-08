@@ -3,6 +3,7 @@ import pytest
 from fellowship_sim.base_classes import Enemy, State
 from fellowship_sim.base_classes.stats import RawStatsFromPercents
 from fellowship_sim.elarion.buff import EmpoweredMultishotChargeBuff
+from fellowship_sim.elarion.effect import ResurgentWinds
 from fellowship_sim.elarion.entity import Elarion
 from fellowship_sim.elarion.setup import ElarionSetup
 from tests.conftest import FixedRNG
@@ -138,12 +139,32 @@ class TestFocusCosts:
         assert elarion.focus == pytest.approx(focus_before - 15, rel=1e-6)
 
     def test_highwind_arrow_net_cost(self, state: State, elarion: Elarion) -> None:
-        """HighwindArrow: 30 focus cost; regen during 2.0s cast = focus_regen_rate × 2.0."""
+        """HighwindArrow: 30 focus cost; regen during 2.0s cast = focus_regen_rate × 2.0.
+
+        NB: when starting from full focus, since cost occurs at the end, the effective cost is 30!"""
+        elarion.focus = 100
         focus_before = elarion.focus
 
         elarion.highwind_arrow.cast(state.enemies[0])
 
+        assert elarion.focus == pytest.approx(focus_before - 30, rel=1e-6)
+
+        elarion.focus = 80
+        focus_before = elarion.focus
+
+        elarion.highwind_arrow.cast(state.enemies[0])
         assert elarion.focus == pytest.approx(focus_before - 30 + 2 / 1.5 * 5, rel=1e-6)
+
+    def test_highwind_arrow_net_cost__resurgent_winds(self, state: State, elarion: Elarion) -> None:
+        """HighwindArrow with resurgent winds: 0 focus cost, instant cast (with GCD); regen during 1.5 GCD = 5."""
+        elarion.effects.add(ResurgentWinds(owner=elarion))
+
+        elarion.focus = 0
+        focus_before = elarion.focus
+
+        elarion.highwind_arrow.cast(state.enemies[0])
+
+        assert elarion.focus == pytest.approx(focus_before + 5, rel=1e-6)
 
     def test_volley_net_cost(self, state: State, elarion: Elarion) -> None:
         """Volley: 30 focus cost; regen during 1.5s cast = focus_regen_rate × 1.5."""
@@ -162,7 +183,7 @@ class TestFocusCosts:
 
         elarion.heartseeker_barrage.cast(state.enemies[0])
 
-        regen = 5 * (1 + elarion.stats.haste_percent) * elarion.heartseeker_barrage.base_cast_time / 1.5
+        regen = 5 * (1 + elarion.stats.haste_percent) * elarion.heartseeker_barrage.base_player_downtime / 1.5
         assert elarion.focus == pytest.approx(focus_before - 30 + regen, rel=1e-6)
 
     def test_focus_cost__five_cs_two_fs_loop(self, state: State, elarion: Elarion) -> None:

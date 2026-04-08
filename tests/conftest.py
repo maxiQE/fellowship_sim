@@ -1,5 +1,3 @@
-# Top-level fixtures shared across all test types (unit, integration, functional)
-
 from collections.abc import Callable
 
 import pytest
@@ -7,6 +5,21 @@ import pytest
 from fellowship_sim.base_classes import Enemy, State
 from fellowship_sim.base_classes.stats import RawStatsFromPercents
 from fellowship_sim.elarion.entity import Elarion
+
+# Top-level fixtures shared across all test types (unit, integration, functional)
+
+
+def pytest_addoption(parser: pytest.Parser) -> None:
+    parser.addoption("--run-slow", action="store_true", default=False, help="also run slow tests")
+
+
+def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
+    if config.getoption("--run-slow"):
+        return
+    skip_slow = pytest.mark.skip(reason="slow test — pass --run-slow to include")
+    for item in items:
+        if "slow" in item.keywords:
+            item.add_marker(skip_slow)
 
 
 class FixedRNG:

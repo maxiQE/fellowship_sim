@@ -11,7 +11,7 @@ if TYPE_CHECKING:
 # ---------------------------------------------------------------------------
 
 
-def secondary_stat_percent_from_score(score: int) -> float:
+def secondary_stat_percent_from_score(score: float) -> float:
     """Convert a secondary-stat score to a percent fraction.
 
     Affine by parts:
@@ -71,28 +71,31 @@ class MutableStats:
     """
 
     base_main_stat: float
-    crit_score: int
-    expertise_score: int
-    haste_score: int
-    spirit_score: int
+    crit_score: float
+    expertise_score: float
+    haste_score: float
+    spirit_score: float
     crit_percent: float
     expertise_percent: float
     haste_percent: float
     spirit_percent: float
     crit_multiplier: float
 
-    main_stat_additive_bonus: int = field(default=0, init=False)
+    main_stat_additive_bonus: float = field(default=0, init=False)
     main_stat_additive_multiplier: float = field(default=1.0, init=False)  # Bucket 2 !!
     main_stat_true_multiplier: float = field(default=1.0, init=False)
 
-    def finalize(self) -> FinalStats:
-        final_main_stat = (
+    @property
+    def main_stat(self) -> float:
+        return (
             (self.base_main_stat + self.main_stat_additive_bonus)
             * self.main_stat_additive_multiplier
             * self.main_stat_true_multiplier
         )
+
+    def finalize(self) -> FinalStats:
         return FinalStats(
-            main_stat=final_main_stat,
+            main_stat=self.main_stat,
             crit_percent=self.crit_percent + secondary_stat_percent_from_score(self.crit_score),
             expertise_percent=self.expertise_percent + secondary_stat_percent_from_score(self.expertise_score),
             haste_percent=self.haste_percent + secondary_stat_percent_from_score(self.haste_score),
@@ -283,12 +286,12 @@ class RawStatsFromPercents(RawStats):
 class RawStatsFromScores(RawStats):
     """RawStats expressed as secondary-stat scores; converted to percents via the rating curve."""
 
-    crit_score: int = 0
-    expertise_score: int = 0
-    haste_score: int = 0
-    spirit_score: int = 0
+    crit_score: float = 0
+    expertise_score: float = 0
+    haste_score: float = 0
+    spirit_score: float = 0
 
-    total_score_cap: int = field(default=4510, init=True)
+    total_score_cap: float = field(default=4510, init=True)
 
     def __post_init__(self) -> None:
         for name, val in [

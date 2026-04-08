@@ -2,43 +2,19 @@ import html as _html
 import json
 import pathlib
 import tempfile
-import typing
 import webbrowser
 
 import plotly.graph_objects as go
 
-from fellowship_sim.simulation.metrics import MeanStd, MetricsResult
+from fellowship_sim.simulation.metrics import DEFAULT_METRICS, MeanStd, Metric, ScalarMetric
 from fellowship_sim.simulation.runner import RepetitionResult
 
-# All MeanStd fields on MetricsResult, in declaration order.
-METRICS: list[str] = [name for name, hint in typing.get_type_hints(MetricsResult).items() if hint is MeanStd]
-
-_SUPPRESSED_WHEN_NO_SECONDARY: frozenset[str] = frozenset({"secondary", "secondary_dps"})
-_SUPPRESSED_WHEN_NO_TOTAL: frozenset[str] = frozenset({"total", "total_dps"})
-
 _PALETTE = ["#003f5c", "#f95d6a", "#665191", "#ffa600", "#d45087", "#2f4b7c", "#ff7c43", "#a05195"]
-_METRIC_COLORS: dict[str, str] = {m: _PALETTE[i % len(_PALETTE)] for i, m in enumerate(METRICS)}
 
 
-def _hidden_metrics(ref_result: MetricsResult) -> frozenset[str]:
-    """Return the set of metric names to omit from a figure.
+def _color_map(metrics: list[Metric]) -> dict[str, str]:
+    return {m.name: _PALETTE[i % len(_PALETTE)] for i, m in enumerate(metrics)}
 
-    Uses the same suppression rules as MetricsResult.__str__: secondary metrics
-    are hidden when secondary damage is zero; total metrics are hidden when total
-    is within 0.1% of main (i.e. there is no meaningful secondary component).
-    The reference result is always the first (setup, rotation) pair for the
-    relevant scenario.
-    """
-    hidden: set[str] = set()
-    if ref_result.secondary.mean <= 0.0:
-        hidden |= _SUPPRESSED_WHEN_NO_SECONDARY
-    show_total = (
-        ref_result.total.mean == 0.0
-        or abs(ref_result.total.mean - ref_result.main.mean) / ref_result.total.mean > 0.001
-    )
-    if not show_total:
-        hidden |= _SUPPRESSED_WHEN_NO_TOTAL
-    return frozenset(hidden)
 
 
 def scenario_figure(
@@ -46,6 +22,7 @@ def scenario_figure(
     scenario_name: str,
     setup_names: list[str],
     rotation_names: list[str],
+    metrics: list[Metric] = DEFAULT_METRICS,
 ) -> go.Figure:
     """Bar chart for a single scenario.
 
@@ -55,43 +32,43 @@ def scenario_figure(
 
     Each trace carries meta={"setup": ..., "rotation": ...} so the toggle JS can
     show/hide traces without knowing their index or order.
-    Metrics suppressed by _hidden_metrics are never added.
+    Metrics with show_on_st=False are omitted when the scenario is single-target.
     """
     pairs: list[tuple[str, str]] = [(s, r) for s in setup_names for r in rotation_names]
     ref_setup, ref_rotation = pairs[0]
-    hidden = _hidden_metrics(all_results[(scenario_name, ref_setup, ref_rotation)].metrics)
     pair_labels: list[str] = [f"{s}\n{r}" for s, r in pairs]
+
+    ref_result = all_results[(scenario_name, ref_setup, ref_rotation)].metrics
+    is_st = ref_result.is_single_target
+
+    scalar_metrics = [m for m in metrics if isinstance(m, ScalarMetric)]
+    visible_metrics = [m for m in scalar_metrics if m.show_on_st or not is_st]
+    colors = _color_map(metrics=metrics)
 
     fig = go.Figure()
     metric_legend_shown: set[str] = set()
 
-    for metric_idx, metric_name in enumerate(METRICS):
-        if metric_name in hidden:
-            continue
-        ref_mean: float = getattr(
-            all_results[(scenario_name, ref_setup, ref_rotation)].metrics, metric_name
-        ).mean
+    for metric_idx, metric in enumerate(visible_metrics):
+        ref_mean: float = ref_result.scalars[metric.name].mean
         ref = ref_mean if ref_mean != 0.0 else 1.0
 
         for setup_name, rotation_name in pairs:
-            ms: MeanStd = getattr(
-                all_results[(scenario_name, setup_name, rotation_name)].metrics, metric_name
-            )
-            show_in_legend = metric_name not in metric_legend_shown
+            ms: MeanStd = all_results[(scenario_name, setup_name, rotation_name)].metrics.scalars[metric.name]
+            show_in_legend = metric.name not in metric_legend_shown
             if show_in_legend:
-                metric_legend_shown.add(metric_name)
+                metric_legend_shown.add(metric.name)
             ratio = ms.mean / ref
             pct = (ratio - 1.0) * 100.0
             fig.add_trace(go.Bar(
-                name=metric_name,
+                name=metric.name,
                 x=[f"{setup_name}\n{rotation_name}"],
                 y=[ratio],
                 error_y={"type": "data", "array": [ms.stderr / ref], "visible": True},
                 customdata=[[f"{ms.mean:,.1f} ± {ms.stderr:,.1f}", f"{pct:+.1f}%"]],
                 hovertemplate="%{customdata[0]}<br>%{customdata[1]}<extra>%{fullData.name}</extra>",
-                legendgroup=metric_name,
+                legendgroup=metric.name,
                 showlegend=show_in_legend,
-                marker_color=_METRIC_COLORS[metric_name],
+                marker_color=colors[metric.name],
                 offsetgroup=str(metric_idx),
                 meta={"setup": setup_name, "rotation": rotation_name},
             ))
@@ -112,6 +89,7 @@ def grouped_figure(
     scenario_names: list[str],
     setup_names: list[str],
     rotation_names: list[str],
+    metrics: list[Metric] = DEFAULT_METRICS,
 ) -> go.Figure:
     """Bar chart for all scenarios combined into a single figure.
 
@@ -129,38 +107,36 @@ def grouped_figure(
     ref_setup, ref_rotation = pairs[0]
     ref_scenario = scenario_names[0]
 
+    ref_result = all_results[(ref_scenario, ref_setup, ref_rotation)].metrics
+    is_st = ref_result.is_single_target
+
+    scalar_metrics = [m for m in metrics if isinstance(m, ScalarMetric)]
+    visible_metrics = [m for m in scalar_metrics if m.show_on_st or not is_st]
+    colors = _color_map(metrics=metrics)
+
     fig = go.Figure()
     metric_legend_shown: set[str] = set()
 
-    # Suppression and global reference are both derived from the first triple.
-    hidden = _hidden_metrics(all_results[(ref_scenario, ref_setup, ref_rotation)].metrics)
-
     for scenario_name in scenario_names:
-        for metric_idx, metric_name in enumerate(METRICS):
-            if metric_name in hidden:
-                continue
-            ref_mean: float = getattr(
-                all_results[(ref_scenario, ref_setup, ref_rotation)].metrics, metric_name
-            ).mean
+        for metric_idx, metric in enumerate(visible_metrics):
+            ref_mean: float = all_results[(ref_scenario, ref_setup, ref_rotation)].metrics.scalars[metric.name].mean
             ref = ref_mean if ref_mean != 0.0 else 1.0
 
             for setup_name, rotation_name in pairs:
-                ms: MeanStd = getattr(
-                    all_results[(scenario_name, setup_name, rotation_name)].metrics, metric_name
-                )
-                show_in_legend = metric_name not in metric_legend_shown
+                ms: MeanStd = all_results[(scenario_name, setup_name, rotation_name)].metrics.scalars[metric.name]
+                show_in_legend = metric.name not in metric_legend_shown
                 if show_in_legend:
-                    metric_legend_shown.add(metric_name)
+                    metric_legend_shown.add(metric.name)
                 fig.add_trace(go.Bar(
-                    name=metric_name,
+                    name=metric.name,
                     x=[f"{scenario_name}\n{setup_name}\n{rotation_name}"],
                     y=[ms.mean / ref],
                     error_y={"type": "data", "array": [ms.stderr / ref], "visible": True},
                     customdata=[[f"{ms.mean:,.1f} ± {ms.stderr:,.1f}", f"{(ms.mean / ref - 1.0) * 100.0:+.1f}%"]],
                     hovertemplate="%{customdata[0]}<br>%{customdata[1]}<extra>%{fullData.name}</extra>",
-                    legendgroup=metric_name,
+                    legendgroup=metric.name,
                     showlegend=show_in_legend,
-                    marker_color=_METRIC_COLORS[metric_name],
+                    marker_color=colors[metric.name],
                     offsetgroup=str(metric_idx),
                     meta={"scenario": scenario_name, "setup": setup_name, "rotation": rotation_name},
                 ))
@@ -302,11 +278,13 @@ def show_comparison(
     scenario_names: list[str],
     setup_names: list[str],
     rotation_names: list[str],
+    metrics: list[Metric] = DEFAULT_METRICS,
 ) -> None:
     """Open one browser tab per scenario, each showing a bar chart for that scenario.
 
     Each tab has Setup and Rotation toggle buttons.  Bars are normalized to the
-    first (setup, rotation) pair.
+    first (setup, rotation) pair.  Metrics with show_on_st=False are omitted for
+    single-target scenarios.
     """
     pairs: list[tuple[str, str]] = [(s, r) for s in setup_names for r in rotation_names]
     pair_labels: list[str] = [f"{s}\n{r}" for s, r in pairs]
@@ -320,6 +298,7 @@ def show_comparison(
             scenario_name=scenario_name,
             setup_names=setup_names,
             rotation_names=rotation_names,
+            metrics=metrics,
         )
         plotly_html = fig.to_html(include_plotlyjs="cdn", full_html=False, div_id="main-plot")
         _open_html(_build_html(plotly_html=plotly_html, axes=axes, orig_x_labels=pair_labels))
@@ -330,6 +309,7 @@ def show_grouped_comparison(
     scenario_names: list[str],
     setup_names: list[str],
     rotation_names: list[str],
+    metrics: list[Metric] = DEFAULT_METRICS,
 ) -> None:
     """Open one browser tab showing all scenarios, setups, and rotations in a single figure.
 
@@ -354,6 +334,7 @@ def show_grouped_comparison(
         scenario_names=scenario_names,
         setup_names=setup_names,
         rotation_names=rotation_names,
+        metrics=metrics,
     )
     plotly_html = fig.to_html(include_plotlyjs="cdn", full_html=False, div_id="main-plot")
     _open_html(_build_html(plotly_html=plotly_html, axes=axes, orig_x_labels=triple_labels))

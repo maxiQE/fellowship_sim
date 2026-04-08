@@ -96,7 +96,6 @@ class ElarionAbility(Ability["Elarion"]):
 class FocusedShot(ElarionAbility):
     """1.5s cast, no CD. Deals damage. Generates 20 focus. 2 PPM CI proc."""
 
-    base_cast_time: float = field(default=1.5, init=False)
     average_damage: float = field(default=(1212 + 1481) / 2, init=False)
     focus_gain: int = field(default=20, init=False)
 
@@ -105,7 +104,6 @@ class FocusedShot(ElarionAbility):
 class CelestialShot(ElarionAbility):
     """1.5s cast, no CD. 15 focus cost. CI proc: applies 3 LunarlightMarks."""
 
-    base_cast_time: float = field(default=1.5, init=False)
     average_damage: float = field(default=(2591 + 3166) / 2, init=False)
 
     base_focus_cost: int = field(default=15, init=False)
@@ -115,7 +113,6 @@ class CelestialShot(ElarionAbility):
 class Multishot(ElarionAbility):
     """1.5s cast, no CD. 20 focus cost. Hits primary + up to num_secondary_targets enemies."""
 
-    base_cast_time: float = field(default=1.5, init=False)
     average_damage: float = field(default=(2173 + 2655) / 2, init=False)
 
     max_charges: int = field(default=5, init=False)
@@ -266,6 +263,7 @@ class HighwindArrow(ElarionAbility):
 
     base_cooldown: float = field(default=15.0, init=False)
     base_cast_time: float = field(default=2.0, init=False)
+    base_player_downtime: float = field(default=2.0, init=False)
     average_damage: float = field(default=(8370 + 10230) / 2, init=False)
     max_charges: int = field(default=3, init=False)
     initial_charges: int = field(default=3, init=False)
@@ -281,7 +279,8 @@ class HighwindArrow(ElarionAbility):
     final_crescendo_num_secondary_targets: int = field(default=7, init=False)
 
     has_resurgent_winds_buff: bool = field(default=False, init=False)
-    resurgent_winds_cast_time: float = field(default=1.5, init=False)
+    resurgent_winds_cast_time: float = field(default=0, init=False)
+    resurgent_winds_player_downtime: float = field(default=1.5, init=False)
     resurgent_winds_damage_multiplier: float = field(default=1.5, init=False)
 
     def is_empowered(self) -> bool:
@@ -307,6 +306,13 @@ class HighwindArrow(ElarionAbility):
         if self.has_resurgent_winds_buff:
             return self.resurgent_winds_cast_time / (1 + self.owner.stats.haste_percent)
         return super().cast_time
+
+    @property
+    def player_downtime(self) -> float:
+        """Overwritten: resurgent winds gives instant cast time (with GCD)."""
+        if self.has_resurgent_winds_buff:
+            return self.resurgent_winds_player_downtime / (1 + self.owner.stats.haste_percent)
+        return super().player_downtime
 
     @property
     def focus_cost(self) -> int:
@@ -378,7 +384,6 @@ class Volley(ElarionAbility):
     """
 
     base_cooldown: float = field(default=30.0, init=False)
-    base_cast_time: float = field(default=1.5, init=False)
     average_damage: float = field(default=(977 + 1195) / 2, init=False)
 
     base_focus_cost: int = field(default=30, init=False)
@@ -418,7 +423,7 @@ class HeartseekerBarrage(ElarionAbility):
     """
 
     base_cooldown: float = field(default=20.0, init=False)
-    base_cast_time: float = field(default=2.0, init=False)
+    base_player_downtime: float = field(default=2.0, init=False)
     average_damage: float = field(default=(1124 + 1373) / 2, init=False)
 
     is_channel: bool = field(default=True, init=False)
@@ -448,19 +453,27 @@ class HeartseekerBarrage(ElarionAbility):
         haste = self.owner.stats.haste_percent
         tick_interval = self.tick_time / (1 + haste)
         # Having this epsilon is necessary to ensure that breakpoints are reached exactly: it offsets the floor rounding slightly
-        epsilon = 0.01
-        num_ticks = math.floor(self.cast_time / tick_interval + epsilon)
+        epsilon = 0.001
+        num_ticks = math.floor(self.player_downtime / tick_interval + epsilon)
+
+        # shaving a slight amount off tick_interval to ensure that when player is available, all shots have been fired
+        tick_interval *= 0.99
 
         logger.debug(
             f"barrage channel start: scheduling {num_ticks} tick(s) on {target} (interval={tick_interval:.3f}s)"
         )
 
-        self._schedule_barrage_tick(
-            main_target=target,
-            tick_interval=tick_interval,
-            hit_counter=0,
-            total_count=num_ticks,
-            damage_step=damage_step,
+        def _next_barrage_tick() -> None:
+            self._schedule_barrage_tick(
+                main_target=target,
+                tick_interval=tick_interval,
+                hit_counter=0,
+                total_count=num_ticks,
+                damage_step=damage_step,
+            )
+
+        state.schedule(
+            time_delay=tick_interval, callback=GenericTimedEvent(name="barrage tick", callback=_next_barrage_tick)
         )
 
     def _schedule_barrage_tick(
@@ -528,8 +541,8 @@ class LunarlightMark(ElarionAbility):
     3 stacks to up to 11 secondary targets.
     """
 
-    base_cast_time: float = field(default=0.0, init=False)
     base_cooldown: float = field(default=30.0, init=False)
+    base_player_downtime: float = field(default=0.0, init=False)
 
     num_secondary_targets: int = field(default=11, init=False)
     mark_stacks: int = field(default=3, init=False)
@@ -579,7 +592,6 @@ class LunarlightMark(ElarionAbility):
 class LunarlightSalvo(ElarionAbility):
     """Triggered proc (no CD, no cast time). Fires when LunarlightMark procs."""
 
-    base_cast_time: float = field(default=0.0, init=False)
     average_damage: float = field(default=(2033 + 2485) / 2, init=False)
 
     max_charges: int = field(default=0, init=False)
@@ -595,7 +607,6 @@ class LunarlightExplosion(ElarionAbility):
     Deals full damage to the bearer and up to 11 additional enemies.
     """
 
-    base_cast_time: float = field(default=0.0, init=False)
     average_damage: float = field(default=(2033 + 2485) / 2, init=False)
 
     max_charges: int = field(default=0, init=False)
@@ -611,7 +622,7 @@ class LunarlightExplosion(ElarionAbility):
 class SkystriderGrace(ElarionAbility):
     """Instant cast, 120s CD. Applies SkystriderGrace buff (+30% haste, 20s)."""
 
-    base_cast_time: float = field(default=0.0, init=False)
+    base_player_downtime: float = field(default=0.0, init=False)
     base_cooldown: float = field(default=120.0, init=False)
 
     effect_list: list[type[Effect]] = field(default_factory=lambda: [SkystriderGraceBuff], init=False)
@@ -627,6 +638,7 @@ class EventHorizon(ElarionAbility):
     """
 
     base_cast_time: float = field(default=0.7, init=False)
+    base_player_downtime: float = field(default=0.7, init=False)
 
     effect_list: list[type[Effect]] = field(default_factory=lambda: [EventHorizonBuff], init=False)
 
@@ -645,7 +657,7 @@ class SkystriderSupremacy(ElarionAbility):
         empowered casts with +50% damage each.
     """
 
-    base_cast_time: float = field(default=0.0, init=False)
+    base_player_downtime: float = field(default=0.0, init=False)
     base_cooldown: float = field(default=40.0, init=False)
 
     is_fervent_supremacy: bool = field(default=False, init=False)

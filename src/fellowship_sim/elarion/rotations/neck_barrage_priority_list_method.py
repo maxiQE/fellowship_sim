@@ -18,15 +18,15 @@ class NeckBarragePriorityListMethod(Rotation):
         assert isinstance(elarion.voidbringers_touch, VoidbringersTouch)  # noqa: S101
 
         single_target_priority_list = PriorityList([
+            Optional(elarion.voidbringers_touch, lambda t: not t.effects.has(VoidbringersTouchEffect)),
             elarion.event_horizon,
             elarion.skystrider_grace,
-            Optional(elarion.voidbringers_touch, lambda c, t: not t.effects.has(VoidbringersTouchEffect)),
             elarion.skystrider_supremacy,
             elarion.lunarlight_mark,
             elarion.volley,
             elarion.heartseeker_barrage,
-            Optional(elarion.celestial_shot, lambda c, t: c.celestial_impetus_stacks >= 1),
-            Optional(elarion.multishot, lambda c, t: elarion.multishot.is_empowered()),
+            Optional(elarion.celestial_shot, lambda t: elarion.celestial_impetus_stacks >= 1),
+            Optional(elarion.multishot, lambda t: elarion.multishot.is_empowered()),
             elarion.highwind_arrow,
             elarion.multishot,
             elarion.celestial_shot,
@@ -34,24 +34,24 @@ class NeckBarragePriorityListMethod(Rotation):
         ])
 
         aoe_target_priority_list = PriorityList([
+            Optional(elarion.voidbringers_touch, lambda t: not t.effects.has(VoidbringersTouchEffect)),
             elarion.event_horizon,
             elarion.skystrider_grace,
-            Optional(elarion.voidbringers_touch, lambda c, t: not t.effects.has(VoidbringersTouchEffect)),
             elarion.skystrider_supremacy,
             elarion.lunarlight_mark,
             elarion.heartseeker_barrage,
-            Optional(elarion.celestial_shot, lambda c, t: c.celestial_impetus_stacks >= 1),
-            Optional(elarion.volley, lambda c, t: 20 >= elarion.lunarlight_mark.cooldown >= 8),
-            Optional(elarion.multishot, lambda c, t: elarion.multishot.is_empowered()),
+            Optional(elarion.celestial_shot, lambda t: elarion.celestial_impetus_stacks >= 1),
+            Optional(elarion.volley, lambda t: 20 >= elarion.lunarlight_mark.cooldown >= 8),
+            Optional(elarion.multishot, lambda t: elarion.multishot.is_empowered()),
             elarion.multishot,
             elarion.highwind_arrow,
-            elarion.multishot,
+            elarion.celestial_shot,  # better ignored actually, but on the method list
             elarion.focused_shot,
         ])
 
         if state.num_enemies >= 3:
-            while aoe_target_priority_list(elarion, main_target):
+            while aoe_target_priority_list(main_target):
                 pass
         else:
-            while single_target_priority_list(elarion, main_target):
+            while single_target_priority_list(main_target):
                 pass

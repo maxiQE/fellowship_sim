@@ -52,6 +52,7 @@ invalid-return-type = "error"
 testpaths = ["tests"]
 python_files = ["test_*.py", "integration_tests.py"]
 pythonpath = ["."]
+markers = ["slow: marks tests as slow (include with '--run-slow')"]
 
 [tool.ruff]
 target-version = "py312"

@@ -334,9 +334,9 @@ class TestEventHorizon:
         elarion.volley.charges = 0
 
         elarion.heartseeker_barrage._do_cast(state_no_procs__st.enemies[0])
-        state_no_procs__st.advance_time(0.0)
+        state_no_procs__st.advance_time(0.2)
 
-        assert elarion.volley.cooldown == pytest.approx(29.0)
+        assert elarion.volley.cooldown == pytest.approx(29.0 - 0.2)
 
     def test_focus_cost_halved(self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion) -> None:
         """EventHorizonBuff halves the focus cost of all abilities. Focus deducted synchronously."""

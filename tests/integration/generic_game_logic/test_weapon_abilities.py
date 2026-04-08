@@ -172,6 +172,7 @@ class TestChronoshift:
         cs.cast(target)
 
         cs_hits = [e for e in damage_events if e.damage_source is cs]
+        assert state.time == pytest.approx(3.0)
         assert len(cs_hits) == 2
 
     def test_fires_3_full_ticks_with_haste(self) -> None:

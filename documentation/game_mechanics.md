@@ -19,6 +19,22 @@
 ## realPPM mechanics
 
 
+## Cast checks
+
+Casts have a number of checks:
+
+- is the cast facing the right direction.
+- is the target close enough.
+- is the target visible.
+- are there sufficient resources to do the cast.
+
+These checks are done both:
+
+- at cast start; preventing a cast when conditions aren't met.
+- at cast end; cancelling an invalid cast if conditions don't remain satisfactory.
+
+
+
 ## Main stat multipliers
 
 there are three types of main stat modifiers:

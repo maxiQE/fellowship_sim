@@ -112,4 +112,4 @@ for enemy in state.enemies:
 
 logger.success("Damage breakdown for main target")
 for key, value in main_target.damage_tracker.by_source.items():
-    logger.success(f"{key} : {value:.0f}")
+    logger.success(f"{key} : {value.total:.0f}")

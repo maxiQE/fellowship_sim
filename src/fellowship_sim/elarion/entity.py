@@ -32,7 +32,7 @@ class Elarion(Player):
 
     event_horizon__reduce_focust_cost: bool = field(default=False, init=False)
 
-    abilities: list[Ability[Player]] = field(init=False)
+    abilities: list[Ability] = field(default_factory=list, init=False)
 
     lunarlight_mark: "LunarlightMark" = field(init=False)
     _lunarlight_salvo: "LunarlightSalvo" = field(init=False)

@@ -227,7 +227,7 @@ class BlessingOfTheProphetSetup(_GenericGemSetupEffectLate):
         )
 
 
-GEM_COLORS = Literal[
+GemColorName = Literal[
     "red__ruby",
     "purple__amethyst",
     "yellow__topaz",
@@ -237,7 +237,7 @@ GEM_COLORS = Literal[
 ]
 
 # NB: all gem effects have the is_level_2 keyword argument
-_GEM_EFFECTS: dict[GEM_COLORS, list[type[_GenericGemSetupEffectLate] | type[Effect]]] = {
+_GEM_EFFECTS: dict[GemColorName, list[type[_GenericGemSetupEffectLate] | type[Effect]]] = {
     "red__ruby": [
         MightOfTheMinotaur,
         ChampionsHeart,
@@ -292,16 +292,16 @@ class GemSetupEffect(SetupEffectLate[Player]):
     Power above 2640 generates a GemOvercap bonus: k * 0.005% main stat where k = power - 2640.
     """
 
-    gem_power: dict[GEM_COLORS, int]
+    gem_power: dict[GemColorName, int]
 
     total_gem_power: int = field(default=5256, init=True)
-    gem_trait_level: dict[GEM_COLORS, tuple[int, int]] = field(init=False)
+    gem_trait_level: dict[GemColorName, tuple[int, int]] = field(init=False)
     overcap_power: int = field(init=False)
 
     def __post_init__(self) -> None:
-        invalid_keys = [k for k in self.gem_power if k not in get_args(GEM_COLORS)]
+        invalid_keys = [k for k in self.gem_power if k not in get_args(GemColorName)]
         if invalid_keys:
-            raise ValueError(f"invalid gem_power keys {invalid_keys!r}; must be one of {get_args(GEM_COLORS)}")  # noqa: TRY003
+            raise ValueError(f"invalid gem_power keys {invalid_keys!r}; must be one of {get_args(GemColorName)}")  # noqa: TRY003
         total_gem_power = sum(self.gem_power.values())
         if total_gem_power > self.total_gem_power:
             raise ValueError(f"Configured gem power {total_gem_power} exceeds maximum {self.total_gem_power}")  # noqa: TRY003
@@ -318,7 +318,7 @@ class GemSetupEffect(SetupEffectLate[Player]):
 
     def __str__(self) -> str:
         trait_level_info = []
-        for gem_color in get_args(GEM_COLORS):
+        for gem_color in get_args(GemColorName):
             if gem_color not in self.gem_power:
                 continue
             num_unlocked, num_leveled = self.gem_trait_level[gem_color]

@@ -1,13 +1,15 @@
 from dataclasses import dataclass, field
 from typing import Literal, get_args
 
-from fellowship_sim.base_classes import SetupContext, SetupEffect, State
+from loguru import logger
+
+from fellowship_sim.base_classes import RawStatsFromScores, SetupContext, SetupEffect, State
 from fellowship_sim.base_classes.entity import Player
 from fellowship_sim.base_classes.stats import RawStats
 from fellowship_sim.generic_game_logic.set_effects import SetEffectName
 from fellowship_sim.generic_game_logic.setup_effect import (
-    GEM_COLORS,
     DefaultEffectSetup,
+    GemColorName,
     GemSetupEffect,
     RandomizePlayerPercentHPSetup,
     SetEffectSelection,
@@ -59,7 +61,7 @@ class ElarionSetup:
 
     sets: list[SetEffectName] | None = None
 
-    gem_power: dict[GEM_COLORS, int] | None = None
+    gem_power: dict[GemColorName, int] | None = None
     total_gem_power: int | None = None
 
     high_hp_uptime: float | None = field(default=None, init=True)
@@ -72,8 +74,10 @@ class ElarionSetup:
     # 2 sets: T4 in +100%; all T3; 2 * t4 + (num_slots - 1 - 2 * num_set) * 1.35 * t3
     # 3 sets: T4 in +100%, T4 in +35%; rest T3; 2 * t4 + 1.35 * t4 + (num_slots - 2 - 2 * num_set) * 1.35 * t3
     # 4 sets: only 3 slots; 3 T4; 2 * t4 + 2 * 1.35 * t4
-    total_gem_power_default: list[int] = field(default_factory=lambda: [5256, 4608, 3876, 2256], init=False)
+    total_gem_power_default: list[int] = field(default_factory=lambda: [5256, 4608, 3876, 3066, 2256], init=False)
     setup_effect_list: list[SetupEffect[Player]] = field(init=False)
+
+    num_sets: int | None = field(default=None, init=False)
 
     def __post_init__(self) -> None:
         num_sets = len(self.sets) if self.sets is not None else 0
@@ -85,6 +89,13 @@ class ElarionSetup:
             resolved_gem_power = self.total_gem_power_default[num_sets]
         else:
             resolved_gem_power = self.total_gem_power
+
+        if self.num_sets is not None and num_sets != self.num_sets:
+            logger.warning(
+                f"Character setup has default number of sets: {self.num_sets} but only {num_sets} were chosen."
+                " This probably indicates a mistake during setup configuration."
+                " You can remove this warning by setting num_sets = None during call."
+            )
 
         try:
             self._validate_inputs()
@@ -151,11 +162,27 @@ class ElarionSetup:
         # create a temporary state
         state = State()
         elarion = self.finalize(state)
-        stats = f"{100 * elarion.stats.crit_percent:<4.2f}%, {100 * elarion.stats.expertise_percent:<4.2f}%, {100 * elarion.stats.haste_percent:<4.2f}%, {100 * elarion.stats.spirit_percent:<4.2f}%"
-        derived = (
-            f"S_proc={100 * elarion.stats.spirit_proc_chance:<4.2f}, crit_mult={elarion.stats.crit_multiplier:<4.2f}"
-        )
-        return "\n".join([stats, derived] + [str(elem) for elem in self.setup_effect_list[2:]])
+        info_lines = []
+        if isinstance(elarion.raw_stats, RawStatsFromScores):
+            mutable_stats = elarion._recalculate_stats()
+            scores = "Scores (Raw -> Final): "
+            scores += f"{elarion.raw_stats.crit_score} -> {mutable_stats.crit_score}\t"
+            scores += f"{elarion.raw_stats.expertise_score} -> {mutable_stats.expertise_score}\t"
+            scores += f"{elarion.raw_stats.haste_score} -> {mutable_stats.haste_score}\t"
+            scores += f"{elarion.raw_stats.spirit_score} -> {mutable_stats.spirit_score}"
+            info_lines.append(scores)
+            bonus_percent = "Bonus percent: "
+            bonus_percent += f"{100 * mutable_stats.crit_percent:.0f}%\t"
+            bonus_percent += f"{100 * mutable_stats.expertise_percent:.0f}%\t"
+            bonus_percent += f"{100 * mutable_stats.haste_percent:.0f}%\t"
+            bonus_percent += f"{100 * mutable_stats.spirit_percent:.0f}%"
+            info_lines.append(bonus_percent)
+        stats = f"Final percent: {100 * elarion.stats.crit_percent:<4.2f}%\t{100 * elarion.stats.expertise_percent:<4.2f}%\t{100 * elarion.stats.haste_percent:<4.2f}%\t{100 * elarion.stats.spirit_percent:<4.2f}%"
+        derived = f"Spirit proc chance={100 * elarion.stats.spirit_proc_chance:<4.2f}, crit multiplier={elarion.stats.crit_multiplier:<4.2f}"
+        info_lines += [stats, derived]
+        info_lines += [str(elem) for elem in self.setup_effect_list[2:]]
+        state.deactivate()
+        return "\n".join(info_lines)
 
     def finalize(self, state: State) -> Elarion:
         elarion = Elarion(raw_stats=self.raw_stats, focus=self.initial_focus)

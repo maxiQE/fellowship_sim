@@ -69,11 +69,9 @@ class TestSkylitGrace:
 
         assert len(VolleyEffect.get_volley(state.enemies[0])) == 2
 
-        cd_before = elarion.skystrider_grace.cooldown
-        state.advance_time(1.0)
-        cd_reduction = cd_before - elarion.skystrider_grace.cooldown
+        assert elarion.skystrider_grace._tick
 
-        assert cd_reduction == pytest.approx(3.0, abs=0.01)
+        assert elarion.skystrider_grace._cdr_multiplier == pytest.approx(3.0)
 
     def test_cdr_returns_to_one_after_volley_expires(
         self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion
@@ -87,15 +85,14 @@ class TestSkylitGrace:
         elarion.skystrider_grace.charges = 0
 
         elarion.volley._do_cast(state.enemies[0])
+
+        assert elarion.skystrider_grace._cdr_multiplier == pytest.approx(2.0)
+
         state.advance_time(9.0)  # Volley fully expired (duration = 8.0+1e-9)
 
         assert len(VolleyEffect.get_volley(state.enemies[0])) == 0
 
-        cd_before = elarion.skystrider_grace.cooldown
-        state.advance_time(1.0)
-        cd_reduction = cd_before - elarion.skystrider_grace.cooldown
-
-        assert cd_reduction == pytest.approx(1.0, abs=0.01)
+        assert elarion.skystrider_grace._cdr_multiplier == pytest.approx(1.0)
 
 
 class TestSkywardMunitions:

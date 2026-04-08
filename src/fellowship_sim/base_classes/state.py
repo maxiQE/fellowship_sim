@@ -123,7 +123,15 @@ class State:
             if elapsed > 0:
                 self._tick(elapsed)
             self.time = trigger_time
+
+            # Callback returns True if player is available
             if callback():
+                # Clear all events at time 0 to avoid weird situations
+                while self._queue and self._queue[0][0] == self.time:
+                    trigger_time, _, callback = heapq.heappop(self._queue)
+                    callback()
+
+                # Return control to player
                 return
 
     def advance_time(self, dt: float) -> None:

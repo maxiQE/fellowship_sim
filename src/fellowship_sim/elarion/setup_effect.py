@@ -57,7 +57,7 @@ class FusilladeSetup(SetupEffectLate["Elarion"]):
 
     def apply(self, character: "Elarion", context: SetupContext) -> None:
         barrage = character.heartseeker_barrage
-        barrage.base_cast_time = self.barrage_new_duration
+        barrage.base_player_downtime = self.barrage_new_duration
         character.effects.add(Fusillade(owner=character))
         logger.debug("setup: Fusillade added")
 
