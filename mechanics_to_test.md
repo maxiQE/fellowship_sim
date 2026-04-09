@@ -29,6 +29,19 @@ Theory:
 
 ## Open questions
 
+### Crit multiplier role in damage formula
+
+TC crafting question that I can't test myself
+how exactly do the 5p 10p changes to crit damage multiplier work?
+- A: crit damage is 2 * base * 1.03 (or * 1.09)
+- B: crit damage is base + base * 1.03                   (this corresponds to mutpliying *only* the bonus damage, not the base)
+If you have purple gems and are willing to help:
+- cast HSB a bunch of times on a dummy
+- tell me your lowest normal and your highest crit
+- make sure you have 0 effects going on: no willful momentum, no nothing; ideally do it with no weapon and only a few purple gems slotted in
+
+From angry and clankz, option A is correct
+
 ### Spirit point regen
 
 - base rate per second

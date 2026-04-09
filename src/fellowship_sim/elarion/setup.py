@@ -163,6 +163,7 @@ class ElarionSetup:
         state = State()
         elarion = self.finalize(state)
         info_lines = []
+        info_lines.append(f"Final main stat: {elarion.stats.main_stat}")
         if isinstance(elarion.raw_stats, RawStatsFromScores):
             mutable_stats = elarion._recalculate_stats()
             scores = "Scores (Raw -> Final): "

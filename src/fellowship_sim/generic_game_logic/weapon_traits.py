@@ -1252,7 +1252,7 @@ class WillfulMomentumMainStatBuff(Buff):
     _main_stat_table: ClassVar[list[float]] = [0.03, 0.036, 0.042, 0.048]
 
     def stat_modifiers(self) -> list[StatModifier]:
-        return [MainStatAdditiveMultiplierCharacter(value=0.0 + self._main_stat_table[self.trait_level - 1])]
+        return [MainStatAdditiveMultiplierCharacter(value=self._main_stat_table[self.trait_level - 1])]
 
 
 @dataclass(kw_only=True, repr=False)

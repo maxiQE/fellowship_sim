@@ -6,12 +6,6 @@
     - tick rate is dynamic in-game; fixed in sim
     - accumulation mechanic is not correct (splinters)
 
-- CDA / CDR stacking from:
-    - HWA base hasted CDA
-    - EH: CDA on all abilities
-    - Chronoshift
-    - Skylit Grace talent (2a)
-
 - diamond strike: coded as multiplicative between number of echo stacks and number of harmonious souls stacks
 
 - brave machinations: coding as triggering on the DOT
@@ -20,36 +14,34 @@
 
 ## Todo
 
-- a quel point est ce que le CI proc est interessant pour un ult
-- improve rotations
-    - get to second ult with good CDs
-- compare gear sets on good rotation + good scenario
-
-- plot
-    - make filtering better, somehow
-    - one plot per scenario
-
-
 - documentation:
     - all abilities with non trivial implementations should have a detailed description of the model
     - auto extract docs (with sphinx?)
 
 
 - Points that maybe need addressing:
-    - x write scripts for basic testing usage
-    - x all user inputs need to be checked
-    - x readme
-    - basic usage tests
-        - x focus consumption
-        - x time usage in complex rotation: unhasted barrage; everything else hasted; instants are instant; ulti hasted with pre-haste
-        - x MS: max charges
-    - clean up repository
-    - RELEASE
+    - functional test:
+        - check if willful momentum applies to the cast that triggered the spirit proc
+            - CS -> trigger spirit -> buffed damage
+            - NOT CS -> trigger spirit -> normal damage
+
+    - rotation is scuffed on cold starts:
+        - it holds weapon instead of sending it
+
+        - hold weapon + grace + ult for execute if possible
+        - don't hold weapon and grace if ult is super far away
+
+    - functional test for last lights + execute set
+        - enemy HP goes down
+        - check damage increase **in a scenario**
 
     - improve Effect collection to have more explicit API
 
     - try to remove all lazy imports
 
+    - dot rewrite:
+        - dynamic tick rate
+        - dynamic damage (That should already work)
     - dot effects: take snapshot on dot creation instead of having the creator create the snapshot
         - fixed by improved snapshotting??
 

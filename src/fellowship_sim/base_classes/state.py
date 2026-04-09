@@ -110,6 +110,7 @@ class State:
             for effect in list(self.character.effects):
                 effect.tick(dt)
         for enemy in self.enemies:
+            enemy._tick(dt)
             for effect in list(enemy.effects):
                 effect.tick(dt)
 

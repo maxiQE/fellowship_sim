@@ -43,6 +43,7 @@ def compute_damage(snapshot: SnapshotStats, rng_roll: float) -> tuple[float, boo
     is_grievous_crit = snapshot.crit_percent >= 1.0
     if is_grievous_crit:
         return snapshot.average_damage * (1 + snapshot.crit_percent) * snapshot.crit_multiplier, True, True
+
     is_crit = rng_roll < snapshot.crit_percent
     crit_multiplier = 2 * snapshot.crit_multiplier if is_crit else 1
     damage = snapshot.average_damage * crit_multiplier

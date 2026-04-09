@@ -22,13 +22,13 @@ NUM_REPS = 100
 SEED = 12345
 
 
-DURATION = 130  # seconds
+DURATION = 300  # seconds
 AOE_INITIAL_SPIRIT_POINTS = 130
 BOSS_INITIAL_SPIRIT_POINTS = 130
 DELAY_SINCE_LAST_FIGHT = 15  # seconds; forwarded to PPM last_time_since_proc
 SPIRIT_POINT_PER_S = 0.5
 
-HIGH_HP_UPTIME = 0.7
+HIGH_HP_UPTIME = 0.85
 
 
 scenarios: dict[str, Scenario] = {
@@ -58,10 +58,10 @@ scenarios: dict[str, Scenario] = {
 }
 
 main_stat = 2444.0
-crit_score = 484
-expertise_score = 1154
-haste_score = 1971
-spirit_score = 901
+crit_score = 897
+expertise_score = 1241
+haste_score = 1241
+spirit_score = 880
 
 STATS = RawStatsFromScores(
     main_stat=main_stat,
