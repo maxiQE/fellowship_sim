@@ -3,10 +3,11 @@ from typing import TYPE_CHECKING
 
 from loguru import logger
 
+from fellowship_sim.base_classes.timed_events import DelayedDamage
+
 from .events import AbilityDamage, AbilityPeriodicDamage, PreDamageSnapshotUpdate
 from .state import State, get_state
 from .stats import SnapshotStats
-from .timed_events import DelayedDamage
 
 if TYPE_CHECKING:
     from .ability import Ability
@@ -14,23 +15,23 @@ if TYPE_CHECKING:
     from .entity import Entity, Player
 
 
-def schedule_damage(
-    state: State,
-    snapshot: SnapshotStats,
-    damage_origin: "Ability | Effect",
-    target: "Entity",
-    delay: float = 0.0,
-    *,
-    cast_specific_predamage_snapshot_modifiers: "list[Callable[..., None]] | None" = None,
-    owner: "Entity | None" = None,
-) -> None:
-    """Schedule a deal_damage call at state.time + delay."""
+# def schedule_damage(
+#     state: State,
+#     snapshot: SnapshotStats,
+#     damage_origin: "Ability | Effect",
+#     target: "Entity",
+#     delay: float = 0.0,
+#     *,
+#     cast_specific_predamage_snapshot_modifiers: "list[Callable[..., None]] | None" = None,
+#     owner: "Entity | None" = None,
+# ) -> None:
+#     """Schedule a deal_damage call at state.time + delay."""
 
-    def _fire() -> None:
-        logger.trace(f"damage tick firing: {damage_origin} at t={get_state().time:.3f}")
-        deal_damage(snapshot, damage_origin, target, cast_specific_predamage_snapshot_modifiers)
+#     def _fire() -> None:
+#         logger.trace(f"damage tick firing: {damage_origin} at t={get_state().time:.3f}")
+#         deal_damage(snapshot, damage_origin, target, cast_specific_predamage_snapshot_modifiers)
 
-    state.schedule(time_delay=delay, callback=DelayedDamage(damage_source=damage_origin, callback=_fire))
+#     state.schedule(time_delay=delay, callback=DelayedDamage(damage_source=damage_origin, callback=_fire))
 
 
 def compute_damage(snapshot: SnapshotStats, rng_roll: float) -> tuple[float, bool, bool]:
@@ -118,9 +119,10 @@ def create_standard_damage(
     state: State,
     damage_source: "Ability | Effect",
     owner: "Player",
-    target: "Entity",
+    target: "Entity | None",
     base_damage: float,
     *,
+    delay_until_hit: float = 0.1,
     main_damage_multiplier: float = 1.0,
     num_secondary_targets: int = 0,
     secondary_damage_multiplier: float = 1.0,
@@ -134,17 +136,55 @@ def create_standard_damage(
     Works for both ability casts and proc effects — callers are responsible for snapshot construction.
     """
 
+    def callback() -> None:
+        apply_standard_damage(
+            state=state,
+            damage_source=damage_source,
+            owner=owner,
+            target=target,
+            base_damage=base_damage,
+            main_damage_multiplier=main_damage_multiplier,
+            num_secondary_targets=num_secondary_targets,
+            secondary_damage_multiplier=secondary_damage_multiplier,
+            cast_specific_predamage_snapshot_modifiers=cast_specific_predamage_snapshot_modifiers,
+            priority_func=priority_func,
+        )
+
+    state.schedule(
+        time_delay=delay_until_hit,
+        callback=DelayedDamage(
+            damage_source=damage_source,
+            callback=callback,
+        ),
+    )
+
+
+def apply_standard_damage(
+    state: State,
+    damage_source: "Ability | Effect",
+    owner: "Player",
+    target: "Entity | None",
+    base_damage: float,
+    *,
+    main_damage_multiplier: float = 1.0,
+    num_secondary_targets: int = 0,
+    secondary_damage_multiplier: float = 1.0,
+    cast_specific_predamage_snapshot_modifiers: "list[Callable[..., None]] | None" = None,
+    priority_func: Callable[["Entity"], float] | None = None,
+) -> None:
+    """Apply standard damage formula to main and secondary targets."""
     snapshot = SnapshotStats.from_base_damage_and_character(base_damage=base_damage, character=owner)
 
-    main_snapshot = snapshot.scale_average_damage(main_damage_multiplier) if main_damage_multiplier != 1.0 else snapshot
-    schedule_damage(
-        state,
-        main_snapshot,
-        damage_source,
-        target,
-        owner=owner,
-        cast_specific_predamage_snapshot_modifiers=cast_specific_predamage_snapshot_modifiers,
-    )
+    if target is not None:
+        main_snapshot = (
+            snapshot.scale_average_damage(main_damage_multiplier) if main_damage_multiplier != 1.0 else snapshot
+        )
+        deal_damage(
+            main_snapshot,
+            damage_source,
+            target,
+            cast_specific_predamage_snapshot_modifiers=cast_specific_predamage_snapshot_modifiers,
+        )
 
     if num_secondary_targets > 0:
         secondary_snapshot = (
@@ -155,4 +195,9 @@ def create_standard_damage(
         for secondary in state.select_targets(
             main_target=target, num=num_secondary_targets, priority_func=priority_func
         ):
-            schedule_damage(state, secondary_snapshot, damage_source, secondary, owner=owner)
+            deal_damage(
+                secondary_snapshot,
+                damage_source,
+                secondary,
+                cast_specific_predamage_snapshot_modifiers=cast_specific_predamage_snapshot_modifiers,
+            )

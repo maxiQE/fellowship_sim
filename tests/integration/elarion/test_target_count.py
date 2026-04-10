@@ -127,7 +127,7 @@ class TestVolleyPerTickTargetCount:
             lambda e: volley_hits.append(e) if isinstance(e.damage_source, Volley) else None,
         )
         elarion.volley._do_cast(enemies[0])
-        state.advance_time(0.0)  # process first tick at t=0 only
+        state.advance_time(0.2)  # process first tick and its delayed hit
 
         expected = min(num_enemies, 12)
         assert len(volley_hits) == expected

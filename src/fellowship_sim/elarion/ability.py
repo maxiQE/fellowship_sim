@@ -97,12 +97,14 @@ class FocusedShot(ElarionAbility):
     """1.5s cast, no CD. Deals damage. Generates 20 focus. 2 PPM CI proc."""
 
     average_damage: float = field(default=(1212 + 1481) / 2, init=False)
+    base_cast_time: float = field(default=1.5, init=False)
+
     focus_gain: int = field(default=20, init=False)
 
 
 @dataclass(kw_only=True, repr=False)
 class CelestialShot(ElarionAbility):
-    """1.5s cast, no CD. 15 focus cost. CI proc: applies 3 LunarlightMarks."""
+    """instant cast, GCD, no CD. 15 focus cost. CI proc: applies 3 LunarlightMarks."""
 
     average_damage: float = field(default=(2591 + 3166) / 2, init=False)
 
@@ -429,6 +431,10 @@ class HeartseekerBarrage(ElarionAbility):
     is_channel: bool = field(default=True, init=False)
     tick_time: float = field(default=0.2, init=False)
 
+    delay_until_hit: float = field(
+        default=0.05, init=False
+    )  # Flight time of the missile; this matters for volley reset during ultimate
+
     base_focus_cost: int = field(default=30, init=False)
 
     num_secondary_targets: int = field(default=0, init=False)
@@ -516,6 +522,7 @@ class HeartseekerBarrage(ElarionAbility):
             base_damage=scaled_base_damage,
             num_secondary_targets=self.num_secondary_targets,
             secondary_damage_multiplier=self.secondary_damage_multiplier,
+            delay_until_hit=self.delay_until_hit,
             priority_func=priority_target_marked_enemies,
         )
 
@@ -600,6 +607,19 @@ class LunarlightSalvo(ElarionAbility):
     def cast(self, target: "Entity") -> CastReturnCode:
         raise Exception(f"{self!s} is a fake ability and is not callable.")  # noqa: TRY002, TRY003
 
+    def _do_cast(self, target: "Entity") -> None:
+        """Overwritten to remove the event."""
+        create_standard_damage(
+            get_state(),
+            self,
+            self.owner,
+            target,
+            self.average_damage,
+            main_damage_multiplier=self.main_damage_multiplier,
+            num_secondary_targets=self.num_secondary_targets,
+            secondary_damage_multiplier=self.secondary_damage_multiplier,
+        )
+
 
 @dataclass(kw_only=True, repr=False)
 class LunarlightExplosion(ElarionAbility):
@@ -616,6 +636,19 @@ class LunarlightExplosion(ElarionAbility):
 
     def cast(self, target: "Entity") -> CastReturnCode:
         raise Exception(f"{self!s} is a fake ability and is not callable.")  # noqa: TRY002, TRY003
+
+    def _do_cast(self, target: "Entity") -> None:
+        """Overwritten to remove the event."""
+        create_standard_damage(
+            get_state(),
+            self,
+            self.owner,
+            target,
+            self.average_damage,
+            main_damage_multiplier=self.main_damage_multiplier,
+            num_secondary_targets=self.num_secondary_targets,
+            secondary_damage_multiplier=self.secondary_damage_multiplier,
+        )
 
 
 @dataclass(kw_only=True, repr=False)

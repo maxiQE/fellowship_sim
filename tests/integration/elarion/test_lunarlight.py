@@ -154,7 +154,7 @@ class TestMarkStackConsumption:
         enemies[0].effects.add(LunarlightMarkEffect(owner=elarion, stacks=3))
 
         elarion.focused_shot._do_cast(enemies[0])
-        state.advance_time(0.0)  # process damage + proc at t=0, not mark expiry at t=15
+        state.advance_time(0.2)  # process damage + proc, not mark expiry at t=15
 
         mark = enemies[0].effects.get(LunarlightMarkEffect)
         assert mark is not None

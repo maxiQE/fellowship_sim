@@ -120,7 +120,7 @@ class Player(Entity):
     max_spirit_points: float = field(default=100.0, init=False)
     spirit_ability_cost: float = field(default=100.0, init=False)
 
-    spirit_point_per_s: float = field(default=0.2, init=False)
+    spirit_point_per_s: float = field(default=0.0, init=False)
 
     # Weapon ability slots — one per available weapon ability type.
     # Unequipped slots hold WEAPON_ABILITY_NOT_INITIALIZED (logs a warning on access).

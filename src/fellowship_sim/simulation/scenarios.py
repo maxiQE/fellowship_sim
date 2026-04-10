@@ -55,6 +55,8 @@ class Scenario:
         elarion.spirit_points = 0
         elarion._change_spirit_points(self.initial_spirit_points)
 
+        elarion.spirit_point_per_s = self.bonus_spirit_point_per_s
+
         if self.finalize_character is not None:
             self.finalize_character(elarion)
 

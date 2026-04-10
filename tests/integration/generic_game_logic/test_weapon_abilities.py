@@ -56,7 +56,7 @@ class TestVoidbringersTouch:
         state.bus.subscribe(AbilityDamage, damage_events.append)
 
         elarion.focused_shot._do_cast(target)
-        state.advance_time(0.0)
+        state.advance_time(0.2)
 
         focused_hits = [e for e in damage_events if e.damage_source is elarion.focused_shot]
         assert len(focused_hits) == 1
@@ -79,7 +79,7 @@ class TestVoidbringersTouch:
 
         vbt_effect.stored_damage = vbt_effect.max_stored_damage
         elarion.focused_shot._do_cast(target)
-        state.advance_time(0.0)
+        state.advance_time(0.2)
 
         assert len(explosion_events) == 1
 
@@ -98,7 +98,7 @@ class TestVoidbringersTouch:
 
         vbt_effect.stored_damage = vbt_effect.max_stored_damage
         elarion.focused_shot._do_cast(target)
-        state.advance_time(0.0)
+        state.advance_time(0.2)
 
         assert len(explosion_events) == 1
         assert explosion_events[0].is_grievous_crit
@@ -111,7 +111,7 @@ class TestVoidbringersTouch:
         assert isinstance(vbt_effect, VoidbringersTouchEffect)
 
         elarion.focused_shot._do_cast(target)
-        state.advance_time(0.0)
+        state.advance_time(0.2)
         stored_before = vbt_effect.stored_damage
         assert stored_before > 0.0
 
@@ -170,9 +170,10 @@ class TestChronoshift:
         state.bus.subscribe(AbilityDamage, damage_events.append)
 
         cs.cast(target)
+        elarion.wait(0.2)
 
         cs_hits = [e for e in damage_events if e.damage_source is cs]
-        assert state.time == pytest.approx(3.0)
+        assert state.time == pytest.approx(3.2)
         assert len(cs_hits) == 2
 
     def test_fires_3_full_ticks_with_haste(self) -> None:
@@ -189,6 +190,7 @@ class TestChronoshift:
         damage_events: list[AbilityDamage] = []
         state.bus.subscribe(AbilityDamage, damage_events.append)
         cs.cast(target)
+        elarion.wait(0.2)
 
         cs_hits = [e for e in damage_events if e.damage_source is cs]
         assert len(cs_hits) == 3
@@ -207,6 +209,7 @@ class TestChronoshift:
         damage_events: list[AbilityDamage] = []
         state.bus.subscribe(AbilityDamage, damage_events.append)
         cs.cast(target)
+        elarion.wait(0.2)
 
         cs_hits = [e for e in damage_events if e.damage_source is cs]
         assert len(cs_hits) == 3
@@ -256,6 +259,7 @@ class TestChronoshift:
         damage_events: list[AbilityDamage] = []
         state.bus.subscribe(AbilityDamage, damage_events.append)
         cs.cast(enemies[0])
+        elarion.wait(0.2)
 
         cs_hits = [e for e in damage_events if e.damage_source is cs]
         # 2 ticks × 3 enemies = 6 hits
@@ -286,7 +290,7 @@ class TestNaturesFury:
         state.bus.subscribe(AbilityDamage, damage_events.append)
 
         nf._do_cast(enemies[0])
-        state.advance_time(0.0)
+        state.advance_time(0.2)
 
         nf_hits = [e for e in damage_events if e.damage_source is nf]
         main_hit = next(e for e in nf_hits if e.target is enemies[0])
@@ -306,7 +310,7 @@ class TestNaturesFury:
         focused_events: list[AbilityDamage] = []
         state.bus.subscribe(AbilityDamage, focused_events.append)
         elarion.focused_shot._do_cast(target)
-        state.advance_time(0.0)
+        state.advance_time(0.2)
         focused_hit = next(e for e in focused_events if e.damage_source is elarion.focused_shot)
         assert not focused_hit.is_crit
 
@@ -314,7 +318,7 @@ class TestNaturesFury:
         nf_events: list[AbilityDamage] = []
         state.bus.subscribe(AbilityDamage, nf_events.append)
         nf._do_cast(target)
-        state.advance_time(0.0)
+        state.advance_time(0.2)
         nf_hits = [e for e in nf_events if e.damage_source is nf]
         assert len(nf_hits) > 0
         assert all(e.is_crit for e in nf_hits)
@@ -326,7 +330,7 @@ class TestNaturesFury:
         state.bus.subscribe(AbilityDamage, damage_events.append)
 
         nf._do_cast(enemies[0])
-        state.advance_time(0.0)
+        state.advance_time(0.2)
 
         nf_hits = [e for e in damage_events if e.damage_source is nf]
         assert len(nf_hits) == 4

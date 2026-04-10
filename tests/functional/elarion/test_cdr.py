@@ -151,6 +151,7 @@ class TestComplexCDRStacking:
         # recover cooldowns
         elarion.wait(200)
 
+        elarion.spirit_points = 100
         elarion.event_horizon.cast(target)
         t_before = state.time
         elarion.skystrider_grace.cast(target)
@@ -284,6 +285,7 @@ class TestComplexCDRStacking:
         # recover cooldowns
         elarion.wait(200)
 
+        elarion.spirit_points = 100
         elarion.event_horizon.cast(target)
         t_before = state.time
         elarion.skystrider_grace.cast(target)

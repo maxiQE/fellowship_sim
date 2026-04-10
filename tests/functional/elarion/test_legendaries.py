@@ -151,6 +151,7 @@ class TestNeckLegendary:
         state.bus.subscribe(AbilityDamage, record_barrage_damage)
 
         elarion.heartseeker_barrage.cast(target)
+        elarion.wait(0.2)
 
         assert isinstance(elarion.effects.get(ImpendingHeartseeker), ImpendingHeartseeker)
         assert elarion.heartseeker_barrage.has_impending_barrage
@@ -162,6 +163,7 @@ class TestNeckLegendary:
 
         barrage_damage = []
         elarion.heartseeker_barrage.cast(target)
+        elarion.wait(0.2)
 
         assert isinstance(elarion.effects.get(ImpendingHeartseeker), ImpendingHeartseeker)
         assert elarion.heartseeker_barrage.has_impending_barrage
@@ -173,6 +175,7 @@ class TestNeckLegendary:
 
         barrage_damage = []
         elarion.heartseeker_barrage.cast(target)
+        elarion.wait(0.2)
 
         assert isinstance(elarion.effects.get(ImpendingHeartseeker), ImpendingHeartseeker)
         assert elarion.heartseeker_barrage.has_impending_barrage
@@ -198,6 +201,7 @@ class TestCloakLegendary:
         """Casting HighwindArrow applies Shimmer to the target."""
         target = state.enemies[0]
         elarion.highwind_arrow.cast(target)
+        elarion.wait(0.2)
         assert isinstance(target.effects.get(Shimmer), Shimmer)
 
     def test_highwind_arrow_applies_shimmer__final_crescendo_interaction(self, state: State, elarion: Elarion) -> None:
@@ -212,12 +216,15 @@ class TestCloakLegendary:
         target = state.enemies[0]
 
         elarion.highwind_arrow.cast(target)
+        elarion.wait(0.2)
 
         # 3 shimmer debuffs present after first cast
         assert len([e for e in state.enemies if e.effects.has(Shimmer)]) == 3
 
         elarion.highwind_arrow.cast(target)
+        elarion.wait(0.2)
         elarion.highwind_arrow.cast(target)
+        elarion.wait(0.2)
 
         # wait for shimmer debuff to expire and for hwa to recharge
         elarion.wait(20.0)
@@ -231,5 +238,6 @@ class TestCloakLegendary:
 
         # final crescendo HWA
         elarion.highwind_arrow.cast(target)
+        elarion.wait(0.2)
 
         assert len([e for e in state.enemies if e.effects.has(Shimmer)]) == 8

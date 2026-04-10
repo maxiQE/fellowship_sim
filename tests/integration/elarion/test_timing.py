@@ -103,8 +103,9 @@ class TestHeartseekerBarrageTickCount:
         )
 
         elarion.heartseeker_barrage.cast(state_no_procs__st.enemies[0])
+        elarion.wait(0.2)
 
-        assert get_state().time == pytest.approx(2.0)
+        assert get_state().time == pytest.approx(2.2)
         assert len(barrage_damages) == expected_ticks
 
     @pytest.mark.parametrize(
@@ -132,6 +133,7 @@ class TestHeartseekerBarrageTickCount:
         )
 
         elarion.heartseeker_barrage.cast(state_no_procs__st.enemies[0])
+        elarion.wait(0.2)
 
         assert len(barrage_damages) == expected_ticks
 
@@ -235,7 +237,7 @@ class TestVolleyStacking:
         elarion.volley._do_cast(state.enemies[0])
         state.advance_time(0.5)
         elarion.volley._do_cast(state.enemies[0])
-        state.advance_time(0.0)  # second volley fires its first tick
+        state.advance_time(0.2)  # second volley fires its first tick and delayed hit
 
         assert len(volley_hits) == 2
 

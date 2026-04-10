@@ -10,6 +10,7 @@ from fellowship_sim.base_classes import (
     Entity,
     SetupContext,
     SetupEffectLate,
+    create_standard_damage,
     deal_damage,
 )
 from fellowship_sim.base_classes.ability import WeaponAbility
@@ -174,8 +175,6 @@ class Chronoshift(WeaponAbility):
         event = AbilityCastSuccess(ability=self, owner=self.owner, target=target)
         state.bus.emit(event)
 
-        snapshot = SnapshotStats.from_ability_and_character(ability=self, character=self.owner)
-
         haste = self.owner.stats.haste_percent
         tick_interval = self.tick_time / (1 + haste)
         num_full_ticks = int(self.player_downtime // tick_interval)
@@ -193,23 +192,26 @@ class Chronoshift(WeaponAbility):
             delay = (k + 1) * tick_interval
             state.schedule(
                 time_delay=delay,
-                callback=DelayedDamage(damage_source=self, callback=lambda s=snapshot: self._fire_tick_all(s)),
+                callback=DelayedDamage(damage_source=self, callback=self._fire_tick_all),
             )
 
         if partial_ratio > 1e-9:
-            partial_snapshot = snapshot.scale_average_damage(partial_ratio)
             state.schedule(
                 time_delay=self.player_downtime,
-                callback=DelayedDamage(damage_source=self, callback=lambda s=partial_snapshot: self._fire_tick_all(s)),
+                callback=DelayedDamage(damage_source=self, callback=lambda: self._fire_tick_all(partial_ratio)),
             )
 
         self.owner.effects.add(ChronoshiftChannelCDR(duration=self.player_downtime, owner=self.owner))
 
-    def _fire_tick_all(self, snapshot: SnapshotStats) -> None:
-        state = get_state()
-        logger.trace("chronoshift: tick at t={:.3f}", state.time)
-        for enemy in state.select_targets(None, self.num_secondary_targets):
-            deal_damage(snapshot, self, enemy)
+    def _fire_tick_all(self, ratio: float = 1.0) -> None:
+        create_standard_damage(
+            state=get_state(),
+            damage_source=self,
+            owner=self.owner,
+            target=None,
+            base_damage=self.average_damage * ratio,
+            num_secondary_targets=self.num_secondary_targets,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -314,25 +316,22 @@ class IciclesOfAnzhyr(WeaponAbility):
         event = AbilityCastSuccess(ability=self, owner=self.owner, target=target)
         state.bus.emit(event)
 
-        wave_snapshot = SnapshotStats.from_ability_and_character(ability=self, character=self.owner)
         for wave_num in range(1, 4):
             is_final = wave_num == 3
             state.schedule(
                 time_delay=float(wave_num),
-                callback=DelayedDamage(
-                    damage_source=self, callback=lambda s=wave_snapshot, f=is_final: self._fire_wave(s, f)
-                ),
+                callback=DelayedDamage(damage_source=self, callback=lambda f=is_final: self._fire_wave(f)),
             )
         logger.debug(
             "Icicles of An'zhyr: 3 waves scheduled on up to {} enemies",
             self.num_secondary_targets,
         )
 
-    def _fire_wave(self, wave_snapshot: SnapshotStats, is_final: bool) -> None:
+    def _fire_wave(self, is_final: bool) -> None:
         state = get_state()
         logger.trace(f"icicles: wave at t={state.time:.3f}, final wave={is_final}")
         for enemy in state.enemies[: self.num_secondary_targets]:
-            deal_damage(wave_snapshot, self, enemy)
+            deal_damage(SnapshotStats.from_ability_and_character(ability=self, character=self.owner), self, enemy)
             if is_final:
                 dot_snapshot = SnapshotStats.from_base_damage_and_character(
                     base_damage=self.dot_average_damage, character=self.owner

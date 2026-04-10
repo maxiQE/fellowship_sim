@@ -20,11 +20,6 @@
 
 
 - Points that maybe need addressing:
-    - functional test:
-        - check if willful momentum applies to the cast that triggered the spirit proc
-            - CS -> trigger spirit -> buffed damage
-            - NOT CS -> trigger spirit -> normal damage
-
     - rotation is scuffed on cold starts:
         - it holds weapon instead of sending it
 
@@ -153,7 +148,18 @@ TODO:
 
 # Insights
 
-## Dummay abilities
+## Merit of data-driven approach
+
+In the current implementation, everything is carried by complex objects:
+
+- default values being carried or overwritten via inheritance resolution,
+- dedicated methods, again obscured by inheritance
+
+It's not horrible, of course. It's fiiine.
+But it does make the contents of the various messages floating around fairly confusing since they carry whole-ass objects instead of inert data.
+(Perhaps there is also something to be said about performance?)
+
+## Dummy abilities
 
 Dummay abilities are a good way to easily tag onto the character to do stuff (like spirit procs)
 

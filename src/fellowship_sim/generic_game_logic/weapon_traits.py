@@ -785,21 +785,16 @@ class HiddenPower(Effect):
 
     def on_add(self) -> None:
         bus = get_state().bus
-        bus.subscribe(AbilityDamage, self._on_damage, owner=self)
-        bus.subscribe(AbilityPeriodicDamage, self._on_periodic_damage, owner=self)
+        bus.subscribe(AbilityCastSuccess, self._try_gain_stack, owner=self)
 
-    def _on_damage(self, event: AbilityDamage) -> None:
-        self._try_gain_stack()
-
-    def _on_periodic_damage(self, event: AbilityPeriodicDamage) -> None:
-        self._try_gain_stack()
-
-    def _try_gain_stack(self) -> None:
+    def _try_gain_stack(self, event: AbilityCastSuccess) -> None:
         if not self._rppm.check():
             return
         if self.owner.effects.has(PowerRevealedBuff):
             return
+
         self._stacks += 1
+        self._decay_generation += 1  # invalidate pending decays
         gen = self._decay_generation
         state = get_state()
         state.schedule(

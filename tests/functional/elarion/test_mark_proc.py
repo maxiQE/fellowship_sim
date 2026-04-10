@@ -128,9 +128,10 @@ class TestImmediateMarkClearingFromProcs:
 
     def test_celestial_shot_can_proc_marks_from_ci_proc(self) -> None:
         """Celestial Shot consumes marks placed by a Celestial Impetus proc in the same cast."""
+        rng = SequenceRNG(values=[1.0, 0.99, 1.0, 1.0, 0.0])  # FS crit, CI gain stack, FS crit, CS crit, mark proc
         state = State(
             enemies=[Enemy()],
-            rng=SequenceRNG(values=[1.0, 0.99, 1.0, 1.0, 0.0]),  # FS crit, CI gain stack, FS crit, CS crit, mark proc
+            rng=rng,
             information=StateInformation(delay_since_last_fight=None),
         )
         target = state.enemies[0]
@@ -146,6 +147,8 @@ class TestImmediateMarkClearingFromProcs:
         elarion = setup.finalize(state)
 
         # initiate rPPM; delay_since_last_fight=None → last_attempt_time=None → no CI roll on first cast
+        rng._values = [1.0]  # No crit
+        rng._index = 0
         elarion.focused_shot.cast(target)
         assert elarion.celestial_impetus_stacks == 0
 
@@ -153,10 +156,15 @@ class TestImmediateMarkClearingFromProcs:
         elarion.wait(28.5)
 
         # Guaranteed proc
+        rng._values: list[int | float] = [0.99, 1.0]  #  barely proccing the rPPM check on CI aura, no crit
+        rng._index = 0
         elarion.focused_shot.cast(target)
 
         assert elarion.celestial_impetus_stacks == 1
 
+        rng._values: list[int | float] = [1.0, 0.0, 1.0]  # No crit, proc mark salvo, no crit on salvo attack
+        # NB: no roll on spirit proc because of proc_chance == 0
+        rng._index = 0
         elarion.celestial_shot.cast(target)
 
         mark = target.effects.get(LunarlightMarkEffect)

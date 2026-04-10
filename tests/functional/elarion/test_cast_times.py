@@ -180,14 +180,14 @@ class TestComplexBreakpoints:
     @pytest.mark.parametrize(
         "haste, remaining_gcd, remaining_cooldown, barrage_hit_count",
         [
-            (0.0, 7, 9.25, 16),
-            (0.06, 6, 8.1, 17),
-            (0.14, 5, 6.9, 18),
-            (0.22, 4, 5.7, 19),
-            (0.30, 3, 4.5, 20),
-            (0.38, 3, 3.3, 21),
-            (0.46, 2, 2.1, 22),
-            (0.54, 1, 0.9, 23),
+            (0.0, 7, 9.172, 16),
+            (0.06, 6, 8.018, 17),
+            (0.14, 5, 6.814, 18),
+            (0.22, 4, 5.609, 19),
+            (0.30, 3, 4.404, 20),
+            (0.38, 3, 3.199, 21),
+            (0.46, 2, 1.994, 22),
+            (0.54, 1, 0.790, 23),
             (0.62, 0, 0.0, 24),
         ],
     )
@@ -207,6 +207,9 @@ class TestComplexBreakpoints:
         - 46% -> 76% -> 22
         - 54% -> 84% -> 23
         - 62% -> 92% -> 24
+
+        NB: includes an approximation of the flight time of the barrage projectile and a small wait for that projectile to arrive.
+        This is the observed CD at the end of the barrage cast.
         """
         state = State(enemies=[Enemy()], rng=FixedRNG(value=1.0))
         target = state.enemies[0]
@@ -233,9 +236,13 @@ class TestComplexBreakpoints:
         elarion.event_horizon.cast(target)
         elarion.volley.cast(target)
         elarion.heartseeker_barrage.cast(target)
+        elarion.wait(0.06)
+
         hit_count = len(barrage_damages)
         assert hit_count == barrage_hit_count
-        assert elarion.volley.cooldown == pytest.approx(remaining_cooldown)
+        # NB: -1 because the final hit is still flying through the air at that point
+
+        assert elarion.volley.cooldown == pytest.approx(remaining_cooldown, abs=0.01)
 
         for _ in range(remaining_gcd):
             assert elarion.volley.cooldown > 0

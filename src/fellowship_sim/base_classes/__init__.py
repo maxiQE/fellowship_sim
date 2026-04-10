@@ -5,7 +5,7 @@ from .ability import (
     WeaponAbility,
     WeaponAbilityNotInitialized,
 )
-from .combat import create_standard_damage, deal_damage, schedule_damage
+from .combat import create_standard_damage, deal_damage
 from .effect import Buff, DoTEffect, Effect
 from .entity import Enemy, Entity, Player
 from .events import (

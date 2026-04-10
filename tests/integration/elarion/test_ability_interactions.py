@@ -77,7 +77,7 @@ class TestMultishotChargeSystem:
         baseline_damages: list[AbilityDamage] = []
         state_no_procs__st.bus.subscribe(AbilityDamage, lambda e: baseline_damages.append(e))
         elarion.multishot._do_cast(state_no_procs__st.enemies[0])
-        state_no_procs__st.advance_time(0.0)
+        state_no_procs__st.advance_time(0.2)
         assert len(baseline_damages) == 1
         baseline = baseline_damages[0].damage
 
@@ -92,7 +92,7 @@ class TestMultishotChargeSystem:
         state2.bus.subscribe(AbilityDamage, empowered_damages.append)
 
         elarion2.multishot._do_cast(enemies2[0])
-        state2.advance_time(0.0)
+        state2.advance_time(0.2)
 
         assert len(empowered_damages) == 3
         assert all(e.damage == pytest.approx(baseline * 1.25, rel=1e-6) for e in empowered_damages)
@@ -264,6 +264,7 @@ class TestResurgentWinds:
         for _ in range(3):
             elarion.highwind_arrow.cast(target)
             elarion.highwind_arrow.charges = 3
+        elarion.wait(0.2)  # flush pending damage from last setup cast
 
         assert fc.stacks == 3
         assert elarion.highwind_arrow.has_final_crescendo_buff
@@ -275,6 +276,7 @@ class TestResurgentWinds:
         state.bus.subscribe(AbilityDamage, marked_damages.append)
 
         elarion.highwind_arrow.cast(target)  # first cast: buffed
+        elarion.wait(0.2)
 
         assert all(event.damage_source == elarion.highwind_arrow for event in marked_damages)
         assert marked_damages[0].damage == pytest.approx(elarion.highwind_arrow.average_damage * 1.5 * 2, rel=1e-6)
@@ -319,9 +321,9 @@ class TestEventHorizon:
 
         # 1 enemy → 1 HWA hit per cast
         elarion.highwind_arrow._do_cast(state_no_procs__st.enemies[0])
-        state_no_procs__st.advance_time(0.0)
+        state_no_procs__st.advance_time(0.2)
 
-        assert elarion.heartseeker_barrage.cooldown == pytest.approx(19.5)
+        assert elarion.heartseeker_barrage.cooldown == pytest.approx(19.3)
 
     def test_barrage_reduces_volley_cd(self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion) -> None:
         """Each Barrage tick during EventHorizon reduces Volley CD by 1.0s.
@@ -334,9 +336,9 @@ class TestEventHorizon:
         elarion.volley.charges = 0
 
         elarion.heartseeker_barrage._do_cast(state_no_procs__st.enemies[0])
-        state_no_procs__st.advance_time(0.2)
+        state_no_procs__st.advance_time(0.4)
 
-        assert elarion.volley.cooldown == pytest.approx(29.0 - 0.2)
+        assert elarion.volley.cooldown == pytest.approx(29.0 - 0.4)
 
     def test_focus_cost_halved(self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion) -> None:
         """EventHorizonBuff halves the focus cost of all abilities. Focus deducted synchronously."""
@@ -377,7 +379,7 @@ class TestFinalCrescendo:
                 owner=cast_damages,  # required for unsubscribe_all to work
             )
             elarion.highwind_arrow._do_cast(enemies[0])
-            state.advance_time(0.0)
+            state.advance_time(0.2)
             state.bus.unsubscribe_all(cast_damages)
             damages_per_cast.append(cast_damages)
 
@@ -468,12 +470,12 @@ class TestShimmer:
 
         # First HWA cast: no Shimmer yet → base damage, Shimmer applied after hit
         elarion.highwind_arrow._do_cast(state_no_procs__st.enemies[0])
-        state_no_procs__st.advance_time(0.0)
+        state_no_procs__st.advance_time(0.2)
         first_hit = damages[-1].damage
 
         # Second HWA cast: 1 Shimmer stack active (+10%)
         elarion.highwind_arrow._do_cast(state_no_procs__st.enemies[0])
-        state_no_procs__st.advance_time(0.0)
+        state_no_procs__st.advance_time(0.2)
         second_hit = [e for e in damages if e.damage_source is elarion.highwind_arrow][-1].damage
 
         assert second_hit == pytest.approx(first_hit * 1.10, rel=1e-6)
@@ -487,7 +489,7 @@ class TestShimmer:
 
         for _ in range(3):
             elarion.highwind_arrow._do_cast(state_no_procs__st.enemies[0])
-            state_no_procs__st.advance_time(0.0)
+            state_no_procs__st.advance_time(0.2)
 
         shimmer = state_no_procs__st.enemies[0].effects.get(Shimmer)
         assert shimmer is not None
@@ -503,7 +505,7 @@ class TestShimmer:
 
         # Apply first Shimmer
         elarion.highwind_arrow._do_cast(state_no_procs__st.enemies[0])
-        state_no_procs__st.advance_time(0.0)
+        state_no_procs__st.advance_time(0.1)
 
         shimmer_1 = state_no_procs__st.enemies[0].effects.get(Shimmer)
         assert isinstance(shimmer_1, Shimmer)
@@ -513,7 +515,7 @@ class TestShimmer:
 
         # Apply second Shimmer (fuses: stacks up to 2, duration renewed to 9s from t=5)
         elarion.highwind_arrow._do_cast(state_no_procs__st.enemies[0])
-        state_no_procs__st.advance_time(0.0)
+        state_no_procs__st.advance_time(0.1)
 
         shimmer_2 = state_no_procs__st.enemies[0].effects.get(Shimmer)
         assert shimmer_2 is not None

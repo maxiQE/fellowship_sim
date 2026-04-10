@@ -1,25 +1,3 @@
-"""Functional tests for per-ability crit rates.
-
-Marked slow — each test runs hundreds of simulated fights.
-Run selectively with: pytest -m slow
-
-Methodology
------------
-Crit rolls are pooled across all repetitions to reduce variance before comparing
-observed rates against theoretical values derived from elarion.stats.crit_percent.
-
-Bonus-crit effects present in the BASIC_BARRAGE_BUILD (minus Last Lights):
-
-  HeartseekerBarrage       : +0.20  (Fusillade talent)
-  LunarlightSalvo          : +0.40  (Lunarlight Affinity talent)
-  LunarlightExplosion      : +0.40  (Lunarlight Affinity talent)
-  VoidbringersTouchEffect  : +1.00  (always crits — debuff explosion mechanic)
-
-All other sources use the unmodified base crit rate from stats.
-Last Lights (+0.30 when target HP < 30%) is deliberately excluded from the talent
-build so plain-ability assertions do not need to account for HP-conditional crit.
-"""
-
 import contextlib
 import random
 from collections import defaultdict
@@ -154,6 +132,8 @@ class OnlyExecuteScenario(Scenario):
         elarion.spirit_points = 0
         elarion._change_spirit_points(self.initial_spirit_points)
 
+        elarion.spirit_point_per_s = self.bonus_spirit_point_per_s
+
         if self.finalize_character is not None:
             self.finalize_character(elarion)
 
@@ -238,9 +218,9 @@ def _assert_crit_rate(
     )
 
 
-# @pytest.mark.slow
 class TestCritRatesBarrageBuild:
-    def test_crit_rates_single_target(self, st_scenario: BossFightScenario) -> None:
+    @pytest.mark.slow
+    def test_crit_rates_single_target(self, st_scenario: Scenario) -> None:
         """Observed crit rates per ability should match the values predicted by stats."""
         base_crit = _base_crit(scenario=st_scenario, setup=_SETUP_NO_LL)
         observed = _collect_pooled_crit_rates(scenario=st_scenario, setup=_SETUP_NO_LL)
@@ -271,7 +251,8 @@ class TestCritRatesBarrageBuild:
             p, _ = observed["VoidbringersTouchEffect"]
             assert p == pytest.approx(1.0), f"ST VoidbringersTouchEffect: observed {p:.3%}, expected 100%"
 
-    def test_crit_rates_aoe(self, aoe_scenario: TrashAOEFightScenario) -> None:
+    @pytest.mark.slow
+    def test_crit_rates_aoe(self, aoe_scenario: Scenario) -> None:
         """Same assertions as the ST test but in a multi-target scenario.
 
         DamageSourceProbe aggregates hits across all enemies, so crit rates
@@ -302,7 +283,8 @@ class TestCritRatesBarrageBuild:
             p, _ = observed["VoidbringersTouchEffect"]
             assert p == pytest.approx(1.0), f"AOE VoidbringersTouchEffect: observed {p:.3%}, expected 100%"
 
-    def test_crit_rates_single_target_with_last_lights(self, execute_scenario: BossFightScenario) -> None:
+    @pytest.mark.slow
+    def test_crit_rates_single_target_with_last_lights(self, execute_scenario: Scenario) -> None:
         """Observed crit rates per ability should match the values predicted by stats."""
         base_crit = _base_crit(scenario=execute_scenario, setup=_SETUP_WITH_LL)
         # Last lights: +30% crit chance
@@ -337,7 +319,7 @@ class TestCritRatesBarrageBuild:
             assert p == pytest.approx(1.0), f"ST VoidbringersTouchEffect: observed {p:.3%}, expected 100%"
 
     @pytest.mark.parametrize("crit_percent", [0.05, 0.15, 0.30])
-    def test_crit_rates__execute_damage__manual(self, crit_percent) -> None:
+    def test_crit_rates__execute_damage__manual(self, crit_percent: float) -> None:
         """A lower-level functional test for crit rates.
 
         - Setup a single-target scenario with an enemy with constant HP.

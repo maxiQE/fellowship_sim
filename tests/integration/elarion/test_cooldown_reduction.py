@@ -114,7 +114,7 @@ class TestSkywardMunitions:
         hwa_cd_before = elarion.highwind_arrow.cooldown
 
         elarion.celestial_shot._do_cast(state.enemies[0])
-        state.step()
+        state.advance_time(0.0)
 
         assert elarion.highwind_arrow.cooldown == pytest.approx(hwa_cd_before - 1.0)
 
@@ -124,7 +124,7 @@ class TestSkywardMunitions:
         barrage_cd_before = elarion.heartseeker_barrage.cooldown
 
         elarion.celestial_shot._do_cast(state.enemies[0])
-        state.step()
+        state.advance_time(0.0)
 
         assert elarion.heartseeker_barrage.cooldown == pytest.approx(barrage_cd_before - 1.0)
 
@@ -136,7 +136,7 @@ class TestSkywardMunitions:
         barrage_cd_before = elarion.heartseeker_barrage.cooldown
 
         elarion.multishot._do_cast(state.enemies[0])
-        state.step()
+        state.advance_time(0.0)
 
         assert elarion.highwind_arrow.cooldown == pytest.approx(hwa_cd_before - 1.0)
         assert elarion.heartseeker_barrage.cooldown == pytest.approx(barrage_cd_before - 1.0)
@@ -160,10 +160,10 @@ class TestRepeatingStars:
         volley_cd_before = elarion.volley.cooldown
 
         elarion.multishot._do_cast(enemies[0])
-        state.step()
+        elarion.wait(0.2)
 
         # With num_enemies enemies: 1 main + min(num_enemies-1, 11) secondary hits
         expected_hits = num_enemies  # all hit
         expected_cdr = expected_hits * 0.3
 
-        assert elarion.volley.cooldown == pytest.approx(volley_cd_before - expected_cdr, abs=0.001)
+        assert elarion.volley.cooldown == pytest.approx(volley_cd_before - expected_cdr - 0.2, abs=0.001)
