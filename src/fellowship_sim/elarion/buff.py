@@ -107,7 +107,7 @@ class EmpoweredMultishotProvider(Effect):
 
     owner: "Elarion" = field(init=True)
 
-    damage_multiplier: float = field(default=1, init=False)
+    bonus_damage: float = field(default=0, init=False)
     consume_priority: int  # Lowest is consumed first; supremacy buffs have priority over empowered MS from FE
 
     def on_add(self) -> None:
@@ -148,7 +148,7 @@ class FerventSupremacyBuff(EmpoweredMultishotProvider):
     stacks: int = field(default=4, init=False)
     max_stacks: int = field(default=4, init=False)
 
-    damage_multiplier: float = field(default=1.25, init=False)
+    bonus_damage: float = field(default=0.25, init=False)
     consume_priority: int = field(default=0, init=False)  # highest priority
 
 

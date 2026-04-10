@@ -21,7 +21,19 @@ def secondary_stat_percent_from_score(score: float) -> float:
       1242-1647-> 20-25%  (72.675% efficiency)
       1647+    -> 25%+    (58.2% efficiency)
     """
-    thresholds = [589, 898, 1242, 1647]
+    multiplier = 0.017
+    multiplier_percent_step = 0.05
+
+    # thresholds from 0.017 : 588.2352941176471, 897.8328173374614, 1241.8300653594772, 1646.5327100912605
+    thresholds: list[float] = []
+    threshold = 10 / multiplier
+    multiplier *= 1 - multiplier_percent_step
+    thresholds.append(threshold)
+    for idx in range(3):
+        threshold += 5 / multiplier
+        multiplier *= 1 - (idx + 2) * 0.05
+        thresholds.append(threshold)
+
     if score < thresholds[0]:
         return score / thresholds[0] * 0.1
     elif score < thresholds[1]:
@@ -31,7 +43,7 @@ def secondary_stat_percent_from_score(score: float) -> float:
     elif score < thresholds[3]:
         return 0.2 + (score - thresholds[2]) / (thresholds[3] - thresholds[2]) * 0.05
     else:
-        return 0.25 + (score - thresholds[3]) * 0.009901 / 100
+        return 0.25 + (score - thresholds[3]) * multiplier / 100
 
 
 # ---------------------------------------------------------------------------

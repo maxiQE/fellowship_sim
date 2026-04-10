@@ -138,7 +138,7 @@ class LunarlightMarkEffect(Effect):
 
     name: str = field(default="lunarlight_mark", init=False)
     duration: float = field(default=15.0, init=False)
-    max_stacks: int = field(default=15, init=False)
+    max_stacks: int = field(default=20, init=False)
 
     explosion_chance: float = field(default=0.20, init=False)
 

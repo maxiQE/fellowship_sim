@@ -331,7 +331,7 @@ class TestCritRatesBarrageBuild:
         - Test the crit rate again.
         """
         rng = FixedRNG(value=1.0)
-        state = State(enemies=[Enemy()], rng=rng)
+        state = State(enemies=[Enemy(time_to_live=100)], rng=rng)
         target = state.enemies[0]
         setup = ElarionSetup(
             raw_stats=RawStatsFromPercents(
@@ -367,9 +367,6 @@ class TestCritRatesBarrageBuild:
 
         epsilon = 0.01
 
-        # high HP
-        target.percent_hp = 0.9
-
         bonus_damage = 1.0
         bonus_crit = 0.15
 
@@ -390,8 +387,10 @@ class TestCritRatesBarrageBuild:
             assert damage_list[-1].is_crit
             assert damage_list[-1].damage == pytest.approx(bonus_damage * 2 * 1.03 * ability.average_damage)
 
+        assert target.percent_hp > 0.5
+
         # middle HP
-        target.percent_hp = 0.4
+        elarion.wait(55 - state.time)
 
         bonus_damage = 1.0
         bonus_crit = 0.0
@@ -413,8 +412,10 @@ class TestCritRatesBarrageBuild:
             assert damage_list[-1].is_crit
             assert damage_list[-1].damage == pytest.approx(bonus_damage * 2 * 1.03 * ability.average_damage)
 
+        assert 0.3 < target.percent_hp < 0.5
+
         # low HP
-        target.percent_hp = 0.2
+        elarion.wait(80 - state.time)
 
         bonus_damage = 1.15
         bonus_crit = 0.3
@@ -435,3 +436,5 @@ class TestCritRatesBarrageBuild:
             ability.cast(target)
             assert damage_list[-1].is_crit
             assert damage_list[-1].damage == pytest.approx(bonus_damage * 2 * 1.03 * ability.average_damage)
+
+        assert target.percent_hp < 0.3

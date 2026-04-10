@@ -123,7 +123,7 @@ class Multishot(ElarionAbility):
     num_secondary_targets: int = field(default=11, init=False)
 
     empowered_num_arrows_min: int = field(default=3, init=False)
-    empowered_ms_bonus_damage: float = field(default=1.0, init=False)
+    empowered_ms_bonus_damage: float = field(default=0.0, init=False)  # Provided by FE
 
     _empowered_providers: list[EmpoweredMultishotProvider] = field(default_factory=list, init=False)
 
@@ -198,11 +198,15 @@ class Multishot(ElarionAbility):
         base_damage = self.average_damage
         num_arrows_min = 1
         if provider:
+            bonus_damage = 0
+
             # buff damage if provider is FerventSupremacy
-            base_damage *= provider.damage_multiplier
+            bonus_damage += provider.bonus_damage
 
             # generic damage buff for empowered MS if FE is active
-            base_damage *= self.empowered_ms_bonus_damage
+            bonus_damage += self.empowered_ms_bonus_damage
+
+            base_damage *= 1 + bonus_damage
 
             num_arrows_min = self.empowered_num_arrows_min
 

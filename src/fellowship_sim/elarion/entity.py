@@ -25,7 +25,7 @@ from .ability import (
 class Elarion(Player):
     focus: float = field(default=100.0, init=True)
     max_focus: float = field(default=100.0, init=False)
-    focus_regen_rate: float = field(default=5.0 / 1.5, init=False)  # focus per second at zero haste
+    focus_regen_rate: float = field(default=5.0, init=False)  # focus per second at zero haste
 
     has_increased_proc_chance_barrage: bool = field(default=False, init=False)
     has_increased_proc_chance_volley: bool = field(default=False, init=False)

@@ -263,7 +263,7 @@ _TALENT_COSTS: dict[str, int] = {
 @dataclass(kw_only=True)
 class FocusedExpanseSetup(SetupEffectLate["Elarion"]):
     def apply(self, character: "Elarion", context: SetupContext) -> None:
-        character.multishot.empowered_ms_bonus_damage *= 1.2
+        character.multishot.empowered_ms_bonus_damage += 0.25
         character.effects.add(FocusedExpanseEffect(owner=character))
         logger.debug("setup: Focused Expanse added")
 

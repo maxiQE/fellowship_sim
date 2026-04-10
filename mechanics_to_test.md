@@ -27,7 +27,17 @@ Theory:
 - haste is not snapshotted: the time to next tick is computed like a cooldown
 
 
+## Focus regen
+
+Focus regen is 5 per s, scaled by haste
+ie, at 50% haste, it's 7.5 per s
+
+
 ## Open questions
+
+## FE and FS stacking
+
+Stack additively according to Angry
 
 ### Crit multiplier role in damage formula
 

@@ -19,7 +19,10 @@
     - auto extract docs (with sphinx?)
 
 
+
 - Points that maybe need addressing:
+    - check which tests are missing
+    - buff uptime
     - rotation is scuffed on cold starts:
         - it holds weapon instead of sending it
 

@@ -5,6 +5,7 @@ from fellowship_sim.base_classes.stats import RawStatsFromPercents
 from fellowship_sim.elarion.buff import EventHorizonBuff
 from fellowship_sim.elarion.setup import ElarionSetup
 from fellowship_sim.generic_game_logic.buff import SpiritOfHeroism
+from fellowship_sim.generic_game_logic.gems import FirstStrike, FirstStrikeBuff
 from fellowship_sim.generic_game_logic.setup_effect import (
     AncestralSurgeSetup,
     BlessingOfTheProphetSetup,
@@ -110,3 +111,43 @@ class TestSpiritOfHeroismModifiers:
 
             elarion.wait(0.2)
             assert not elarion.effects.has(SpiritOfHeroism)
+
+
+class TestGemProcs:
+    @pytest.mark.parametrize("first_strike_level", [0, 1, 2])
+    def test_emerald_judgement(self, first_strike_level: int) -> None:
+        """Test that emerald judgement proc provides the First Strike buff at appropriate level."""
+        rng = FixedRNG(value=1.0)
+        state = State(enemies=[Enemy()], rng=rng)
+        target = state.enemies[0]
+        setup = ElarionSetup(
+            raw_stats=RawStatsFromPercents(
+                main_stat=1000.0,
+                crit_percent=0.0,
+                expertise_percent=0.0,
+                haste_percent=0.0,
+                spirit_percent=0.0,
+            ),
+            master_trait="Emerald Judgement",
+        )
+
+        elarion = setup.finalize(state)
+
+        if first_strike_level > 0:
+            elarion.effects.add(FirstStrike(owner=elarion, is_level_2=first_strike_level == 2))
+
+        elarion.celestial_shot.cast(target)
+
+        assert (first_strike_level > 0) == elarion.effects.has(FirstStrikeBuff)
+
+        elarion.wait(20)
+
+        elarion.celestial_shot.cast(target)
+        assert not elarion.effects.has(FirstStrikeBuff)
+
+        # guarantee procs
+        rng.value = 0.0
+
+        elarion.celestial_shot.cast(target)
+
+        assert (first_strike_level > 0) == elarion.effects.has(FirstStrikeBuff)

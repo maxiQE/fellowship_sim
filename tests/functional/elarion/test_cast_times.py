@@ -169,7 +169,7 @@ class TestComplexBreakpoints:
 
         assert len(damages) == 3 * num_casts  # fire three arrows per cast
         assert all(
-            event.damage == pytest.approx(elarion.multishot.average_damage * (1.2 if has_fe else 1.0))
+            event.damage == pytest.approx(elarion.multishot.average_damage * (1.25 if has_fe else 1.0))
             for event in damages
         )
 

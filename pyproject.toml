@@ -25,11 +25,11 @@ Repository = "https://github.com/maxiQE/fellowship-sim"
 [dependency-groups]
 dev = [
     "pre-commit>=2.20.0",
-    "tox-uv>=1.11.3",
-    
-    "ty>=0.0.20",
     "pytest>=8.4.2",
+    "pytest-cov>=7.1.0",
     "ruff>=0.11.5",
+    "tox-uv>=1.11.3",
+    "ty>=0.0.20",
 ]
 
 [build-system]
@@ -53,6 +53,19 @@ testpaths = ["tests"]
 python_files = ["test_*.py", "integration_tests.py"]
 pythonpath = ["."]
 markers = ["slow: marks tests as slow (include with '--run-slow')"]
+
+[tool.coverage.report]
+skip_empty = true
+show_missing = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError"
+]
+
+[tool.coverage.run]
+branch = true
+source = ["src"]
 
 [tool.ruff]
 target-version = "py312"
@@ -120,10 +133,3 @@ exclude = [
 
 [tool.ruff.format]
 preview = true
-
-[tool.coverage.report]
-skip_empty = true
-
-[tool.coverage.run]
-branch = true
-source = ["src"]

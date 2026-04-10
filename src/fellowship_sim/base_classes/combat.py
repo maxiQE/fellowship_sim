@@ -15,25 +15,6 @@ if TYPE_CHECKING:
     from .entity import Entity, Player
 
 
-# def schedule_damage(
-#     state: State,
-#     snapshot: SnapshotStats,
-#     damage_origin: "Ability | Effect",
-#     target: "Entity",
-#     delay: float = 0.0,
-#     *,
-#     cast_specific_predamage_snapshot_modifiers: "list[Callable[..., None]] | None" = None,
-#     owner: "Entity | None" = None,
-# ) -> None:
-#     """Schedule a deal_damage call at state.time + delay."""
-
-#     def _fire() -> None:
-#         logger.trace(f"damage tick firing: {damage_origin} at t={get_state().time:.3f}")
-#         deal_damage(snapshot, damage_origin, target, cast_specific_predamage_snapshot_modifiers)
-
-#     state.schedule(time_delay=delay, callback=DelayedDamage(damage_source=damage_origin, callback=_fire))
-
-
 def compute_damage(snapshot: SnapshotStats, rng_roll: float) -> tuple[float, bool, bool]:
     """Compute (damage, is_crit, is_grievous_crit) from a snapshot and a pre-rolled value.
 

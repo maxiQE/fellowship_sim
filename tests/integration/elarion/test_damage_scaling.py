@@ -136,11 +136,11 @@ class TestMultishotDamageScaling:
 
     @pytest.mark.parametrize("main_stat,expertise_percent,crit_percent", STAT_TRIPLETS)
     @pytest.mark.parametrize(
-        "provider_class,provider_damage_multiplier",
+        "provider_class,provider_damage_bonus",
         [
-            (SkystriderSupremacyBuff, 1.0),
-            (FerventSupremacyBuff, 1.25),
-            (EmpoweredMultishotChargeBuff, 1.0),
+            (SkystriderSupremacyBuff, 0.0),
+            (FerventSupremacyBuff, 0.25),
+            (EmpoweredMultishotChargeBuff, 0.0),
         ],
     )
     def test_focused_expanse_applies_1_2x_to_all_providers(
@@ -149,7 +149,7 @@ class TestMultishotDamageScaling:
         expertise_percent: float,
         crit_percent: float,
         provider_class: type[SkystriderSupremacyBuff] | type[FerventSupremacyBuff] | type[EmpoweredMultishotChargeBuff],
-        provider_damage_multiplier: float,
+        provider_damage_bonus: float,
     ) -> None:
         """With FocusedExpanse active, each provider's per-arrow damage is multiplied by
         1.2 × provider_damage_multiplier. With 1 enemy, all 3 arrows land on the main target."""
@@ -163,7 +163,7 @@ class TestMultishotDamageScaling:
             )
         )
         state.character = elarion
-        elarion.multishot.empowered_ms_bonus_damage = 1.2
+        elarion.multishot.empowered_ms_bonus_damage = 0.25
         elarion.effects.add(provider_class(owner=elarion))
 
         damages: list[AbilityDamage] = []
@@ -173,7 +173,7 @@ class TestMultishotDamageScaling:
         state.step()
 
         expected = compute_expected_damage(
-            base_damage=elarion.multishot.average_damage * 1.2 * provider_damage_multiplier,
+            base_damage=elarion.multishot.average_damage * (1 + 0.25 + provider_damage_bonus),
             main_stat=main_stat,
             expertise_percent=expertise_percent,
             crit_percent=crit_percent,

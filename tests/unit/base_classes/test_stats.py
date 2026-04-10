@@ -34,9 +34,27 @@ class TestSecondaryStatPercentFromScore:
             (1750, 26.02),
             (2000, 28.50),
         ]
+
+        def rating_to_pct__angry_reference(
+            rating: float, mul: float = 0.017, tier: int = 0, low: float = 0, up: float = 10
+        ) -> float:
+            return (
+                low + rating * mul
+                if low + rating * mul < up
+                else rating_to_pct__angry_reference(
+                    rating - (up - low) / mul,
+                    max(mul * (1 - 0.05 * (tier + 1)), 0.009883800000000002),
+                    tier + 1,
+                    up,
+                    up + 5,
+                )
+            )
+
         for score, expected_pct in test_cases:
             actual_pct = secondary_stat_percent_from_score(score) * 100
+            angry_expected_pct = rating_to_pct__angry_reference(score)
             assert actual_pct == pytest.approx(expected_pct, abs=0.1), f"score={score}"
+            assert actual_pct == pytest.approx(angry_expected_pct, abs=0.001), f"score={score}"
 
     @pytest.mark.parametrize(
         "base_score,bonus,expected_gain",

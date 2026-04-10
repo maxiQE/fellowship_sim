@@ -99,6 +99,5 @@ __all__ = [
     "WeaponAbilityNotInitialized",
     "create_standard_damage",
     "deal_damage",
-    "schedule_damage",
     "secondary_stat_percent_from_score",
 ]

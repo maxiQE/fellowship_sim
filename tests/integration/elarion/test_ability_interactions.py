@@ -194,7 +194,7 @@ class TestMultishotChargeSystem:
             elarion.multishot.cast(target)  # sky supremacy
 
             assert len(damages) == 6
-            assert all(event.damage == pytest.approx(elarion.multishot.average_damage * 1.2) for event in damages)
+            assert all(event.damage == pytest.approx(elarion.multishot.average_damage * 1.25) for event in damages)
 
         else:
             elarion.skystrider_supremacy.is_fervent_supremacy = True
@@ -203,9 +203,7 @@ class TestMultishotChargeSystem:
             elarion.multishot.cast(target)  # fervent supremacy
 
             assert len(damages) == 6
-            assert all(
-                event.damage == pytest.approx(elarion.multishot.average_damage * 1.2 * 1.25) for event in damages
-            )
+            assert all(event.damage == pytest.approx(elarion.multishot.average_damage * 1.5) for event in damages)
 
 
 class TestResurgentWinds:

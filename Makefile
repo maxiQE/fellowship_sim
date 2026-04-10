@@ -26,6 +26,11 @@ test: ## Test the code with pytest
 	@uv run python -m pytest --doctest-modules tests
 
 
+.PHONY: coverage
+coverage: ## Compute coverage with pytest
+	@pytest --cov=. --cov-report=term-missing --cov-report=xml
+
+
 .PHONY: tox
 tox: ## Test the code with tox
 	@echo "🚀 Testing code: Running tox"
