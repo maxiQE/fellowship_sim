@@ -186,10 +186,8 @@ class ElarionSetup:
         return "\n".join(info_lines)
 
     def finalize(self, state: State) -> Elarion:
-        elarion = Elarion(raw_stats=self.raw_stats, focus=self.initial_focus)
+        elarion = Elarion(state=state, raw_stats=self.raw_stats, focus=self.initial_focus)
         elarion.spirit_points = self.initial_spirit_points
-
-        state.character = elarion
 
         context = SetupContext()
         for setup_effect in self.setup_effect_list:

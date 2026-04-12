@@ -21,8 +21,8 @@ class TestComplexCDRStacking:
     @pytest.mark.parametrize("haste", [0.0, 0.2])
     def test_highwind_arrow_cda_and_eh_cda_stack_additively(self, haste: float) -> None:
         """Tested by MaxiQE on 08/04/26."""
-        target = Enemy()
-        state = State(enemies=[target], rng=FixedRNG(value=0.0))
+        state = State(rng=FixedRNG(value=0.0))
+        target = Enemy(state=state)
 
         setup = ElarionSetup(
             raw_stats=RawStatsFromPercents(
@@ -67,8 +67,8 @@ class TestComplexCDRStacking:
         """Tested by MaxiQE on 08/04/26.
 
         NB: split into an integration test and functional test."""
-        target = Enemy()
-        state = State(enemies=[target], rng=FixedRNG(value=0.0))
+        state = State(rng=FixedRNG(value=0.0))
+        target = Enemy(state=state)
 
         setup = ElarionSetup(
             raw_stats=RawStatsFromPercents(
@@ -110,8 +110,8 @@ class TestComplexCDRStacking:
         """Tested by MaxiQE on 08/04/26.
 
         NB: split into an integration test and functional test."""
-        target = Enemy()
-        state = State(enemies=[target], rng=FixedRNG(value=0.0))
+        state = State(rng=FixedRNG(value=0.0))
+        target = Enemy(state=state)
 
         setup = ElarionSetup(
             raw_stats=RawStatsFromPercents(
@@ -171,8 +171,8 @@ class TestComplexCDRStacking:
     @pytest.mark.parametrize("haste", [0.0, 0.2])
     def test_skylit_grace_stacks_additively_with_eh_and_chronoshift__integration(self, haste: float) -> None:
         """Tested by MaxiQE on 08/04/26."""
-        target = Enemy()
-        state = State(enemies=[target], rng=FixedRNG(value=0.0))
+        state = State(rng=FixedRNG(value=0.0))
+        target = Enemy(state=state)
 
         setup = ElarionSetup(
             raw_stats=RawStatsFromPercents(
@@ -232,8 +232,8 @@ class TestComplexCDRStacking:
         """Tested by MaxiQE on 08/04/26.
 
         NB: builds upon the EH + chronoshift interaction test"""
-        target = Enemy()
-        state = State(enemies=[target], rng=FixedRNG(value=0.0))
+        state = State(rng=FixedRNG(value=0.0))
+        target = Enemy(state=state)
 
         setup = ElarionSetup(
             raw_stats=RawStatsFromPercents(

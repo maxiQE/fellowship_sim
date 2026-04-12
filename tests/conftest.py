@@ -49,31 +49,28 @@ class SequenceRNG:
 
 
 @pytest.fixture
-def state_no_procs__st() -> State:
-    entity = Enemy()
-    state = State(enemies=[entity], rng=FixedRNG(value=0.0))
+def state_always_procs__st() -> State:
+    state = State(rng=FixedRNG(value=0.0))
+    Enemy(state=state)
     state.information.delay_since_last_fight = None
     return state
 
 
 @pytest.fixture
-def state_always_procs__st() -> State:
-    entity = Enemy()
-    return State(enemies=[entity], rng=FixedRNG(value=1.0))
+def state_no_procs__st() -> State:
+    state = State(rng=FixedRNG(value=1.0))
+    Enemy(state=state)
+    return state
 
 
 @pytest.fixture
-def unit_elarion__zero_stats(state_no_procs__st: State) -> Elarion:
-    player = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0))
-    state_no_procs__st.character = player
-    return player
+def unit_elarion__zero_stats(state_always_procs__st: State) -> Elarion:
+    return Elarion(state=state_always_procs__st, raw_stats=RawStatsFromPercents(main_stat=1000.0))
 
 
 @pytest.fixture
-def setup_hasted_elarion(state_no_procs__st: State) -> Callable[..., Elarion]:
+def setup_hasted_elarion(state_always_procs__st: State) -> Callable[..., Elarion]:
     def _factory(*, haste: float) -> Elarion:
-        player = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0, haste_percent=haste))
-        state_no_procs__st.character = player
-        return player
+        return Elarion(state=state_always_procs__st, raw_stats=RawStatsFromPercents(main_stat=1000.0, haste_percent=haste))
 
     return _factory

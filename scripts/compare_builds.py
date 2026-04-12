@@ -22,10 +22,14 @@ NUM_REPS = 100
 SEED = 12345
 
 
-DURATION = 300  # seconds
-AOE_INITIAL_SPIRIT_POINTS = 130
+PACK_DURATION = 135
+NUM_PACKS = 4
+PACK_INTERVAL = 15
+AOE_INITIAL_SPIRIT_POINTS = 0
+
+BOSS_DURATION = 300  # seconds
 BOSS_INITIAL_SPIRIT_POINTS = 130
-DELAY_SINCE_LAST_FIGHT = 15  # seconds; forwarded to PPM last_time_since_proc
+BOSS_DELAY_SINCE_LAST_FIGHT = 15  # seconds; forwarded to PPM last_time_since_proc to start the fight "hot"
 SPIRIT_POINT_PER_S = 0.5
 
 HIGH_HP_UPTIME = 0.85
@@ -35,24 +39,32 @@ scenarios: dict[str, Scenario] = {
     "trash12": TrashAOEFightScenario(
         note="",
         num_enemies=12,
-        duration=DURATION,
+        num_enemies_medium=7,
+        num_enemies_small=3,
+        pack_duration=PACK_DURATION,
+        num_packs=NUM_PACKS,
+        pack_interval_s=PACK_INTERVAL,
         bonus_spirit_point_per_s=SPIRIT_POINT_PER_S,
-        delay_since_last_fight=DELAY_SINCE_LAST_FIGHT,
+        delay_since_last_fight=None,
         initial_spirit_points=AOE_INITIAL_SPIRIT_POINTS,
     ),
-    # "trash8": TrashAOEFightScenario(
-    #     note="",
-    #     num_enemies=12,
-    #     duration=DURATION,
-    #     bonus_spirit_point_per_s=SPIRIT_POINT_PER_S,
-    #     delay_since_last_fight=DELAY_SINCE_LAST_FIGHT,
-    #     initial_spirit_points=AOE_INITIAL_SPIRIT_POINTS,
-    # ),
+    "trash8": TrashAOEFightScenario(
+        note="",
+        num_enemies=8,
+        num_enemies_medium=5,
+        num_enemies_small=2,
+        pack_duration=BOSS_DURATION,
+        num_packs=NUM_PACKS,
+        pack_interval_s=PACK_INTERVAL,
+        bonus_spirit_point_per_s=SPIRIT_POINT_PER_S,
+        delay_since_last_fight=None,
+        initial_spirit_points=AOE_INITIAL_SPIRIT_POINTS,
+    ),
     "boss_fight": BossFightScenario(
         note="full resource",
-        duration=DURATION,
+        duration=BOSS_DURATION,
         bonus_spirit_point_per_s=SPIRIT_POINT_PER_S,
-        delay_since_last_fight=DELAY_SINCE_LAST_FIGHT,
+        delay_since_last_fight=BOSS_DELAY_SINCE_LAST_FIGHT,
         initial_spirit_points=BOSS_INITIAL_SPIRIT_POINTS,
     ),
 }
@@ -158,7 +170,7 @@ setups = {
 }
 
 rotations: dict[str, Rotation] = {
-    "maxi_smart__basic": NeckBarragePriorityList(),
+    "maxi_smart__basic": NeckBarragePriorityListMethod(),
 }
 
 

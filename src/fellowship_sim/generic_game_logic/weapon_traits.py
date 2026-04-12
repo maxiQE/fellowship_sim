@@ -32,7 +32,6 @@ from fellowship_sim.base_classes.events import (
 )
 from fellowship_sim.base_classes.real_ppm import RealPPM
 from fellowship_sim.base_classes.setup import SetupContext, SetupEffectLate
-from fellowship_sim.base_classes.state import get_state
 from fellowship_sim.base_classes.timed_events import GenericTimedEvent
 from fellowship_sim.generic_game_logic.gems import FirstStrike, HarmoniousSoulBuff
 from fellowship_sim.generic_game_logic.weapon_abilities import CurseOfAnzhyr
@@ -81,7 +80,7 @@ class AmethystSplintersDoT(Effect):
     tick_staleness_counter: int = field(default=0, init=False)
 
     def on_add(self) -> None:
-        state = get_state()
+        state = self.owner.state
         t0 = state.time
 
         self.tick_time = self.base_tick_time / (1 + self.haste_percent)
@@ -104,7 +103,7 @@ class AmethystSplintersDoT(Effect):
                 f"AmethystSplintersDot trying to fuse with non dot effect: {incoming} (class: {incoming.__class__})"
             )
 
-        state = get_state()
+        state = self.owner.state
 
         self.stored_damage += incoming.stored_damage
         self.haste_percent = incoming.haste_percent
@@ -128,7 +127,7 @@ class AmethystSplintersDoT(Effect):
     def _do_tick(self) -> None:
         if self.attached_to is None:
             return
-        state = get_state()
+        state = self.owner.state
         damage = min(self.tick_damage, self.stored_damage)
         self.stored_damage = max(0.0, self.stored_damage - damage)
         logger.debug("Amethyst Splinters DoT tick: {:.2f} dmg ({:.2f} stored)", damage, self.stored_damage)
@@ -150,7 +149,7 @@ class AmethystSplintersDoT(Effect):
         target = self.attached_to
         if target is None or damage <= 0.0:
             return
-        get_state().bus.emit(
+        self.owner.state.bus.emit(
             AbilityPeriodicDamage(
                 damage_source=self,
                 owner=self.owner,
@@ -182,8 +181,8 @@ class AmethystSplinters(Effect):
         return self._ratio_table[self.trait_level - 1]
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(AbilityDamage, self._on_damage_dealt, owner=self)
-        get_state().bus.subscribe(AbilityPeriodicDamage, self._on_damage_dealt, owner=self)
+        self.owner.state.bus.subscribe(AbilityDamage, self._on_damage_dealt, owner=self)
+        self.owner.state.bus.subscribe(AbilityPeriodicDamage, self._on_damage_dealt, owner=self)
 
     def _on_damage_dealt(self, event: AbilityDamage | AbilityPeriodicDamage) -> None:
         if not event.is_crit:
@@ -256,19 +255,21 @@ class DiamondStrike(Effect):
         )
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(AbilityDamage, self._on_damage, owner=self)
+        self.owner.state.bus.subscribe(AbilityDamage, self._on_damage, owner=self)
 
     def _on_damage(self, event: AbilityDamage) -> None:
+        if isinstance(event.damage_source, DiamondStrike):
+            return
+
         if not self._rppm.check():
             return
-        char = self.owner
-        if not isinstance(char, Player):
-            return
-        target = event.target
-        state = get_state()
+
+        state = self.owner.state
         state.schedule(
             time_delay=0.0,
-            callback=GenericTimedEvent(name="diamond_strike proc", callback=lambda: self._fire(char, target)),
+            callback=GenericTimedEvent(
+                name="diamond_strike proc", callback=lambda: self._fire(self.owner, event.target)
+            ),
         )
 
     def _fire(self, char: Player, target: Entity) -> None:
@@ -276,23 +277,23 @@ class DiamondStrike(Effect):
 
         # HarmoniousSoul stacks on caster
         hs = char.effects.get(HarmoniousSoulBuff)
-        k = hs.stacks if hs is not None else 0
+        n_h_soul = hs.stacks if hs is not None else 0
 
         # DiamondStrikeEcho stacks on target
         echo = target.effects.get(DiamondStrikeEcho)
-        s = echo.stacks if echo is not None else 0
+        n_echo = echo.stacks if echo is not None else 0
 
-        base_damage = unscaled_base_damage * (1 + k * 0.35) * (1 + s * 0.40)
+        base_damage = unscaled_base_damage * (1 + n_h_soul * 0.35) * (1 + n_echo * 0.40)
 
         logger.debug(
             "Diamond Strike proc: unscaled base={:.0f} harmonious soul count={} diamond strike echo count={} → base damage={:.0f} on {}",
             unscaled_base_damage,
-            k,
-            s,
+            n_h_soul,
+            n_echo,
             base_damage,
             target,
         )
-        create_standard_damage(get_state(), self, char, target, base_damage)
+        create_standard_damage(self.owner.state, self, char, target, base_damage)
         target.effects.add(DiamondStrikeEcho(owner=self.owner))
 
 
@@ -330,7 +331,7 @@ class EmeraldJudgement(Effect):
         )
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(AbilityDamage, self._on_damage, owner=self)
+        self.owner.state.bus.subscribe(AbilityDamage, self._on_damage, owner=self)
 
     def _on_damage(self, event: AbilityDamage) -> None:
         if not self._rppm.check():
@@ -339,7 +340,7 @@ class EmeraldJudgement(Effect):
         if not isinstance(char, Player):
             return
         target = event.target
-        state = get_state()
+        state = self.owner.state
         state.schedule(
             time_delay=0.0,
             callback=GenericTimedEvent(name="emerald_judgement proc", callback=lambda: self._fire(char, target)),
@@ -352,7 +353,7 @@ class EmeraldJudgement(Effect):
             fs.apply_first_strike()
 
         base_damage = self._base_dmg_table[self.trait_level - 1]
-        create_standard_damage(get_state(), self, char, target, base_damage)
+        create_standard_damage(self.owner.state, self, char, target, base_damage)
 
 
 # ---------------------------------------------------------------------------
@@ -406,10 +407,10 @@ class SapphireAurastonePulse(Effect):
         self.ratio = [0.07, 0.08, 0.09, 0.10][self.trait_level - 1]
 
     def on_add(self) -> None:
-        bus = get_state().bus
+        bus = self.owner.state.bus
         bus.subscribe(AbilityDamage, self._on_damage, owner=self)
         bus.subscribe(AbilityPeriodicDamage, self._on_periodic_damage, owner=self)
-        state = get_state()
+        state = self.owner.state
         state.schedule(
             time_delay=self.pulse_interval,
             callback=GenericTimedEvent(name="sapphire_aurastone pulse", callback=self._pulse),
@@ -424,13 +425,13 @@ class SapphireAurastonePulse(Effect):
     def _pulse(self) -> None:
         if self.attached_to is None:
             return
-        enemies = get_state().enemies
+        enemies = self.owner.state.enemies
         if enemies and self.accumulated > 1e-9:
             per_enemy = self.accumulated / len(enemies)
             logger.debug("sapphire_aurastone pulse: {:.0f} total ({:.0f}/enemy)", self.accumulated, per_enemy)
             char = self.owner
             for enemy in list(enemies):
-                get_state().bus.emit(
+                self.owner.state.bus.emit(
                     AbilityDamage(
                         damage_source=self,
                         owner=char,
@@ -441,7 +442,7 @@ class SapphireAurastonePulse(Effect):
                     )
                 )
             self.accumulated = 0.0
-        state = get_state()
+        state = self.owner.state
         state.schedule(
             time_delay=self.pulse_interval,
             callback=GenericTimedEvent(name="sapphire_aurastone pulse", callback=self._pulse),
@@ -450,14 +451,14 @@ class SapphireAurastonePulse(Effect):
     def on_remove(self) -> None:
         if self.accumulated < 1e-9 or self.attached_to is None:
             return
-        enemies = get_state().enemies
+        enemies = self.owner.state.enemies
         if not enemies:
             return
         per_enemy = self.accumulated / len(enemies)
         logger.debug("sapphire_aurastone final pulse: {:.0f} total ({:.0f}/enemy)", self.accumulated, per_enemy)
         char = self.owner
         for enemy in list(enemies):
-            get_state().bus.emit(
+            self.owner.state.bus.emit(
                 AbilityDamage(
                     damage_source=self,
                     owner=char,
@@ -493,7 +494,7 @@ class VisionsOfGrandeur(Effect):
     _sp_rate_table: ClassVar[list[float]] = [2.0, 2.4, 2.8, 3.2]
 
     def on_add(self) -> None:
-        bus = get_state().bus
+        bus = self.owner.state.bus
         bus.subscribe(AbilityCastSuccess, self._on_cast, owner=self)
         bus.subscribe(UltimateCast, self._on_ultimate, owner=self)
 
@@ -550,7 +551,7 @@ class BraveMachinations(Effect):
         return self._crit_bonus_table[self.trait_level - 1]
 
     def on_add(self) -> None:
-        bus = get_state().bus
+        bus = self.owner.state.bus
         bus.subscribe(AbilityCastSuccess, self._on_cast, owner=self)
         bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
         bus.subscribe(AbilityDamage, self._on_damage, owner=self)
@@ -611,7 +612,7 @@ class HeroicBrand(Effect):
         return 1.0 + self._dmg_bonus_table[self.trait_level - 1]
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
+        self.owner.state.bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
 
     def _on_pre_damage(self, event: PreDamageSnapshotUpdate) -> None:
         if not isinstance(event.damage_source, WeaponAbility):
@@ -663,7 +664,7 @@ class RubyStorm(Effect):
         return self._ratio_table[self.trait_level - 1]
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(AbilityDamage, self._on_damage, owner=self)
+        self.owner.state.bus.subscribe(AbilityDamage, self._on_damage, owner=self)
 
     def _on_damage(self, event: AbilityDamage) -> None:
         if not self._rppm.check():
@@ -672,14 +673,22 @@ class RubyStorm(Effect):
         if not isinstance(char, Player):
             return
         base_damage = self.ratio * char.healthpoints
-        state = get_state()
+        state = self.owner.state
         logger.debug(
             "Ruby Storm: proc {:.0f} dmg (up to 8 enemies, {:.1f}% of {:.0f} HP)",
             base_damage,
             self.ratio * 100,
             char.healthpoints,
         )
-        create_standard_damage(state, self, char, event.target, base_damage, num_secondary_targets=7)
+        create_standard_damage(
+            state,
+            self,
+            char,
+            event.target,
+            base_damage,
+            num_secondary_targets=7,
+            is_scaled_by_main_stat=False,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -718,7 +727,7 @@ class MartialInitiative(Effect):
         return self._duration_ratio_table[self.trait_level - 1]
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(AbilityCastSuccess, self._on_cast, owner=self)
+        self.owner.state.bus.subscribe(AbilityCastSuccess, self._on_cast, owner=self)
 
     def _on_cast(self, event: AbilityCastSuccess) -> None:
         if not isinstance(event.ability, WeaponAbility):
@@ -784,7 +793,7 @@ class HiddenPower(Effect):
         )
 
     def on_add(self) -> None:
-        bus = get_state().bus
+        bus = self.owner.state.bus
         bus.subscribe(AbilityCastSuccess, self._try_gain_stack, owner=self)
 
     def _try_gain_stack(self, event: AbilityCastSuccess) -> None:
@@ -796,7 +805,7 @@ class HiddenPower(Effect):
         self._stacks += 1
         self._decay_generation += 1  # invalidate pending decays
         gen = self._decay_generation
-        state = get_state()
+        state = self.owner.state
         state.schedule(
             time_delay=self._STACK_DURATION,
             callback=GenericTimedEvent(name="hidden_power stack decay", callback=lambda g=gen: self._decay_stack(g)),
@@ -862,7 +871,7 @@ class HuntersFocus(Effect):
     _focus_target: "Entity | None" = field(default=None, init=False)
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(AbilityCastSuccess, self._on_cast, owner=self)
+        self.owner.state.bus.subscribe(AbilityCastSuccess, self._on_cast, owner=self)
 
     def _on_cast(self, event: AbilityCastSuccess) -> None:
         if event.target is event.owner:
@@ -929,7 +938,7 @@ class InspiredAllegiance(Effect):
         return self._cdr_table[self.trait_level - 1]
 
     def on_add(self) -> None:
-        bus = get_state().bus
+        bus = self.owner.state.bus
         bus.subscribe(AbilityDamage, self._on_damage, owner=self)
         bus.subscribe(AbilityPeriodicDamage, self._on_periodic_damage, owner=self)
 
@@ -996,8 +1005,8 @@ class Kindling(Effect):
         return self._ratio_table[self.trait_level - 1] * 1000 / 3.0
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(AbilityDamage, self._on_damage, owner=self)
-        get_state().bus.subscribe(AbilityPeriodicDamage, self._on_damage, owner=self)
+        self.owner.state.bus.subscribe(AbilityDamage, self._on_damage, owner=self)
+        self.owner.state.bus.subscribe(AbilityPeriodicDamage, self._on_damage, owner=self)
 
     def _on_damage(self, event: AbilityDamage | AbilityPeriodicDamage) -> None:
         if isinstance(event.damage_source, (Kindling, KindlingDoT)):
@@ -1070,13 +1079,13 @@ class NavigatorsIntuition(Effect):
     _next_available: float = field(default=0.0, init=False)
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(AbilityCastSuccess, self._on_cast, owner=self)
+        self.owner.state.bus.subscribe(AbilityCastSuccess, self._on_cast, owner=self)
 
     def _on_cast(self, event: AbilityCastSuccess) -> None:
         if event.target is self.owner:
             return
 
-        state = get_state()
+        state = self.owner.state
         if state.time < self._next_available:
             return
         if state.rng.random() >= self._PROC_CHANCE:
@@ -1101,6 +1110,20 @@ class NavigatorsIntuition(Effect):
             "spirit": stats.spirit_percent,
         }
         return cast("Literal['crit', 'haste', 'expertise', 'spirit']", max(candidates, key=lambda k: candidates[k]))
+
+
+@dataclass(kw_only=True, repr=False)
+class PatientSoul(Buff):
+    """+X% expertise score; permanent buff."""
+
+    name: str = field(default="patient_soul_buff", init=False)
+
+    trait_level: int = 4
+
+    _expertise_score_table: ClassVar[list[int]] = [107, 141, 177, 212]
+
+    def stat_modifiers(self) -> list[StatModifier]:
+        return [ExpertiseScoreAdditive(value=self._expertise_score_table[self.trait_level - 1])]
 
 
 # ---------------------------------------------------------------------------
@@ -1140,7 +1163,7 @@ class SeizedOpportunity(Effect):
     _crit_count: int = field(default=0, init=False)
 
     def on_add(self) -> None:
-        bus = get_state().bus
+        bus = self.owner.state.bus
         bus.subscribe(AbilityDamage, self._on_damage, owner=self)
         bus.subscribe(AbilityPeriodicDamage, self._on_periodic_damage, owner=self)
 
@@ -1207,7 +1230,7 @@ class VengefulSoul(Effect):
         )
 
     def on_add(self) -> None:
-        bus = get_state().bus
+        bus = self.owner.state.bus
         bus.subscribe(AbilityDamage, self._on_damage, owner=self)
         bus.subscribe(AbilityPeriodicDamage, self._on_periodic_damage, owner=self)
 
@@ -1271,7 +1294,7 @@ class WillfulMomentum(Buff):
 
     def on_add(self) -> None:
         super().on_add()
-        get_state().bus.subscribe(SpiritProc, self._on_spirit_proc, owner=self)
+        self.owner.state.bus.subscribe(SpiritProc, self._on_spirit_proc, owner=self)
 
     def _on_spirit_proc(self, event: SpiritProc) -> None:
         self.owner.effects.add(WillfulMomentumMainStatBuff(trait_level=self.trait_level, owner=self.owner))
@@ -1302,7 +1325,7 @@ WeaponHeroicTraitName = Literal[
     "Seized Opportunity",
     "Vengeful Soul",
     "Willful Momentum",
-    # "Patient Soul",   # Not implemented: requires movement mechanics
+    "Patient Soul",
 ]
 
 
@@ -1337,6 +1360,7 @@ _HEROIC_TRAITS: dict[WeaponHeroicTraitName, Callable[..., SetupEffectLate[Player
     "Inspired Allegiance": _wrap(InspiredAllegiance),
     "Kindling": _wrap(Kindling),
     "Navigators Intuition": _wrap(NavigatorsIntuition),
+    "Patient Soul": _wrap(PatientSoul),
     "Seized Opportunity": _wrap(SeizedOpportunity),
     "Vengeful Soul": _wrap(VengefulSoul),
     "Willful Momentum": _wrap(WillfulMomentum),

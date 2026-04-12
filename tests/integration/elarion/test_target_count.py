@@ -21,10 +21,9 @@ from tests.integration.fixtures import FixedRNG, count_hits
 
 
 def _make_state(num_enemies: int) -> tuple[State, Elarion, list[Enemy]]:
-    enemies = [Enemy() for _ in range(num_enemies)]
-    state = State(enemies=enemies, rng=FixedRNG(value=0.0))
-    elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0))
-    state.character = elarion
+    state = State(rng=FixedRNG(value=0.0))
+    enemies = [Enemy(state=state) for _ in range(num_enemies)]
+    elarion = Elarion(state=state, raw_stats=RawStatsFromPercents(main_stat=1000.0))
     return state, elarion, enemies
 
 

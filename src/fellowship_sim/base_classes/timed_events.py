@@ -8,6 +8,8 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .ability import Ability
     from .effect import Effect
+    from .entity import Entity
+    from .state import PlayerStatusCommand
 
 
 class TimedEvent(ABC):
@@ -18,7 +20,7 @@ class TimedEvent(ABC):
     """
 
     @abstractmethod
-    def __call__(self) -> bool | None: ...
+    def __call__(self) -> PlayerStatusCommand | None: ...
 
     @abstractmethod
     def __str__(self) -> str: ...
@@ -29,14 +31,71 @@ class TimedEvent(ABC):
 # ---------------------------------------------------------------------------
 
 
+class PlayerUnavailable(TimedEvent):
+    """Fired at the start of a cast or wait — signals to run simulation until player available."""
+
+    def __call__(self) -> PlayerStatusCommand:
+        from .state import PlayerStatusCommand
+
+        return PlayerStatusCommand.PlayerCastingStart
+
+    def __str__(self) -> str:
+        return "player unavailable"
+
+    def __repr__(self) -> str:
+        return str(self)
+
+
 class PlayerAvailableAgain(TimedEvent):
     """Fired at the end of a cast or wait — signals the rotation may proceed."""
 
-    def __call__(self) -> bool:
-        return True
+    def __call__(self) -> PlayerStatusCommand:
+        from .state import PlayerStatusCommand
+
+        return PlayerStatusCommand.PlayerCastingEnd
 
     def __str__(self) -> str:
         return "player available again"
+
+    def __repr__(self) -> str:
+        return str(self)
+
+
+@dataclass(kw_only=True)
+class FightDowntimeStart(TimedEvent):
+    name: str
+    callback: Callable[[], None] | None = field(default=None, init=True, repr=False)
+
+    def __call__(self) -> PlayerStatusCommand:
+        from .state import PlayerStatusCommand
+
+        if self.callback is not None:
+            self.callback()
+
+        return PlayerStatusCommand.PlayerDowntimeStart
+
+    def __str__(self) -> str:
+        return f"Fight downtime: {self.name}"
+
+    def __repr__(self) -> str:
+        return str(self)
+
+
+@dataclass(kw_only=True)
+class FightDowntimeEnd(TimedEvent):
+    name: str
+    callback: Callable[[], None] | None = field(default=None, init=True, repr=False)
+
+    def __call__(self) -> PlayerStatusCommand:
+        from .state import PlayerStatusCommand
+
+        if self.callback is not None:
+            self.callback()
+
+        return PlayerStatusCommand.PlayerDowntimeEnd
+
+    def __str__(self) -> str:
+        return f"Fight resumes: {self.name}"
 
     def __repr__(self) -> str:
         return str(self)
@@ -86,6 +145,23 @@ class EffectExpiry(TimedEvent):
 
     def __str__(self) -> str:
         return f"expiry of {self.effect}"
+
+    def __repr__(self) -> str:
+        return str(self)
+
+
+@dataclass(kw_only=True)
+class UnitDeathTimedEvent(TimedEvent):
+    """Wraps a unit-death callback; stores the effect for queue introspection."""
+
+    entity: Entity
+    callback: Callable[[], None] = field(repr=False)
+
+    def __call__(self) -> None:
+        self.callback()
+
+    def __str__(self) -> str:
+        return f"unit-death of {self.entity}"
 
     def __repr__(self) -> str:
         return str(self)

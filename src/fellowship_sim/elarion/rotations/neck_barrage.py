@@ -4,7 +4,6 @@ from typing import Any, Literal
 
 from loguru import logger
 
-from fellowship_sim.base_classes.state import get_state
 from fellowship_sim.elarion.buff import EventHorizonBuff
 from fellowship_sim.elarion.effect import CelestialImpetusAura
 from fellowship_sim.elarion.entity import Elarion
@@ -45,8 +44,8 @@ class NeckBarragePriorityList_PlanedUlt(Rotation):
 
     keep_highwind_arrow_off_cooldown: bool = False
 
-    def run(self, elarion: Elarion) -> None:
-        state = get_state()
+    def __call__(self, elarion: Elarion) -> None:
+        state = elarion.state
         target = state.enemies[0]
 
         ci_aura = elarion.effects.get(CelestialImpetusAura)
@@ -221,8 +220,14 @@ class NeckBarragePriorityList_PlanedUlt(Rotation):
             single_target_priority_list,
         ])
 
-        while grouped_priority(target):
-            pass
+        while True:
+            chosen_ability = grouped_priority(state)
+
+            if chosen_ability is not None:
+                yield chosen_ability
+
+            else:
+                break
 
         raise Exception()  # noqa: TRY002
 
@@ -259,7 +264,7 @@ class NeckBarragePriorityList(Rotation):
     keep_highwind_arrow_off_cooldown: bool = False
 
     def run(self, elarion: Elarion) -> None:
-        state = get_state()
+        state = elarion.state
         target = state.enemies[0]
 
         ci_aura = elarion.effects.get(CelestialImpetusAura)
@@ -267,6 +272,7 @@ class NeckBarragePriorityList(Rotation):
         assert ci_aura is not None
         assert elarion.skystrider_supremacy.is_fervent_supremacy
         assert isinstance(elarion.voidbringers_touch, VoidbringersTouch)
+
         def celestial_shot__dont_reset_if_hsb_imminent(_t: Any) -> bool:
             if (  # noqa: SIM103
                 elarion.celestial_impetus_stacks >= 1
@@ -494,7 +500,7 @@ class NeckBarragePriorityListBackup(Rotation):
     keep_highwind_arrow_off_cooldown: bool = False
 
     def run(self, elarion: Elarion) -> None:
-        state = get_state()
+        state = elarion.state
         target = state.enemies[0]
 
         ci_aura = elarion.effects.get(CelestialImpetusAura)
@@ -502,6 +508,7 @@ class NeckBarragePriorityListBackup(Rotation):
         assert ci_aura is not None
         assert elarion.skystrider_supremacy.is_fervent_supremacy
         assert isinstance(elarion.voidbringers_touch, VoidbringersTouch)
+
         def ultimate__if_volley_imminent(_t: Any) -> bool:
             num_cd_for_volley_reset = elarion.volley.cooldown / 1.5
 

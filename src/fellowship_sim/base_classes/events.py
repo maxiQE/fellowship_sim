@@ -22,9 +22,11 @@ class AbilityCastStart:
     ability: Ability[Player]
     owner: Player
     target: Entity
-    time: float = field(default_factory=lambda: current_state_time())
+    time: float = field(init=False)
 
     def __post_init__(self) -> None:
+        self.time = self.owner.state.time
+
         logger.debug(f"cast start: {self.ability.owner} → {self.target}")
 
 
@@ -33,9 +35,11 @@ class AbilityCastSuccess:
     ability: Ability[Player]
     owner: Player
     target: Entity
-    time: float = field(default_factory=lambda: current_state_time())
+    time: float = field(init=False)
 
     def __post_init__(self) -> None:
+        self.time = self.owner.state.time
+
         logger.debug(f"{self}")
 
     def __str__(self) -> str:
@@ -48,9 +52,11 @@ class AbilityActivated:
 
     ability: Ability[Player]
     owner: Player
-    time: float = field(default_factory=lambda: current_state_time())
+    time: float = field(init=False)
 
     def __post_init__(self) -> None:
+        self.time = self.owner.state.time
+
         logger.debug(f"ability activated: {self.ability}")
 
 
@@ -61,9 +67,11 @@ class AbilityChannelStart:
     ability: Ability[Player]
     owner: Player
     target: Entity
-    time: float = field(default_factory=lambda: current_state_time())
+    time: float = field(init=False)
 
     def __post_init__(self) -> None:
+        self.time = self.owner.state.time
+
         logger.debug(f"channel start: {self.ability} → {self.target}")
 
 
@@ -74,9 +82,11 @@ class AbilityChannelSuccess:
     ability: Ability[Player]
     owner: Player
     target: Entity
-    time: float = field(default_factory=lambda: current_state_time())
+    time: float = field(init=False)
 
     def __post_init__(self) -> None:
+        self.time = self.owner.state.time
+
         logger.debug(f"channel success: {self.ability} → {self.target}")
 
 
@@ -98,22 +108,17 @@ class PreDamageSnapshotUpdate:
     snapshot: SnapshotStats
     is_dot: bool = False
     predamage_snapshot_modifiers: list[Callable[["PreDamageSnapshotUpdate"], None]] = field(default_factory=list)
-    time: float = field(default_factory=lambda: current_state_time())
+    time: float = field(init=False)
 
     def __post_init__(self) -> None:
+        self.time = self.damage_source.owner.state.time
+
         logger.debug(f"pre-damage snapshot: {self.damage_source} → {self.target}")
 
     def finalize(self) -> SnapshotStats:
         for modifier in self.predamage_snapshot_modifiers:
             modifier(self)
         return self.snapshot
-
-
-def current_state_time() -> float:
-    from fellowship_sim.base_classes.state import get_state
-
-    state = get_state()
-    return state.time
 
 
 @dataclass(kw_only=True)
@@ -124,9 +129,11 @@ class AbilityDamage:
     is_crit: bool
     is_grievous_crit: bool
     damage: float
-    time: float = field(default_factory=current_state_time)
+    time: float = field(init=False)
 
     def __post_init__(self) -> None:
+        self.time = self.owner.state.time
+
         self.target._take_damage(self)
         logger.opt(colors=True).info(f"{self}")
 
@@ -149,9 +156,11 @@ class AbilityPeriodicDamage:
     is_crit: bool
     is_grievous_crit: bool
     damage: float
-    time: float = field(default_factory=lambda: current_state_time())
+    time: float = field(init=False)
 
     def __post_init__(self) -> None:
+        self.time = self.owner.state.time
+
         self.target._take_damage(self)
         logger.opt(colors=True).info(f"{self}")
 
@@ -171,9 +180,11 @@ class ResourceChanged:
     owner: Entity
     resource_amount: float
     delta: float
-    time: float = field(default_factory=lambda: current_state_time())
+    time: float = field(init=False)
 
     def __post_init__(self) -> None:
+        self.time = self.owner.state.time
+
         logger.debug(f"resource changed: {self.owner} {self.delta:+.0f} → {self.resource_amount:.0f}")
 
 
@@ -183,9 +194,11 @@ class ResourceSpent:
     ability: Ability[Player]
     target: Entity
     resource_amount: int
-    time: float = field(default_factory=lambda: current_state_time())
+    time: float = field(init=False)
 
     def __post_init__(self) -> None:
+        self.time = self.owner.state.time
+
         logger.debug(f"{self}")
 
     def __str__(self) -> str:
@@ -198,11 +211,12 @@ class EffectApplied:
 
     effect: Effect
     target: Entity
-    time: float = field(default_factory=lambda: current_state_time())
+    time: float = field(init=False)
 
     def __post_init__(self) -> None:
-
         from .config import IMPORTANT_EFFECTS
+
+        self.time = self.effect.owner.state.time
 
         if self.effect.name in IMPORTANT_EFFECTS:
             logger.success(f"effect applied: {self.effect} on {self.target}")
@@ -216,11 +230,12 @@ class EffectRemoved:
 
     effect: Effect
     target: Entity
-    time: float = field(default_factory=lambda: current_state_time())
+    time: float = field(init=False)
 
     def __post_init__(self) -> None:
-
         from .config import IMPORTANT_EFFECTS
+
+        self.time = self.effect.owner.state.time
 
         if self.effect.name in IMPORTANT_EFFECTS:
             logger.success(f"effect removed: {self.effect} on {self.target}")
@@ -234,11 +249,12 @@ class EffectRefreshed:
 
     effect: Effect
     target: Entity
-    time: float = field(default_factory=lambda: current_state_time())
+    time: float = field(init=False)
 
     def __post_init__(self) -> None:
-
         from .config import IMPORTANT_EFFECTS
+
+        self.time = self.effect.owner.state.time
 
         if self.effect.name in IMPORTANT_EFFECTS:
             logger.success(f"effect refreshed: {self.effect} on {self.target}")
@@ -264,9 +280,11 @@ class ComputeCooldownReduction:
     cda_modifiers: list[float] = field(default_factory=list)
     cdr_modifiers: list[float] = field(default_factory=list)
     cdrecovery_modifiers: list[float] = field(default_factory=list)
-    time: float = field(default_factory=lambda: current_state_time())
+    time: float = field(init=False)
 
     def __post_init__(self) -> None:
+        self.time = self.owner.state.time
+
         logger.debug(f"compute CDR: {self.ability}")
 
     def resolve(self) -> float:
@@ -284,10 +302,12 @@ class UltimateCast:
     ability: Ability[Player]
     owner: Player
     target: Entity
-    time: float = field(default_factory=lambda: current_state_time())
+    time: float = field(init=False)
 
     def __post_init__(self) -> None:
         logger.debug(f"ultimate cast: {self.ability} by {self.owner}")
+
+        self.time = self.ability.owner.state.time
 
 
 @dataclass(kw_only=True)
@@ -297,9 +317,11 @@ class SpiritProc:
     ability: Ability[Player]
     owner: Entity
     resource_amount: float
-    time: float = field(default_factory=lambda: current_state_time())
+    time: float = field(init=False)
 
     def __post_init__(self) -> None:
+        self.time = self.ability.owner.state.time
+
         logger.debug(f"spirit proc: {self.ability} → {self.resource_amount:.1f}")
 
 
@@ -308,9 +330,11 @@ class UnitDestroyed:
     """Fired when a unit's HP reaches zero."""
 
     entity: Entity
-    time: float = field(default_factory=lambda: current_state_time())
+    time: float = field(init=False)
 
     def __post_init__(self) -> None:
+        self.time = self.entity.state.time
+
         logger.debug(f"unit destroyed: {self.entity}")
 
 
@@ -325,9 +349,11 @@ class ComputeFinalStats:
     owner: Player
     raw_stats: RawStats
     modifiers: list[StatModifier] = field(default_factory=list)
-    time: float = field(default_factory=lambda: current_state_time())
+    time: float = field(init=False)
 
     def __post_init__(self) -> None:
+        self.time = self.owner.state.time
+
         logger.debug(f"compute final stats: {self.owner}")
 
 

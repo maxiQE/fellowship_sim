@@ -32,9 +32,9 @@ class TestAmethystSplintersScaling:
     @pytest.mark.parametrize("haste_percent", [0.0, 0.1, 0.2, 0.3, 0.5])
     def test_total_damage_scales_with_haste(self, haste_percent: float) -> None:
         """Total DoT damage equals crit_damage × ratio × (1 + haste) for any haste value."""
-        target = Enemy()
-        state = State(enemies=[target], rng=FixedRNG(value=0.0))
-        elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0, haste_percent=haste_percent))
+        state = State(rng=FixedRNG(value=0.0))
+        target = Enemy(state=state)
+        elarion = Elarion(state=state, raw_stats=RawStatsFromPercents(main_stat=1000.0, haste_percent=haste_percent))
         aura = AmethystSplinters(owner=elarion, trait_level=_TRAIT_LEVEL)
         elarion.effects.add(aura)
 
@@ -57,9 +57,10 @@ class TestAmethystSplintersScaling:
     @pytest.mark.parametrize("expertise_percent", [0.0, 0.1, 0.2, 0.3])
     def test_ticks_do_not_scale_with_expertise(self, expertise_percent: float) -> None:
         """Total DoT damage is independent of the owner's expertise — ticks bypass the stat pipeline."""
-        target = Enemy()
-        state = State(enemies=[target], rng=FixedRNG(value=0.0))
+        state = State(rng=FixedRNG(value=0.0))
+        target = Enemy(state=state)
         elarion = Elarion(
+            state=state,
             raw_stats=RawStatsFromPercents(
                 main_stat=1000.0,
                 haste_percent=0.2,
@@ -88,9 +89,10 @@ class TestAmethystSplintersScaling:
     @pytest.mark.parametrize("crit_percent", [0.0, 0.1, 0.2, 0.4])
     def test_ticks_do_not_scale_with_crit_percent(self, crit_percent: float) -> None:
         """Total DoT damage is independent of the owner's crit percent — ticks bypass the stat pipeline."""
-        target = Enemy()
-        state = State(enemies=[target], rng=FixedRNG(value=0.0))
+        state = State(rng=FixedRNG(value=0.0))
+        target = Enemy(state=state)
         elarion = Elarion(
+            state=state,
             raw_stats=RawStatsFromPercents(
                 main_stat=1000.0,
                 haste_percent=0.2,
@@ -119,9 +121,10 @@ class TestAmethystSplintersScaling:
     @pytest.mark.parametrize("crit_multiplier", [1.0, 1.03, 1.09, 1.5])
     def test_ticks_do_not_scale_with_crit_multiplier(self, crit_multiplier: float) -> None:
         """Total DoT damage is independent of the owner's crit multiplier — ticks bypass the stat pipeline."""
-        target = Enemy()
-        state = State(enemies=[target], rng=FixedRNG(value=0.0))
+        state = State(rng=FixedRNG(value=0.0))
+        target = Enemy(state=state)
         elarion = Elarion(
+            state=state,
             raw_stats=RawStatsFromPercents(
                 main_stat=1000.0,
                 haste_percent=0.2,

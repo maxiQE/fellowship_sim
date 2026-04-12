@@ -6,7 +6,7 @@ from loguru import logger
 from fellowship_sim.base_classes.timed_events import DelayedDamage
 
 from .events import AbilityDamage, AbilityPeriodicDamage, PreDamageSnapshotUpdate
-from .state import State, get_state
+from .state import State
 from .stats import SnapshotStats
 
 if TYPE_CHECKING:
@@ -39,7 +39,7 @@ def deal_damage(
     cast_specific_predamage_snapshot_modifiers: "list[Callable[..., None]] | None" = None,
     is_dot: bool = False,
 ) -> "AbilityDamage | AbilityPeriodicDamage":
-    state = get_state()
+    state = damage_origin.owner.state
 
     # Give global listeners and cast-specific closures a chance to update the snapshot.
     pre_event = PreDamageSnapshotUpdate(
@@ -109,6 +109,8 @@ def create_standard_damage(
     secondary_damage_multiplier: float = 1.0,
     cast_specific_predamage_snapshot_modifiers: "list[Callable[..., None]] | None" = None,
     priority_func: Callable[["Entity"], float] | None = None,
+    is_scaled_by_expertise: bool = True,
+    is_scaled_by_main_stat: bool = True,
 ) -> None:
     """Schedule main and secondary damage hits given a character and a base damage.
 
@@ -129,6 +131,8 @@ def create_standard_damage(
             secondary_damage_multiplier=secondary_damage_multiplier,
             cast_specific_predamage_snapshot_modifiers=cast_specific_predamage_snapshot_modifiers,
             priority_func=priority_func,
+            is_scaled_by_expertise=is_scaled_by_expertise,
+            is_scaled_by_main_stat=is_scaled_by_main_stat,
         )
 
     state.schedule(
@@ -152,9 +156,16 @@ def apply_standard_damage(
     secondary_damage_multiplier: float = 1.0,
     cast_specific_predamage_snapshot_modifiers: "list[Callable[..., None]] | None" = None,
     priority_func: Callable[["Entity"], float] | None = None,
+    is_scaled_by_expertise: bool = True,
+    is_scaled_by_main_stat: bool = True,
 ) -> None:
     """Apply standard damage formula to main and secondary targets."""
-    snapshot = SnapshotStats.from_base_damage_and_character(base_damage=base_damage, character=owner)
+    snapshot = SnapshotStats.from_base_damage_and_character(
+        base_damage=base_damage,
+        character=owner,
+        is_scaled_by_expertise=is_scaled_by_expertise,
+        is_scaled_by_main_stat=is_scaled_by_main_stat,
+    )
 
     if target is not None:
         main_snapshot = (

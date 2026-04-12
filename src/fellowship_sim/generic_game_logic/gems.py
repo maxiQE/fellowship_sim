@@ -12,7 +12,6 @@ from fellowship_sim.base_classes.events import (
     PreDamageSnapshotUpdate,
     UnitDestroyed,
 )
-from fellowship_sim.base_classes.state import get_state
 from fellowship_sim.base_classes.stats import (
     CritMultiplierMultiplicativeCharacter,
     CritPercentAdditive,
@@ -81,10 +80,10 @@ class BlessingOfTheConqueror(Effect):
     is_level_2: bool = False
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
+        self.owner.state.bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
 
     def _on_pre_damage(self, event: PreDamageSnapshotUpdate) -> None:
-        if not get_state().information.is_boss_fight:
+        if not self.owner.state.information.is_boss_fight:
             return
         multiplier = 1.15 if self.is_level_2 else 1.05
         event.snapshot = event.snapshot.scale_average_damage(multiplier)
@@ -98,7 +97,7 @@ class SealedFate(Effect):
     is_level_2: bool = False
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
+        self.owner.state.bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
 
     def _on_pre_damage(self, event: PreDamageSnapshotUpdate) -> None:
         if event.target.percent_hp <= 0.5:
@@ -172,7 +171,7 @@ class AdrenalineRush(Effect):
     is_level_2: bool = False
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(AbilityDamage, self._on_damage, owner=self)
+        self.owner.state.bus.subscribe(AbilityDamage, self._on_damage, owner=self)
 
     def _on_damage(self, event: AbilityDamage) -> None:
         if event.target.percent_hp > 0.3:
@@ -246,7 +245,7 @@ class FirstStrike(Effect):
     _attacked_ids: set[int] = field(default_factory=set, init=False)
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(AbilityDamage, self._on_damage, owner=self)
+        self.owner.state.bus.subscribe(AbilityDamage, self._on_damage, owner=self)
 
     def _on_damage(self, event: AbilityDamage) -> None:
         if event.target.id in self._attacked_ids:
@@ -299,7 +298,7 @@ class BlessingOfTheCommander(Effect):
     is_level_2: bool = False
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(ComputeCooldownReduction, self._on_cdr, owner=self)
+        self.owner.state.bus.subscribe(ComputeCooldownReduction, self._on_cdr, owner=self)
 
     def _on_cdr(self, event: ComputeCooldownReduction) -> None:
         event.cdr_modifiers.append(0.12 if self.is_level_2 else 0.04)
@@ -396,7 +395,7 @@ class HarmoniousSoul(Effect):
     is_level_2: bool = False
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(UnitDestroyed, self._on_unit_destroyed, owner=self)
+        self.owner.state.bus.subscribe(UnitDestroyed, self._on_unit_destroyed, owner=self)
 
     def _on_unit_destroyed(self, event: UnitDestroyed) -> None:
         if event.entity is self.owner:

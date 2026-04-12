@@ -10,7 +10,8 @@ class TestHighHPBonus:
     @pytest.mark.parametrize("nominal_uptime", [0.4, 0.8, 0.9])
     def test_high_hp_bonus(self, nominal_uptime: float) -> None:
         """Test that primary stat bonus turns on and off."""
-        state = State(enemies=[Enemy()], rng=FixedRNG(0.5))
+        state = State(rng=FixedRNG(0.5))
+        Enemy(state=state)
         elarion = ElarionSetup(
             raw_stats=RawStatsFromPercents(
                 main_stat=1000.0,

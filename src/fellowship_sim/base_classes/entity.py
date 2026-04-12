@@ -1,4 +1,5 @@
 import itertools
+import math
 import re
 from collections import defaultdict
 from dataclasses import dataclass, field
@@ -17,6 +18,7 @@ from .stats import FinalStats, RawStats
 
 if TYPE_CHECKING:
     from .events import AbilityDamage, AbilityPeriodicDamage
+    from .state import State
     from .stats import MutableStats
 
 
@@ -72,17 +74,31 @@ class DamageTracker:
 
 @dataclass(kw_only=True)
 class Entity:
+    state: "State"
     effects: EffectCollection = field(default_factory=EffectCollection)
     percent_hp: float = field(default=1.0)
+    is_alive: bool = field(default=True)
     damage_tracker: DamageTracker = field(default_factory=DamageTracker)
     id: int = field(default_factory=lambda: next(_entity_id_counter), init=False)
 
     def __post_init__(self) -> None:
         self.effects._entity = self
 
-    @property
-    def is_alive(self) -> bool:
-        return self.percent_hp > 0
+    def kill(self) -> None:
+        from fellowship_sim.base_classes.events import UnitDestroyed
+
+        if not self.is_alive:
+            logger.error(f"Double-death on {self = }")
+            return
+
+        self.is_alive = False
+
+        # NB: list(self.effects) to copy; otherwise, the iterand changes size
+        for effect in list(self.effects):
+            if effect.attached_to is not None:
+                effect.remove()
+
+        self.state.bus.emit(UnitDestroyed(entity=self))
 
     def __str__(self) -> str:
         name = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", type(self).__name__)
@@ -102,6 +118,16 @@ class Entity:
 @dataclass(kw_only=True)
 class Enemy(Entity):
     time_to_live: float = field(default=float("inf"), init=True)
+
+    def __post_init__(self) -> None:
+        from fellowship_sim.base_classes.timed_events import UnitDeathTimedEvent
+
+        super().__post_init__()
+
+        self.state.add_enemy(self)
+
+        if math.isfinite(self.time_to_live):
+            self.state.schedule(self.time_to_live, UnitDeathTimedEvent(entity=self, callback=self.kill))
 
     def _tick(self, dt: float) -> None:
         self.percent_hp -= dt / self.time_to_live
@@ -144,15 +170,19 @@ class Player(Entity):
     def __post_init__(self) -> None:
         super().__post_init__()
 
+        self.state.add_character(self)
+
         # Initialize self.stats from init field self.raw_stats
         self._recalculate_stats()
 
     def wait(self, duration: float) -> None:
-        from .state import get_state  # lazy — avoids circular import
-        from .timed_events import PlayerAvailableAgain
+        from .timed_events import PlayerAvailableAgain, PlayerUnavailable
 
-        state = get_state()
+        state = self.state
+
+        state.schedule(time_delay=0, callback=PlayerUnavailable())
         state.schedule(time_delay=duration, callback=PlayerAvailableAgain())
+
         state.step()
 
     def _tick(self, dt: float) -> None:
@@ -165,10 +195,9 @@ class Player(Entity):
     def _recalculate_stats(self) -> "MutableStats":
         """Recompute stats by firing ComputeFinalStats and applying collected modifiers."""
         from .events import ComputeFinalStats
-        from .state import get_state
 
         event = ComputeFinalStats(owner=self, raw_stats=self.raw_stats)
-        get_state().bus.emit(event)
+        self.state.bus.emit(event)
         mutable = self.raw_stats.to_mutable_stats()
         for modifier in event.modifiers:
             modifier.apply(mutable)

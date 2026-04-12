@@ -20,7 +20,9 @@ class TestAmethystSplinters:
 
     @pytest.fixture
     def state(self) -> State:
-        return State(enemies=[Enemy()], rng=FixedRNG(value=0.0))
+        state = State(rng=FixedRNG(value=0.0))
+        Enemy(state=state)
+        return state
 
     @pytest.fixture
     def elarion(self, state: State, haste_percent: float) -> Elarion:

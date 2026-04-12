@@ -45,7 +45,7 @@ class TestChargeAndCooldownMechanics:
         ability.cooldown = 0.0
         ability.base_cooldown = 10.0
 
-        ability._pay_cost_for_cast(Entity())
+        ability._pay_cost_for_cast(Entity(state=unit_elarion__zero_stats.state))
 
         assert ability.charges == 1
         assert ability.cooldown == pytest.approx(10.0)
@@ -58,7 +58,7 @@ class TestChargeAndCooldownMechanics:
         ability.cooldown = 5.0  # CD already running
         ability.base_cooldown = 10.0
 
-        ability._pay_cost_for_cast(Entity())
+        ability._pay_cost_for_cast(Entity(state=unit_elarion__zero_stats.state))
 
         assert ability.charges == 0
         assert ability.cooldown == pytest.approx(5.0)  # unchanged

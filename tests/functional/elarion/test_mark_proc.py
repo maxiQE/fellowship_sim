@@ -25,9 +25,9 @@ class TestDoTsCanClearMarks:
     def test_amethyst_splinters_procs_marks(self) -> None:
         """Amethyst splinters DOT triggers marks."""
         state = State(
-            enemies=[Enemy()],
             rng=SequenceRNG(values=[0.0, 1.0]),  # proc mark -> not a crit -> proc mark -> not a crit
         )
+        Enemy(state=state)
         target = state.enemies[0]
         setup = ElarionSetup(
             raw_stats=RawStatsFromPercents(
@@ -77,11 +77,11 @@ class TestDoTsCanClearMarks:
     def test_kindle_procs_marks(self) -> None:
         """Kindle DOT triggers marks."""
         state = State(
-            enemies=[Enemy()],
             rng=SequenceRNG(
                 values=[0.0] + [1.0, 0.0, 1.0, 1.0] * 3
             ),  # proc kindle from artificial event -> (don't crit on kindle dot -> proc mark -> don't crit on salvo -> don't proc kindling aura from salvo) x 3
         )
+        Enemy(state=state)
         target = state.enemies[0]
         setup = ElarionSetup(
             raw_stats=RawStatsFromPercents(
@@ -136,17 +136,17 @@ class TestDoTsCanClearMarks:
         assert mark.stacks == start_stack_count - 3
 
 
-class TestImmediateMarkClearingFromProcs:
+class TestMarkFromProcs:
     """Marks granted by procs can be immediately consumed in the same event chain."""
 
     def test_celestial_shot_can_proc_marks_from_ci_proc(self) -> None:
         """Celestial Shot consumes marks placed by a Celestial Impetus proc in the same cast."""
         rng = SequenceRNG(values=[1.0])
         state = State(
-            enemies=[Enemy()],
             rng=rng,
             information=StateInformation(delay_since_last_fight=None),
         )
+        Enemy(state=state)
         target = state.enemies[0]
         setup = ElarionSetup(
             raw_stats=RawStatsFromPercents(
@@ -188,9 +188,9 @@ class TestImmediateMarkClearingFromProcs:
         """Celestial Shot consumes marks placed by a Celestial Impetus proc in the same cast."""
         rng = SequenceRNG(values=[1.0])
         state = State(
-            enemies=[Enemy()],
             rng=rng,
         )
+        Enemy(state=state)
         target = state.enemies[0]
         setup = ElarionSetup(
             raw_stats=RawStatsFromPercents(
@@ -229,9 +229,9 @@ class TestImmediateMarkClearingFromProcs:
     def test_proc_probability__celestial_shot(self, crit_percent: float, spirit_percent: float) -> None:
         """The that the empirical probability of spirit procs and mark procs is has expected."""
         state = State(
-            enemies=[Enemy()],
             rng=random.Random(x=123),
         )
+        Enemy(state=state)
         target = state.enemies[0]
         setup = ElarionSetup(
             raw_stats=RawStatsFromPercents(
@@ -267,9 +267,9 @@ class TestImmediateMarkClearingFromProcs:
     def test_proc_probability__volley(self, crit_percent: float, is_talented: bool) -> None:
         """The that the empirical probability of spirit procs and mark procs is has expected."""
         state = State(
-            enemies=[Enemy()],
             rng=random.Random(x=123),
         )
+        Enemy(state=state)
         target = state.enemies[0]
         setup = ElarionSetup(
             raw_stats=RawStatsFromPercents(
@@ -306,9 +306,9 @@ class TestImmediateMarkClearingFromProcs:
     def test_proc_probability__heartseeker_barrage(self, crit_percent: float, is_talented: bool) -> None:
         """The that the empirical probability of spirit procs and mark procs is has expected."""
         state = State(
-            enemies=[Enemy()],
             rng=random.Random(x=123),
         )
+        Enemy(state=state)
         target = state.enemies[0]
         setup = ElarionSetup(
             raw_stats=RawStatsFromPercents(

@@ -56,12 +56,11 @@ class Effect:
         """
 
         from .events import EffectApplied
-        from .state import get_state
 
         if self.attached_to is None:
             raise Exception(f"Effect {self} not attached during add")  # noqa: TRY002, TRY003
 
-        get_state().bus.emit(
+        self.owner.state.bus.emit(
             EffectApplied(
                 effect=self,
                 target=self.attached_to,
@@ -88,12 +87,11 @@ class Effect:
         Uses a version counter so that refreshing the effect silently cancels the old callback:
         the old callback checks its captured seq against self._expiry_seq and is a no-op if stale.
         """
-        from .state import get_state
 
         if self.duration == float("inf"):
             return
 
-        state = get_state()
+        state = self.owner.state
         self._expiry_seq += 1
         seq = self._expiry_seq
         state.schedule(
@@ -111,7 +109,6 @@ class Effect:
         Override in subclasses to implement custom fusion logic (e.g. AmethystSplintersDoT).
         """
         from .events import EffectRefreshed
-        from .state import get_state
 
         if self.attached_to is None:
             raise Exception(f"Effect {self} not attached during fuse")  # noqa: TRY002, TRY003
@@ -123,7 +120,7 @@ class Effect:
         self.stacks = min(self.stacks + incoming.stacks, self.max_stacks)
         self._schedule_expiry()
 
-        get_state().bus.emit(
+        self.owner.state.bus.emit(
             EffectRefreshed(
                 effect=self,
                 target=self.attached_to,
@@ -148,19 +145,18 @@ class Effect:
         """
 
         from .events import EffectRemoved
-        from .state import get_state
 
         if self.attached_to is None:
             raise Exception(f"Effect {self} not attached during remove")  # noqa: TRY002, TRY003
 
-        get_state().bus.emit(
+        self.owner.state.bus.emit(
             EffectRemoved(
                 effect=self,
                 target=self.attached_to,
             )
         )
 
-        get_state().bus.unsubscribe_all(self)
+        self.owner.state.bus.unsubscribe_all(self)
         self.on_remove()  # called while attached_to is still valid
         self.attached_to.effects.remove(self)  # removes from dict; attached_to cleared after on_remove
         self.attached_to = None
@@ -229,9 +225,8 @@ class Buff(Effect):
 
     def on_add(self) -> None:
         from .events import ComputeFinalStats
-        from .state import get_state
 
-        get_state().bus.subscribe(ComputeFinalStats, self._on_compute_final_stats, owner=self)
+        self.owner.state.bus.subscribe(ComputeFinalStats, self._on_compute_final_stats, owner=self)
         if self.attached_to is None:
             raise Exception("Buff unnattached in on_add")  # noqa: TRY002, TRY003
         else:
@@ -282,7 +277,6 @@ class DoTEffect(Effect):
     _partial_ratio: float = field(default=0.0, init=False)
 
     def on_add(self) -> None:
-        from .state import get_state
 
         haste_percent = self.owner.stats.haste_percent
         # TODO: fix DOT ticking even when duration % tick_rate == 0
@@ -299,7 +293,7 @@ class DoTEffect(Effect):
         logger.debug(
             f"dot added: {human_readable_name} tick duration={self._tick_duration:.3f}s partial ratio={self._partial_ratio:.3f} on {self.attached_to}",
         )
-        state = get_state()
+        state = self.owner.state
         state.schedule(
             time_delay=self._tick_duration,
             callback=GenericTimedEvent(name=f"{self.name} tick", callback=self._fire_tick),
@@ -311,14 +305,13 @@ class DoTEffect(Effect):
             self._deal_periodic(partial_snap, self.attached_to)
 
     def _fire_tick(self) -> None:
-        from .state import get_state
 
         if self.attached_to is None:
             return
         if self.snapshot is not None:
             self._deal_periodic(self.snapshot, self.attached_to)
 
-        state = get_state()
+        state = self.owner.state
         state.schedule(
             time_delay=self._tick_duration,
             callback=GenericTimedEvent(name=f"{self.name} tick", callback=self._fire_tick),

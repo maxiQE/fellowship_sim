@@ -32,10 +32,9 @@ class TestMultishotChargeSystem:
 
     @pytest.fixture
     def state_3e(self) -> tuple[State, Elarion, list[Enemy]]:
-        enemies = [Enemy(), Enemy(), Enemy()]
-        state = State(enemies=enemies, rng=FixedRNG(value=0.0))
-        elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0))
-        state.character = elarion
+        state = State(rng=FixedRNG(value=0.0))
+        enemies = [Enemy(state=state), Enemy(state=state), Enemy(state=state)]
+        elarion = Elarion(state=state, raw_stats=RawStatsFromPercents(main_stat=1000.0))
         return state, elarion, enemies
 
     def test_hwa_grants_multishot_charge_with_two_or_more_secondaries(
@@ -54,10 +53,9 @@ class TestMultishotChargeSystem:
 
     def test_hwa_does_not_grant_multishot_charge_with_one_secondary(self) -> None:
         """HWA with only 1 secondary target (2 enemies total) → no charge granted."""
-        enemies = [Enemy(), Enemy()]
-        state = State(enemies=enemies, rng=FixedRNG(value=0.0))
-        elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0))
-        state.character = elarion
+        state = State(rng=FixedRNG(value=0.0))
+        enemies = [Enemy(state=state), Enemy(state=state)]
+        elarion = Elarion(state=state, raw_stats=RawStatsFromPercents(main_stat=1000.0))
         charges_before = elarion.multishot.charges
 
         elarion.highwind_arrow._do_cast(enemies[0])
@@ -65,27 +63,25 @@ class TestMultishotChargeSystem:
 
         assert elarion.multishot.charges == charges_before
 
-    def test_fervent_supremacy_buff_applies_damage_bonus(self, state_no_procs__st: State) -> None:
+    def test_fervent_supremacy_buff_applies_damage_bonus(self, state_always_procs__st: State) -> None:
         """FerventSupremacyBuff: empowered Multishot deals 1.5x per-hit damage.
         With 1 enemy and multishot_num_arrows_min=3, all 3 arrows go to main target.
         All hits should be 1.5x the baseline single-arrow damage.
         """
         # Baseline: standard Multishot with 1 charge
-        elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0))
-        state_no_procs__st.character = elarion
+        elarion = Elarion(state=state_always_procs__st, raw_stats=RawStatsFromPercents(main_stat=1000.0))
         elarion.multishot.charges = 1
         baseline_damages: list[AbilityDamage] = []
-        state_no_procs__st.bus.subscribe(AbilityDamage, lambda e: baseline_damages.append(e))
-        elarion.multishot._do_cast(state_no_procs__st.enemies[0])
-        state_no_procs__st.advance_time(0.2)
+        state_always_procs__st.bus.subscribe(AbilityDamage, lambda e: baseline_damages.append(e))
+        elarion.multishot._do_cast(state_always_procs__st.enemies[0])
+        state_always_procs__st.advance_time(0.2)
         assert len(baseline_damages) == 1
         baseline = baseline_damages[0].damage
 
         # Empowered: FerventSupremacyBuff active (fires 3 arrows on 1 enemy, 1.5x each)
-        enemies2 = [Enemy()]
-        state2 = State(enemies=enemies2, rng=FixedRNG(value=0.0))
-        elarion2 = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0))
-        state2.character = elarion2
+        state2 = State(rng=FixedRNG(value=0.0))
+        enemies2 = [Enemy(state=state2)]
+        elarion2 = Elarion(state=state2, raw_stats=RawStatsFromPercents(main_stat=1000.0))
         elarion2.effects.add(FerventSupremacyBuff(owner=elarion2))
 
         empowered_damages: list[AbilityDamage] = []
@@ -98,7 +94,7 @@ class TestMultishotChargeSystem:
         assert all(e.damage == pytest.approx(baseline * 1.25, rel=1e-6) for e in empowered_damages)
 
     def test_fervent_supremacy_charge_consumed_per_cast(
-        self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion
+        self, state_always_procs__st: State, unit_elarion__zero_stats: Elarion
     ) -> None:
         """4 stacks consumed over 4 casts via cast() API; buff removed at 0.
         consume_charge() is only called in cast(), not _do_cast().
@@ -112,7 +108,7 @@ class TestMultishotChargeSystem:
         assert buff.stacks == 4
 
         for expected_stacks in [3, 2, 1, 0]:
-            elarion.multishot.cast(state_no_procs__st.enemies[0])  # cast() calls consume_charge()
+            elarion.multishot.cast(state_always_procs__st.enemies[0])  # cast() calls consume_charge()
             if expected_stacks > 0:
                 remaining_buff = elarion.effects.get(FerventSupremacyBuff)
                 assert remaining_buff is not None
@@ -121,7 +117,7 @@ class TestMultishotChargeSystem:
                 assert elarion.effects.get(FerventSupremacyBuff) is None
 
     def test_empowered_cast_does_not_consume_normal_charge(
-        self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion
+        self, state_always_procs__st: State, unit_elarion__zero_stats: Elarion
     ) -> None:
         """Empowered Multishot cast (via FerventSupremacyBuff) does not consume a normal charge."""
         elarion = unit_elarion__zero_stats
@@ -130,12 +126,12 @@ class TestMultishotChargeSystem:
 
         assert elarion.multishot._can_cast()
 
-        elarion.multishot._pay_cost_for_cast(state_no_procs__st.enemies[0])
+        elarion.multishot._pay_cost_for_cast(state_always_procs__st.enemies[0])
 
         assert elarion.multishot.charges == 0
 
     def test_empowered_multishot_has_lower_priority_than_skystrider_supremacy(
-        self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion
+        self, state_always_procs__st: State, unit_elarion__zero_stats: Elarion
     ) -> None:
         """When both buffs are present, empowered_multishot keeps it charge."""
         elarion = unit_elarion__zero_stats
@@ -148,13 +144,13 @@ class TestMultishotChargeSystem:
         assert skystrider_supremacy.stacks == 1
         assert empowered_ms.stacks == 1
 
-        elarion.multishot._pay_cost_for_cast(state_no_procs__st.enemies[0])
+        elarion.multishot._pay_cost_for_cast(state_always_procs__st.enemies[0])
 
         assert skystrider_supremacy.stacks == 1  # NB: does not have a charge mechanic
         assert empowered_ms.stacks == 1
 
     def test_empowered_multishot_has_lower_priority_than_fervent_supremacy(
-        self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion
+        self, state_always_procs__st: State, unit_elarion__zero_stats: Elarion
     ) -> None:
         """When both buffs are present, empowered_multishot keeps it charge."""
         elarion = unit_elarion__zero_stats
@@ -167,24 +163,24 @@ class TestMultishotChargeSystem:
         assert fervent_supremacy.stacks == 4
         assert empowered_ms.stacks == 1
 
-        elarion.multishot._pay_cost_for_cast(state_no_procs__st.enemies[0])
+        elarion.multishot._pay_cost_for_cast(state_always_procs__st.enemies[0])
 
         assert fervent_supremacy.stacks == 3
         assert empowered_ms.stacks == 1
 
     @pytest.mark.parametrize("has_fervent_supremacy", [False, True])
     def test_focused_expanse_buffs_both_supremacies(
-        self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion, has_fervent_supremacy: bool
+        self, state_always_procs__st: State, unit_elarion__zero_stats: Elarion, has_fervent_supremacy: bool
     ) -> None:
         """Focused expanse buffs any multishot by +20% damage."""
         elarion = unit_elarion__zero_stats
-        target = state_no_procs__st.enemies[0]
+        target = state_always_procs__st.enemies[0]
 
         # Setup effect: boost empowered MS damage by +20% damage
         FocusedExpanseSetup().apply(elarion, context=None)  # ty:ignore[invalid-argument-type]
 
         damages: list[AbilityDamage] = []
-        state_no_procs__st.bus.subscribe(AbilityDamage, damages.append)
+        state_always_procs__st.bus.subscribe(AbilityDamage, damages.append)
 
         if not has_fervent_supremacy:
             elarion.effects.add(EmpoweredMultishotChargeBuff(owner=elarion))
@@ -209,26 +205,22 @@ class TestMultishotChargeSystem:
 class TestResurgentWinds:
     """ResurgentWinds overrides HWA cast time and adds a damage bonus vs marked targets."""
 
-    def test_overrides_hwa_cast_time(self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion) -> None:
+    def test_overrides_hwa_cast_time(self, state_always_procs__st: State, unit_elarion__zero_stats: Elarion) -> None:
         """ResurgentWinds: HWA cast time override set to 1.5s for a single cast."""
         elarion = unit_elarion__zero_stats
         elarion.effects.add(ResurgentWinds(owner=elarion))
 
-        elarion.highwind_arrow.cast(state_no_procs__st.enemies[0])
-        assert state_no_procs__st.time == pytest.approx(1.5)
+        elarion.highwind_arrow.cast(state_always_procs__st.enemies[0])
+        assert state_always_procs__st.time == pytest.approx(1.5)
 
-        elarion.highwind_arrow.cast(state_no_procs__st.enemies[0])
-        assert state_no_procs__st.time == pytest.approx(1.5 + 2.0)
+        elarion.highwind_arrow.cast(state_always_procs__st.enemies[0])
+        assert state_always_procs__st.time == pytest.approx(1.5 + 2.0)
 
-    def test_damage_bonus_on_marked_target(self, state_no_procs__st: State) -> None:
+    def test_damage_bonus_on_marked_target(self, state_always_procs__st: State) -> None:
         """ResurgentWinds: HWA deals 1.5x damage to a marked target, for a single cast."""
-        target = Enemy()
-        state = State(
-            enemies=[target],
-            rng=FixedRNG(value=1.0),  # FixedRNG(value=1.0) to prevent mark from exploding
-        )
-        elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0))
-        state.character = elarion
+        state = State(rng=FixedRNG(value=1.0))  # FixedRNG(value=1.0) to prevent mark from exploding
+        target = Enemy(state=state)
+        elarion = Elarion(state=state, raw_stats=RawStatsFromPercents(main_stat=1000.0))
 
         elarion.effects.add(ResurgentWinds(owner=elarion))
         target.effects.add(LunarlightMarkEffect(owner=elarion, stacks=5))
@@ -245,15 +237,11 @@ class TestResurgentWinds:
         assert marked_damages[0].damage == pytest.approx(elarion.highwind_arrow.average_damage * 1.5, rel=1e-6)
         assert marked_damages[1].damage == pytest.approx(elarion.highwind_arrow.average_damage, rel=1e-6)
 
-    def test_damage_bonus_on_marked_target_with_final_crescendo(self, state_no_procs__st: State) -> None:
+    def test_damage_bonus_on_marked_target_with_final_crescendo(self, state_always_procs__st: State) -> None:
         """RW and FC damage stacks multiplicatively."""
-        target = Enemy()
-        state = State(
-            enemies=[target],
-            rng=FixedRNG(value=1.0),  # FixedRNG(value=1.0) to prevent mark from exploding
-        )
-        elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0))
-        state.character = elarion
+        state = State(rng=FixedRNG(value=1.0))  # FixedRNG(value=1.0) to prevent mark from exploding
+        target = Enemy(state=state)
+        elarion = Elarion(state=state, raw_stats=RawStatsFromPercents(main_stat=1000.0))
 
         fc = FinalCrescendo(owner=elarion)
         elarion.effects.add(fc)
@@ -283,22 +271,20 @@ class TestResurgentWinds:
 class TestEventHorizon:
     """EventHorizonBuff scales all damage by 1.20, halves focus cost, and chains CDR via HWA and Barrage."""
 
-    def test_damage_scaling(self, state_no_procs__st: State) -> None:
+    def test_damage_scaling(self, state_always_procs__st: State) -> None:
         """EventHorizonBuff: all damage scaled by 1.20."""
         # Baseline
-        elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0))
-        state_no_procs__st.character = elarion
+        elarion = Elarion(state=state_always_procs__st, raw_stats=RawStatsFromPercents(main_stat=1000.0))
         baseline_damages: list[AbilityDamage] = []
-        state_no_procs__st.bus.subscribe(AbilityDamage, baseline_damages.append)
-        elarion.focused_shot._do_cast(state_no_procs__st.enemies[0])
-        state_no_procs__st.step()
+        state_always_procs__st.bus.subscribe(AbilityDamage, baseline_damages.append)
+        elarion.focused_shot._do_cast(state_always_procs__st.enemies[0])
+        state_always_procs__st.step()
         baseline = baseline_damages[0].damage
 
         # With EventHorizon
-        enemies2 = [Enemy()]
-        state2 = State(enemies=enemies2, rng=FixedRNG(value=0.0))
-        elarion2 = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0))
-        state2.character = elarion2
+        state2 = State(rng=FixedRNG(value=0.0))
+        enemies2 = [Enemy(state=state2)]
+        elarion2 = Elarion(state=state2, raw_stats=RawStatsFromPercents(main_stat=1000.0))
         elarion2.effects.add(EventHorizonBuff(owner=elarion2))
         eh_damages: list[AbilityDamage] = []
         state2.bus.subscribe(AbilityDamage, eh_damages.append)
@@ -307,7 +293,7 @@ class TestEventHorizon:
 
         assert eh_damages[0].damage == pytest.approx(baseline * 1.20, rel=1e-6)
 
-    def test_hwa_reduces_barrage_cd(self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion) -> None:
+    def test_hwa_reduces_barrage_cd(self, state_always_procs__st: State, unit_elarion__zero_stats: Elarion) -> None:
         """Each HWA hit during EventHorizon reduces Barrage CD by 0.5s.
         Uses advance_time(0.0) to avoid EventHorizon 20s buff expiry.
         """
@@ -318,12 +304,12 @@ class TestEventHorizon:
         elarion.heartseeker_barrage.charges = 0
 
         # 1 enemy → 1 HWA hit per cast
-        elarion.highwind_arrow._do_cast(state_no_procs__st.enemies[0])
-        state_no_procs__st.advance_time(0.2)
+        elarion.highwind_arrow._do_cast(state_always_procs__st.enemies[0])
+        state_always_procs__st.advance_time(0.2)
 
         assert elarion.heartseeker_barrage.cooldown == pytest.approx(19.3)
 
-    def test_barrage_reduces_volley_cd(self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion) -> None:
+    def test_barrage_reduces_volley_cd(self, state_always_procs__st: State, unit_elarion__zero_stats: Elarion) -> None:
         """Each Barrage tick during EventHorizon reduces Volley CD by 1.0s.
         advance_time(0.0) processes first tick at t=0 only.
         """
@@ -333,12 +319,12 @@ class TestEventHorizon:
         elarion.volley.cooldown = 30.0
         elarion.volley.charges = 0
 
-        elarion.heartseeker_barrage._do_cast(state_no_procs__st.enemies[0])
-        state_no_procs__st.advance_time(0.4)
+        elarion.heartseeker_barrage._do_cast(state_always_procs__st.enemies[0])
+        state_always_procs__st.advance_time(0.4)
 
         assert elarion.volley.cooldown == pytest.approx(29.0 - 0.4)
 
-    def test_focus_cost_halved(self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion) -> None:
+    def test_focus_cost_halved(self, state_always_procs__st: State, unit_elarion__zero_stats: Elarion) -> None:
         """EventHorizonBuff halves the focus cost of all abilities. Focus deducted synchronously."""
         elarion = unit_elarion__zero_stats
 
@@ -346,7 +332,7 @@ class TestEventHorizon:
 
         focus_before = elarion.focus
         # CelestialShot base cost=15 → halved; ceil(15 * 0.5) = 8
-        elarion.celestial_shot._pay_cost_for_cast(state_no_procs__st.enemies[0])
+        elarion.celestial_shot._pay_cost_for_cast(state_always_procs__st.enemies[0])
 
         assert elarion.focus == pytest.approx(focus_before - 8)
 
@@ -356,10 +342,9 @@ class TestFinalCrescendo:
 
     @pytest.fixture
     def state_8e(self) -> tuple[State, Elarion, list[Enemy]]:
-        enemies = [Enemy() for _ in range(8)]
-        state = State(enemies=enemies, rng=FixedRNG(value=0.0))
-        elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0))
-        state.character = elarion
+        state = State(rng=FixedRNG(value=0.0))
+        enemies = [Enemy(state=state) for _ in range(8)]
+        elarion = Elarion(state=state, raw_stats=RawStatsFromPercents(main_stat=1000.0))
         return state, elarion, enemies
 
     def test_activates_on_fourth_cast(self, state_8e: tuple[State, Elarion, list[Enemy]]) -> None:
@@ -415,10 +400,9 @@ class TestLethalShots:
         """LethalShots proc (roll < 0.40): HWA hit is a grievous crit, damage much higher.
         FixedRNG(0.0): PreDamageSnapshotUpdate roll = 0.0 < 0.40 → proc.
         """
-        enemies = [Enemy()]
-        state = State(enemies=enemies, rng=FixedRNG(value=0.0))
-        elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0, crit_percent=0.0))
-        state.character = elarion
+        state = State(rng=FixedRNG(value=0.0))
+        enemies = [Enemy(state=state)]
+        elarion = Elarion(state=state, raw_stats=RawStatsFromPercents(main_stat=1000.0, crit_percent=0.0))
         elarion.effects.add(LethalShots(owner=elarion))
 
         damages: list[AbilityDamage] = []
@@ -436,10 +420,9 @@ class TestLethalShots:
         """LethalShots no proc (roll >= 0.40): HWA damage is normal (no crit).
         FixedRNG(0.5): roll=0.5 >= 0.40 → no proc; crit_percent=0 → no crit.
         """
-        enemies = [Enemy()]
-        state = State(enemies=enemies, rng=FixedRNG(value=0.5))
-        elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0, crit_percent=0.0))
-        state.character = elarion
+        state = State(rng=FixedRNG(value=0.5))
+        enemies = [Enemy(state=state)]
+        elarion = Elarion(state=state, raw_stats=RawStatsFromPercents(main_stat=1000.0, crit_percent=0.0))
         elarion.effects.add(LethalShots(owner=elarion))
 
         damages: list[AbilityDamage] = []
@@ -455,7 +438,7 @@ class TestLethalShots:
 class TestShimmer:
     """Shimmer (Cloak legendary): +10% per stack via HighwindAppliesShimmerEffect, max 2 stacks."""
 
-    def test_stacks_increase_damage(self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion) -> None:
+    def test_stacks_increase_damage(self, state_always_procs__st: State, unit_elarion__zero_stats: Elarion) -> None:
         """Shimmer: 1 stack → +10% damage. Applied on HWA hit via HighwindAppliesShimmerEffect.
         Shimmer applied after first hit (via AbilityDamage handler), active for second hit.
         Use advance_time(0.0) to avoid Shimmer expiry at t=9.
@@ -464,21 +447,21 @@ class TestShimmer:
         elarion.effects.add(HighwindAppliesShimmerEffect(owner=elarion))
 
         damages: list[AbilityDamage] = []
-        state_no_procs__st.bus.subscribe(AbilityDamage, damages.append)
+        state_always_procs__st.bus.subscribe(AbilityDamage, damages.append)
 
         # First HWA cast: no Shimmer yet → base damage, Shimmer applied after hit
-        elarion.highwind_arrow._do_cast(state_no_procs__st.enemies[0])
-        state_no_procs__st.advance_time(0.2)
+        elarion.highwind_arrow._do_cast(state_always_procs__st.enemies[0])
+        state_always_procs__st.advance_time(0.2)
         first_hit = damages[-1].damage
 
         # Second HWA cast: 1 Shimmer stack active (+10%)
-        elarion.highwind_arrow._do_cast(state_no_procs__st.enemies[0])
-        state_no_procs__st.advance_time(0.2)
+        elarion.highwind_arrow._do_cast(state_always_procs__st.enemies[0])
+        state_always_procs__st.advance_time(0.2)
         second_hit = [e for e in damages if e.damage_source is elarion.highwind_arrow][-1].damage
 
         assert second_hit == pytest.approx(first_hit * 1.10, rel=1e-6)
 
-    def test_caps_at_two_stacks(self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion) -> None:
+    def test_caps_at_two_stacks(self, state_always_procs__st: State, unit_elarion__zero_stats: Elarion) -> None:
         """After 2+ applications, Shimmer stays at 2 stacks (max_stacks=2).
         Use advance_time(0.0) to avoid expiry at t=9 that would remove Shimmer.
         """
@@ -486,36 +469,36 @@ class TestShimmer:
         elarion.effects.add(HighwindAppliesShimmerEffect(owner=elarion))
 
         for _ in range(3):
-            elarion.highwind_arrow._do_cast(state_no_procs__st.enemies[0])
-            state_no_procs__st.advance_time(0.2)
+            elarion.highwind_arrow._do_cast(state_always_procs__st.enemies[0])
+            state_always_procs__st.advance_time(0.2)
 
-        shimmer = state_no_procs__st.enemies[0].effects.get(Shimmer)
+        shimmer = state_always_procs__st.enemies[0].effects.get(Shimmer)
         assert shimmer is not None
         assert isinstance(shimmer, Shimmer)
         assert shimmer.stacks == 2
 
     def test_second_application_renews_duration(
-        self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion
+        self, state_always_procs__st: State, unit_elarion__zero_stats: Elarion
     ) -> None:
         """A second Shimmer application before expiry fuses and renews duration."""
         elarion = unit_elarion__zero_stats
         elarion.effects.add(HighwindAppliesShimmerEffect(owner=elarion))
 
         # Apply first Shimmer
-        elarion.highwind_arrow._do_cast(state_no_procs__st.enemies[0])
-        state_no_procs__st.advance_time(0.1)
+        elarion.highwind_arrow._do_cast(state_always_procs__st.enemies[0])
+        state_always_procs__st.advance_time(0.1)
 
-        shimmer_1 = state_no_procs__st.enemies[0].effects.get(Shimmer)
+        shimmer_1 = state_always_procs__st.enemies[0].effects.get(Shimmer)
         assert isinstance(shimmer_1, Shimmer)
 
         # Advance time partway (Shimmer duration=9s, so still active at t=5)
-        state_no_procs__st.advance_time(5.0)
+        state_always_procs__st.advance_time(5.0)
 
         # Apply second Shimmer (fuses: stacks up to 2, duration renewed to 9s from t=5)
-        elarion.highwind_arrow._do_cast(state_no_procs__st.enemies[0])
-        state_no_procs__st.advance_time(0.1)
+        elarion.highwind_arrow._do_cast(state_always_procs__st.enemies[0])
+        state_always_procs__st.advance_time(0.1)
 
-        shimmer_2 = state_no_procs__st.enemies[0].effects.get(Shimmer)
+        shimmer_2 = state_always_procs__st.enemies[0].effects.get(Shimmer)
         assert shimmer_2 is not None
         assert shimmer_2.stacks == 2
         assert shimmer_2.duration == pytest.approx(9.0, abs=0.01)

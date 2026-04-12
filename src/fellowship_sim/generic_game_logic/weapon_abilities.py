@@ -21,7 +21,6 @@ from fellowship_sim.base_classes.events import (
     ComputeCooldownReduction,
     PreDamageSnapshotUpdate,
 )
-from fellowship_sim.base_classes.state import get_state
 from fellowship_sim.base_classes.stats import SnapshotStats
 from fellowship_sim.base_classes.timed_events import DelayedDamage, GenericTimedEvent
 
@@ -47,8 +46,8 @@ class VoidbringersTouchEffect(Effect):
 
     def on_add(self) -> None:
         self._target = self.attached_to
-        get_state().bus.subscribe(AbilityDamage, self._on_damage, owner=self)
-        get_state().bus.subscribe(AbilityPeriodicDamage, self._on_damage, owner=self)
+        self.owner.state.bus.subscribe(AbilityDamage, self._on_damage, owner=self)
+        self.owner.state.bus.subscribe(AbilityPeriodicDamage, self._on_damage, owner=self)
 
     def fuse(self, incoming: Effect) -> None:
         """Keep existing stored_damage; renew duration only."""
@@ -72,7 +71,7 @@ class VoidbringersTouchEffect(Effect):
         )
         if self.stored_damage >= self.max_stored_damage and not self._exploded:
             self._exploded = True
-            state = get_state()
+            state = self.owner.state
             state.schedule(
                 time_delay=0.0, callback=GenericTimedEvent(name="voidbringers_touch explode", callback=self.remove)
             )
@@ -112,7 +111,7 @@ class VoidbringersTouch(WeaponAbility):
     base_cooldown: float = field(default=90.0, init=False)
 
     def _do_cast(self, target: Entity) -> None:
-        state = get_state()
+        state = self.owner.state
         event = AbilityCastSuccess(ability=self, owner=self.owner, target=target)
         state.bus.emit(event)
 
@@ -141,7 +140,7 @@ class ChronoshiftChannelCDR(Effect):
     duration: float = field(default=3.0, init=True)  # overridden to match channel duration at construction
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(ComputeCooldownReduction, self._on_cdr, owner=self)
+        self.owner.state.bus.subscribe(ComputeCooldownReduction, self._on_cdr, owner=self)
         self.owner._recalculate_cdr_multipliers()
 
     def on_remove(self) -> None:
@@ -171,7 +170,7 @@ class Chronoshift(WeaponAbility):
     num_secondary_targets: int = field(default=12, init=False)
 
     def _do_cast(self, target: Entity) -> None:
-        state = get_state()
+        state = self.owner.state
         event = AbilityCastSuccess(ability=self, owner=self.owner, target=target)
         state.bus.emit(event)
 
@@ -205,7 +204,7 @@ class Chronoshift(WeaponAbility):
 
     def _fire_tick_all(self, ratio: float = 1.0) -> None:
         create_standard_damage(
-            state=get_state(),
+            state=self.owner.state,
             damage_source=self,
             owner=self.owner,
             target=None,
@@ -231,7 +230,7 @@ class NaturesFuryAura(Effect):
     ability: "NaturesFury | None" = None
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
+        self.owner.state.bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
 
     def _on_pre_damage(self, event: PreDamageSnapshotUpdate) -> None:
         if event.damage_source is not self.ability:
@@ -282,7 +281,7 @@ class CurseOfAnzhyr(DoTEffect):
 
     def on_add(self) -> None:
         super().on_add()
-        get_state().bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
+        self.owner.state.bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
 
     def _on_pre_damage(self, event: PreDamageSnapshotUpdate) -> None:
         if event.is_dot:
@@ -312,7 +311,7 @@ class IciclesOfAnzhyr(WeaponAbility):
     num_secondary_targets: int = field(default=12, init=False)
 
     def _do_cast(self, target: Entity) -> None:
-        state = get_state()
+        state = self.owner.state
         event = AbilityCastSuccess(ability=self, owner=self.owner, target=target)
         state.bus.emit(event)
 
@@ -328,7 +327,7 @@ class IciclesOfAnzhyr(WeaponAbility):
         )
 
     def _fire_wave(self, is_final: bool) -> None:
-        state = get_state()
+        state = self.owner.state
         logger.trace(f"icicles: wave at t={state.time:.3f}, final wave={is_final}")
         for enemy in state.enemies[: self.num_secondary_targets]:
             deal_damage(SnapshotStats.from_ability_and_character(ability=self, character=self.owner), self, enemy)

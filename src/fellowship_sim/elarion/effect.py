@@ -21,7 +21,6 @@ from fellowship_sim.base_classes.events import (
     ResourceSpent,
     SpiritProc,
 )
-from fellowship_sim.base_classes.state import get_state
 from fellowship_sim.base_classes.timed_events import GenericTimedEvent
 from fellowship_sim.elarion.ability import (
     CelestialShot,
@@ -54,11 +53,11 @@ class CelestialImpetusProc(Effect):
     triggers_impending_barrage: bool = field(init=True)
 
     def on_add(self) -> None:
-        bus = get_state().bus
+        bus = self.owner.state.bus
         bus.subscribe(AbilityCastSuccess, self._on_ability_cast, owner=self)
 
     def _on_ability_cast(self, event: AbilityCastSuccess) -> None:
-        state = get_state()
+        state = self.owner.state
         if isinstance(event.ability, CelestialShot) and self.stacks > 0:
             target = event.target
             state.schedule(
@@ -107,7 +106,7 @@ class CelestialImpetusAura(Effect):
         )
 
     def on_add(self) -> None:
-        bus = get_state().bus
+        bus = self.owner.state.bus
         bus.subscribe(AbilityCastSuccess, self._on_ability_cast, owner=self)
 
     def _on_ability_cast(self, event: AbilityCastSuccess) -> None:
@@ -152,8 +151,8 @@ class LunarlightMarkEffect(Effect):
     )
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(AbilityDamage, self._on_damage_dealt, owner=self)
-        get_state().bus.subscribe(AbilityPeriodicDamage, self._on_damage_dealt, owner=self)
+        self.owner.state.bus.subscribe(AbilityDamage, self._on_damage_dealt, owner=self)
+        self.owner.state.bus.subscribe(AbilityPeriodicDamage, self._on_damage_dealt, owner=self)
 
     def _on_damage_dealt(self, event: AbilityDamage | AbilityPeriodicDamage) -> None:
         if event.target is not self.attached_to:
@@ -172,7 +171,7 @@ class LunarlightMarkEffect(Effect):
             # fmt:on
             proc_chance = min(1.0, proc_chance * 2)
 
-        state = get_state()
+        state = self.owner.state
         roll = state.rng.random()
         success = roll < proc_chance
         logger.trace(f"mark proc roll ({event.damage_source}): {roll:.3f} vs {proc_chance:.2f} → {success}")
@@ -193,8 +192,9 @@ class LunarlightMarkEffect(Effect):
 
         state.schedule(time_delay=0.0, callback=GenericTimedEvent(name="lunarlight_mark proc", callback=callback))
 
-        logger.debug(f"mark stack consumed on {event.owner} → {self.stacks} remaining")
         self.stacks -= 1
+
+        logger.debug(f"mark stack consumed on {event.owner} → {self.stacks} remaining")
         if self.stacks <= 0:
             self.remove()
 
@@ -219,10 +219,10 @@ class SpiritEffectProc(Effect):
     num_secondary_targets: int = field(default=2, init=False)
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(ResourceSpent, self._on_resource_spent, owner=self)
+        self.owner.state.bus.subscribe(ResourceSpent, self._on_resource_spent, owner=self)
 
     def _on_resource_spent(self, event: ResourceSpent) -> None:
-        state = get_state()
+        state = self.owner.state
 
         proc_chance = self.owner.stats.spirit_proc_chance
         roll = state.rng.random() if proc_chance > 0 else 0.0
@@ -244,7 +244,7 @@ class SpiritEffectProc(Effect):
 
     def _resolve_proc(self, ability: Ability["Elarion"], main_target: Entity, resource_amount: int) -> None:
         logger.debug(f"spirit proc resolving: refund {resource_amount} focus, marks →  {main_target}")
-        state = get_state()
+        state = self.owner.state
 
         state.bus.emit(SpiritProc(ability=ability, owner=self.owner, resource_amount=resource_amount))
 
@@ -281,7 +281,7 @@ class FinalCrescendo(Effect):
     max_stacks: int = field(default=3, init=False)
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(AbilityCastSuccess, self._on_ability_cast, owner=self)
+        self.owner.state.bus.subscribe(AbilityCastSuccess, self._on_ability_cast, owner=self)
 
     def _on_ability_cast(self, event: AbilityCastSuccess) -> None:
         if not isinstance(event.ability, HighwindArrow):
@@ -327,7 +327,7 @@ class ResurgentWinds(Effect):
         highwind_arrow._add_charge()
         highwind_arrow.has_resurgent_winds_buff = True
         logger.debug("Resurgent winds: HWA +1 charge and buff gained")
-        get_state().bus.subscribe(AbilityCastSuccess, self._on_ability_cast, owner=self)
+        self.owner.state.bus.subscribe(AbilityCastSuccess, self._on_ability_cast, owner=self)
 
     def on_remove(self) -> None:
         highwind_arrow = self.owner.highwind_arrow
@@ -337,7 +337,7 @@ class ResurgentWinds(Effect):
         if not isinstance(event.ability, HighwindArrow):
             return
 
-        get_state().schedule(0, GenericTimedEvent(name="Remove resurgent winds", callback=self.remove))
+        self.owner.state.schedule(0, GenericTimedEvent(name="Remove resurgent winds", callback=self.remove))
 
 
 @dataclass(kw_only=True, repr=False)
@@ -359,7 +359,7 @@ class ImpendingHeartseeker(Effect):
         barrage._reset_cooldown()
         barrage.has_impending_barrage = True
         logger.debug("Impending Heartseeker: Heartseeker Barrage cooldown reset and buff gained")
-        get_state().bus.subscribe(AbilityCastSuccess, self._on_ability_cast, owner=self)
+        self.owner.state.bus.subscribe(AbilityCastSuccess, self._on_ability_cast, owner=self)
 
     def on_remove(self) -> None:
         barrage = self.owner.heartseeker_barrage
@@ -383,7 +383,7 @@ class Fusillade(Effect):
     crit_bonus: float = field(default=0.20, init=False)
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
+        self.owner.state.bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
 
     def _on_pre_damage(self, event: PreDamageSnapshotUpdate) -> None:
         if not isinstance(event.damage_source, HeartseekerBarrage):
@@ -402,13 +402,13 @@ class FocusedExpanseEffect(Effect):
     proc_chance: float = field(default=0.20, init=False)
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(AbilityCastSuccess, self._on_ability_cast, owner=self)
+        self.owner.state.bus.subscribe(AbilityCastSuccess, self._on_ability_cast, owner=self)
 
     def _on_ability_cast(self, event: AbilityCastSuccess) -> None:
         if not isinstance(event.ability, (FocusedShot, Multishot)):
             return
 
-        roll = get_state().rng.random()
+        roll = self.owner.state.rng.random()
 
         if roll < self.proc_chance:
             self.owner.effects.add(EmpoweredMultishotChargeBuff(owner=self.owner))
@@ -428,7 +428,7 @@ class LastLights(Effect):
     crit_bonus: float = field(default=0.30, init=False)
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
+        self.owner.state.bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
 
     def _on_pre_damage(self, event: PreDamageSnapshotUpdate) -> None:
         if event.target.percent_hp < self.hp_percent_threshold:
@@ -475,7 +475,7 @@ class VolleyEffect(Effect):
         return [e for e in enemy.effects if isinstance(e, VolleyEffect)]
 
     def on_add(self) -> None:
-        state = get_state()
+        state = self.owner.state
 
         logger.debug(f"volley effect created with: duration={self.duration}s; tick interval={self.tick_interval}s")
 
@@ -514,7 +514,7 @@ class VolleyEffect(Effect):
         if self.attached_to is None:
             return
 
-        state = get_state()
+        state = self.owner.state
 
         create_standard_damage(
             state=state,
@@ -540,7 +540,7 @@ class SkywardMunitions(Effect):
     name: str = field(default="skyward_munitions", init=False)
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(AbilityCastSuccess, self._on_ability_cast, owner=self)
+        self.owner.state.bus.subscribe(AbilityCastSuccess, self._on_ability_cast, owner=self)
 
     def _on_ability_cast(self, event: AbilityCastSuccess) -> None:
         if not isinstance(event.ability, (CelestialShot, Multishot)):
@@ -564,7 +564,7 @@ class RepeatingStars(Effect):
     name: str = field(default="repeating_stars", init=False)
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(AbilityDamage, self._on_damage, owner=self)
+        self.owner.state.bus.subscribe(AbilityDamage, self._on_damage, owner=self)
 
     def _on_damage(self, event: AbilityDamage) -> None:
         if event.owner is not self.attached_to:
@@ -590,13 +590,13 @@ class LethalShots(Effect):
     proc_chance: float = field(default=0.40, init=False)
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
+        self.owner.state.bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
 
     def _on_pre_damage(self, event: PreDamageSnapshotUpdate) -> None:
         if not isinstance(event.damage_source, HighwindArrow):
             return
 
-        roll = get_state().rng.random()
+        roll = self.owner.state.rng.random()
         if roll < self.proc_chance:
             event.snapshot = event.snapshot.add_crit_percent(1.0)
             logger.trace(f"Lethal Shots: proc ({roll:.3f} < {self.proc_chance:.2f}) → +100% crit on {event.target}")
@@ -615,7 +615,7 @@ class LunarFury(Effect):
     bonus_damage_percent: float = field(default=0.3, init=False)
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
+        self.owner.state.bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
 
     def _on_pre_damage(self, event: PreDamageSnapshotUpdate) -> None:
         if not isinstance(event.damage_source, (LunarlightSalvo, LunarlightExplosion)):
@@ -638,7 +638,7 @@ class LunarlightAffinity(Effect):
     bonus_crit_percent: float = field(default=0.4, init=False)
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
+        self.owner.state.bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
 
     def _on_pre_damage(self, event: PreDamageSnapshotUpdate) -> None:
         if not isinstance(event.damage_source, (LunarlightSalvo, LunarlightExplosion)):
@@ -664,7 +664,7 @@ class Shimmer(Effect):
     max_stacks: int = field(default=2, init=False)
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
+        self.owner.state.bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
 
     def _on_pre_damage(self, event: PreDamageSnapshotUpdate) -> None:
         if event.target is not self.attached_to:
@@ -686,7 +686,7 @@ class HighwindAppliesShimmerEffect(Effect):
     name: str = field(default="hwa_shimmer_aura", init=False)
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(AbilityDamage, self._on_damage, owner=self)
+        self.owner.state.bus.subscribe(AbilityDamage, self._on_damage, owner=self)
 
     def _on_damage(self, event: AbilityDamage) -> None:
         if not isinstance(event.damage_source, HighwindArrow):
@@ -706,10 +706,10 @@ class StarstrikersAscentLegendary(Effect):
     proc_chance: float = field(default=0.50, init=False)
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(SpiritProc, self._on_spirit_proc, owner=self)
+        self.owner.state.bus.subscribe(SpiritProc, self._on_spirit_proc, owner=self)
 
     def _on_spirit_proc(self, event: SpiritProc) -> None:
-        roll = get_state().rng.random()
+        roll = self.owner.state.rng.random()
         if roll < self.proc_chance:
             self.owner.effects.add(ImpendingHeartseeker(owner=self.owner))
             logger.debug(

@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING
 from fellowship_sim.base_classes import Player
 from fellowship_sim.base_classes.effect import Buff, Effect
 from fellowship_sim.base_classes.events import UltimateCast
-from fellowship_sim.base_classes.state import get_state
 from fellowship_sim.base_classes.stats import (
     HastePercentAdditive,
     MainStatAdditiveMultiplierCharacter,
@@ -101,7 +100,7 @@ class SpiritOfHeroismAura(Effect):
 
     def on_add(self) -> None:
 
-        get_state().bus.subscribe(UltimateCast, self._on_ultimate_cast, owner=self)
+        self.owner.state.bus.subscribe(UltimateCast, self._on_ultimate_cast, owner=self)
 
     def _on_ultimate_cast(self, event: "UltimateCast") -> None:
         self.owner.effects.add(
@@ -155,10 +154,9 @@ class RandomizePlayerPercentHP(Effect):
         self.schedule_set_hp(to_high=not to_high)
 
     def schedule_set_hp(self, to_high: bool) -> None:
-        from fellowship_sim.base_classes.state import get_state
         from fellowship_sim.base_classes.timed_events import GenericTimedEvent
 
-        state = get_state()
+        state = self.owner.state
 
         base = sum(state.rng.random() for _ in range(6))  # mean = 3
         if to_high:

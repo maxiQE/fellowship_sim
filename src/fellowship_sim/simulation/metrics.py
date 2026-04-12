@@ -5,14 +5,18 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from typing import cast
 
-from fellowship_sim.base_classes import WeaponAbility
+from fellowship_sim.base_classes import Effect, WeaponAbility
 from fellowship_sim.base_classes.entity import Entity
 from fellowship_sim.base_classes.events import (
     AbilityCastSuccess,
+    EffectApplied,
+    EffectRefreshed,
+    EffectRemoved,
     EventBus,
     SpiritProc,
     UltimateCast,
 )
+from fellowship_sim.base_classes.state import get_state
 
 # ---------------------------------------------------------------------------
 # MeanStd
@@ -35,6 +39,9 @@ class MeanStd:
 
 def mean_stderr(vals: list[float]) -> MeanStd:
     n = len(vals)
+    if n == 0:
+        raise ValueError("Can't compute the mean and stderr of an empty list")  # noqa: TRY003
+
     mean = sum(vals) / n
     if n < 2:
         return MeanStd(mean=mean, stderr=0.0)
@@ -69,6 +76,18 @@ def _format_ability_cast_count(cast_count_dicts: list[dict[str, int]]) -> str:
         **{key: avg[key] for key in sorted(avg.keys())},
     }
     return "  ".join(f"{key} {value:.1f}" for key, value in avg.items())
+
+
+def _format_buff_uptime(probes: "list[BuffUptimeProbe]", duration: float) -> str:
+    all_keys: set[str] = set()
+    for probe in probes:
+        all_keys.update(probe.total_uptime_dict.keys())
+    parts: list[str] = []
+    for name in sorted(all_keys):
+        avg_uptime = sum(probe.total_uptime_dict.get(name, 0.0) for probe in probes) / len(probes)
+        avg_count = sum(probe.buff_count_dict.get(name, 0.0) for probe in probes) / len(probes)
+        parts.append(f"{name} ({avg_count}) {avg_uptime / duration * 100:.0f}%")
+    return "  ".join(parts)
 
 
 def _format_source_details(probes: "list[DamageSourceProbe]") -> str:
@@ -144,6 +163,64 @@ class DamageSplitProbe(Probe):
     @property
     def total_damage(self) -> float:
         return sum(e.damage_tracker.total for e in self._enemies)
+
+
+@dataclass(kw_only=True)
+class BuffUptimeProbe(Probe):
+    """Subscribes to effect added and removed. Deduces buff uptime."""
+
+    last_uptime_dict: dict[str, float] = field(default_factory=dict, init=False)
+    uptime_intervals_dict: dict[str, list[tuple[float, float]]] = field(
+        default_factory=lambda: defaultdict(list), init=False
+    )
+    buff_count_dict: dict[str, int] = field(default_factory=lambda: defaultdict(lambda: 0), init=False)
+
+    def attach(self, bus: EventBus, enemies: Sequence[Entity]) -> None:
+        bus.subscribe(EffectApplied, self._on_apply, owner=self)
+        bus.subscribe(EffectRefreshed, self._on_apply, owner=self)
+        bus.subscribe(EffectRemoved, self._on_removed, owner=self)
+
+    def effect_key(self, effect: Effect) -> str:
+        return effect.name
+
+    def _on_apply(self, event: EffectApplied) -> None:
+        state = get_state()
+        if event.target != state.character:
+            return
+
+        key = self.effect_key(event.effect)
+        self.last_uptime_dict[key] = state.time
+        self.buff_count_dict[key] += 1
+
+    def _on_renew(self, event: EffectRefreshed) -> None:
+        state = get_state()
+        if event.target != state.character:
+            return
+
+        key = self.effect_key(event.effect)
+        self.buff_count_dict[key] += 1
+
+    def _on_removed(self, event: EffectRemoved) -> None:
+        state = get_state()
+        if event.target != state.character:
+            return
+
+        key = self.effect_key(event.effect)
+        if key not in self.last_uptime_dict:
+            if not math.isinf(event.effect.duration):
+                raise Exception(f"Finite duration effect {event.effect} was not found in self.last_uptime_dict")  # noqa: TRY002, TRY003
+            return
+
+        interval = self.last_uptime_dict[key], state.time
+        self.uptime_intervals_dict[key].append(interval)
+
+        del self.last_uptime_dict[key]
+
+    @property
+    def total_uptime_dict(self) -> dict[str, float]:
+        return {
+            key: sum(stop - start for start, stop in intervals) for key, intervals in self.uptime_intervals_dict.items()
+        }
 
 
 @dataclass(kw_only=True)
@@ -229,11 +306,7 @@ class DamageSourceProbe(Probe):
 
     @property
     def grievous_crit_rate_by_source(self) -> dict[str, float]:
-        return {
-            name: gcrits / count
-            for name, (_, count, _, gcrits) in self._aggregate_records().items()
-            if count > 0
-        }
+        return {name: gcrits / count for name, (_, count, _, gcrits) in self._aggregate_records().items() if count > 0}
 
 
 # ---------------------------------------------------------------------------
@@ -418,5 +491,12 @@ DETAILED_METRICS: list[Metric] = [
         render=lambda probe_list, duration: _format_source_details([
             cast(DamageSourceProbe, probe) for probe in probe_list
         ]),
+    ),
+    TextMetric(
+        name="buff_uptime",
+        probe_type=BuffUptimeProbe,
+        render=lambda probe_list, duration: _format_buff_uptime(
+            [cast(BuffUptimeProbe, probe) for probe in probe_list], duration
+        ),
     ),
 ]

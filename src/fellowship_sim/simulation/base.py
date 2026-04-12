@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
+from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from fellowship_sim.base_classes.ability import Ability
     from fellowship_sim.elarion.entity import Elarion
 
 
@@ -13,4 +15,4 @@ class Rotation(ABC):
     description: str = ""
 
     @abstractmethod
-    def run(self, elarion: "Elarion") -> None: ...
+    def __call__(self, elarion: "Elarion") -> Iterator["Ability | None"]: ...

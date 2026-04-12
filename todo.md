@@ -10,109 +10,82 @@
 
 - brave machinations: coding as triggering on the DOT
 
-- green 1/6 is downplayed when no adds are present
-
 ## Todo
 
 - documentation:
     - all abilities with non trivial implementations should have a detailed description of the model
     - auto extract docs (with sphinx?)
 
+- scenarios for proper simming
+    - 5-6m maybe for boss
+    - prob 8 minutes on trash
+
+- x measure spirit gain on logs -> 0.8 per s, including both baseline (0.14 per s?? and mobs and spirit proc (0.15 per s at 25% proc chance??))
+
+- distinguish in combat spirit regen and out of combat spirit regen
+
+- improve Effect collection to have more explicit API:
+    - get
+    - filter
+    - fuse -> list of effects; for volley; remove name change on volley
+
+- rotation is scuffed on cold starts:
+    - it holds weapon instead of sending it
+
+    - hold weapon + grace + ult for execute if possible
+    - don't hold weapon and grace if ult is super far away
+
+- try to remove all lazy imports
+
+- dot rewrite:
+    - dynamic tick rate
+    - dynamic damage (That should already work)
+- dot effects: take snapshot on dot creation instead of having the creator create the snapshot
+    - fixed by improved snapshotting??
+
+- can all events be broadcasted at post init then finalized immediately when they have modifiers???
 
 
-- Points that maybe need addressing:
-    - check which tests are missing
-    - buff uptime
-    - rotation is scuffed on cold starts:
-        - it holds weapon instead of sending it
+- stats: add flag to ignore static modifiers so that user can simply copy scores or percents from stronghold character sheet, without subtracting static effects
+- on score buildup, add flags to ignore gems (and other modifiers which are included in the character sheet); NB this is for ease of use
 
-        - hold weapon + grace + ult for execute if possible
-        - don't hold weapon and grace if ult is super far away
 
-    - functional test for last lights + execute set
-        - enemy HP goes down
-        - check damage increase **in a scenario**
+- effects attach at on_add instead of at __postinit__, and most of them do not actually need attached_to
+    **Initial surprise:** Effect subclasses do setup in `on_add()` instead of `__post_init__()`. This is unusual for dataclasses.
 
-    - improve Effect collection to have more explicit API
+    **Why:** Effects need `attached_to` to be set before they can subscribe to the bus or interact with the character. `attached_to` is set by `EffectCollection.append()` just before calling `on_add()`. A `__post_init__` would run at construction time, before the effect is attached to anything. This design is deliberate and correct.
 
-    - try to remove all lazy imports
-
-    - dot rewrite:
-        - dynamic tick rate
-        - dynamic damage (That should already work)
-    - dot effects: take snapshot on dot creation instead of having the creator create the snapshot
-        - fixed by improved snapshotting??
-
-    - can all events be broadcasted at post init then finalized immediately when they have modifiers???
-
-    - barrage: factor to standard channel
-        - requires temporary ability modifiers
+    - this needs a rewrite
         - proposal:
-            - have multiple variants of the ability
-                - doesn't work: they need to share a lot of information like cooldown
+            - effects have by default, owner field and attached_to property which points to owner
+            - debuffs have an attached_to field which hides the attached_to property and enables independance
+            - during post_init, immediately attach to 
 
-    - rotations: priority list does not work as intended
-        - unavailable abilities are skipped
-        - but available abilities do not cause a return to the start of the list
-
-    - state: move away from global singleton pattern now that code is solidified
-
-    - no-op setup effect
-
-    - stats: add flag to ignore static modifiers so that user can simply copy scores or percents from stronghold character sheet, without subtracting static effects
-    - on score buildup, add flags to ignore gems (and other modifiers which are included in the character sheet); NB this is for ease of use
-
-    - volley CDR is not correct, I think? Need to test how it stacks with ult
-        - current = cooldown multiplier = (1 + haste_percent + num_volley) * chronoshift
-        - correct = ??
-
-    - effects attach at on_add instead of at __postinit__, and most of them do not actually need attached_to
-        **Initial surprise:** Effect subclasses do setup in `on_add()` instead of `__post_init__()`. This is unusual for dataclasses.
-
-        **Why:** Effects need `attached_to` to be set before they can subscribe to the bus or interact with the character. `attached_to` is set by `EffectCollection.append()` just before calling `on_add()`. A `__post_init__` would run at construction time, before the effect is attached to anything. This design is deliberate and correct.
-
-        - this needs a rewrite
-
-    - splinters rework:
-        - listener on stat modifications:
-            - trigger tick recompute
-        - listener on crit:
-            - no tick recompute
-            - stored damage recompute
-        - each tick is a dynamic damage event
-            - look at current stored damage
-            - tick
-        - on remove:
-            - partial tick
-        - tests: look at model
+- splinters rework:
+    - listener on stat modifications:
+        - trigger tick recompute
+    - listener on crit:
+        - no tick recompute
+        - stored damage recompute
+    - each tick is a dynamic damage event
+        - look at current stored damage
+        - tick
+    - on remove:
+        - partial tick
+    - tests: look at model
 
 
 - talent builds: give syntax so that this is possible:
     talents = BarrageBuild - "impending heartseeker" + "focused_expanse" + "skyward munitions"
+    but, deal with genericity somehow?
 
 - player HP model for ruby storm
 
-- state config:
-    - enemy percent hp decrease with time
-    - spirit point regen with time
-    - spirit point regen during combat
-    - player character 80%HP uptime
-    - gather time: can only hit a fraction of enemies during gather? Damage uncounted?
-    - gather time: num enemies
-    - important effects
-    - harmonious soul stack handling
-
-- Patient Soul
-Heroic
-Standing still for 3 seconds grants you Patient Soul, increasing your Max Health by 5% and your Expertise Rating by 107 / 141 / 177 / 212. 
-Patient Soul persists for 6 sec after you start moving.
--> add simple uptime percent and add a stack of events like for minotaur
 
 - ? usage of the full event variety
 
 - ? automated reconstruction of the enums? construction of the enums somehow?
 
-- ? time of flight: ability cast -> wait -> damage
 
 # TODO: the can_cast bullshit
 

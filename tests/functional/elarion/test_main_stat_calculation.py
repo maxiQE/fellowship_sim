@@ -41,7 +41,8 @@ def test_main_stat_calculation(
     torment: bool,
     white_4_level: int,
 ) -> None:
-    state = State(enemies=[Enemy()])
+    state = State()
+    Enemy(state=state)
     setup = ElarionSetup(
         raw_stats=RawStatsFromPercents(
             main_stat=main_stat,
@@ -112,7 +113,8 @@ def test_main_stat_calculation(
 def test_main_stat_from_setup() -> None:
     """Test main stat values from several setups to check that nothing is going wrong during setup."""
     base_main_stat = 1000
-    state = State(enemies=[Enemy()])
+    state = State()
+    Enemy(state=state)
     elarion = ElarionSetup(
         raw_stats=RawStatsFromPercents(
             main_stat=base_main_stat,
@@ -126,7 +128,8 @@ def test_main_stat_from_setup() -> None:
     assert elarion.percent_hp == 1.0
     assert calculated == (1000 + 45) * (1 + 0.09 + 500 / 200 * 0.01)
 
-    state = State(enemies=[Enemy()])
+    state = State()
+    Enemy(state=state)
     elarion = ElarionSetup(
         raw_stats=RawStatsFromPercents(
             main_stat=base_main_stat,
@@ -141,7 +144,8 @@ def test_main_stat_from_setup() -> None:
     assert elarion.percent_hp == 1.0
     assert calculated == pytest.approx(1000 * (1 + 500 / 200 * 0.01 + 0.24))
 
-    state = State(enemies=[Enemy()])
+    state = State()
+    Enemy(state=state)
     elarion = ElarionSetup(
         raw_stats=RawStatsFromPercents(
             main_stat=base_main_stat,

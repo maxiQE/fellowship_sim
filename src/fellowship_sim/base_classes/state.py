@@ -5,6 +5,7 @@ import heapq
 import random
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import TYPE_CHECKING, Protocol
 
 from loguru import logger
@@ -28,6 +29,44 @@ class StateInformation:
 
 class RNG(Protocol):
     def random(self) -> float: ...
+
+
+class PlayerStatusCommand(Enum):
+    PlayerCastingStart = "player_casting_start"
+    PlayerCastingEnd = "player_casting_end"
+    PlayerDowntimeStart = "PlayerDowntimeStart"
+    PlayerDowntimeEnd = "PlayerDowntimeEnd"
+
+
+@dataclass(kw_only=True)
+class PlayerStatus:
+    player_casting_done: bool = field(default=True, init=False)
+    player_downtime_done: bool = field(default=True, init=False)
+
+    @property
+    def player_available(self) -> bool:
+        return self.player_casting_done and self.player_downtime_done
+
+    def apply_player_status_command(self, command: PlayerStatusCommand | None) -> None:
+        if command is None:
+            return
+        match command:
+            case PlayerStatusCommand.PlayerCastingStart:
+                if not self.player_casting_done:
+                    raise Exception("player_casting_start: already casting")  # noqa: TRY002, TRY003
+                self.player_casting_done = False
+            case PlayerStatusCommand.PlayerCastingEnd:
+                if self.player_casting_done:
+                    raise Exception("player_casting_end: not currently casting")  # noqa: TRY002, TRY003
+                self.player_casting_done = True
+            case PlayerStatusCommand.PlayerDowntimeStart:
+                if not self.player_downtime_done:
+                    raise Exception("PlayerDowntimeStart: already in downtime")  # noqa: TRY002, TRY003
+                self.player_downtime_done = False
+            case PlayerStatusCommand.PlayerDowntimeEnd:
+                if self.player_downtime_done:
+                    raise Exception("PlayerDowntimeEnd: not currently in downtime")  # noqa: TRY002, TRY003
+                self.player_downtime_done = True
 
 
 # ---------------------------------------------------------------------------
@@ -55,12 +94,14 @@ def get_bus() -> EventBus:
 
 @dataclass(kw_only=True)
 class State:
-    enemies: list[Enemy] = field(default_factory=list, init=True)
-    bus: EventBus = field(default_factory=EventBus, init=True)
     rng: RNG = field(default_factory=random.Random, init=True)
 
+    _enemies: list[Enemy] = field(default_factory=list, init=False)
+    bus: EventBus = field(default_factory=EventBus, init=False)
     time: float = field(default=0.0, init=False)
     character: Player | None = field(default=None, init=False)
+
+    player_status: PlayerStatus = field(default_factory=PlayerStatus, init=False)
 
     information: StateInformation = field(default_factory=StateInformation)
 
@@ -78,80 +119,28 @@ class State:
     def __repr__(self) -> str:
         return str(self)
 
+    def add_character(self, character: Player) -> None:
+        if self.character is not None:
+            raise Exception(f"character has already been set: {self.character = }")  # noqa: TRY002, TRY003
+
+        self.character = character
+
+    def add_enemy(self, enemy: Enemy) -> None:
+        self._enemies.append(enemy)
+
+    @property
+    def main_target(self) -> Enemy:
+        if len(self.enemies) == 0:
+            raise Exception("State has no valid main target.")  # noqa: TRY002, TRY003
+        return self.enemies[0]
+
+    @property
+    def enemies(self) -> list[Enemy]:
+        return [e for e in self._enemies if e.is_alive]
+
     @property
     def num_enemies(self) -> int:
         return len(self.enemies)
-
-    def deactivate(self) -> None:
-        """Clear the active state in the current context.
-        After this call, get_state() raises until another State is activated."""
-        _state_var.set(None)
-
-    def schedule(self, time_delay: float, callback: TimedEvent) -> None:
-        """Schedule callback to fire after time_delay seconds from now.
-        Returning True from callback halts step() early (player_available semantics).
-        """
-        if time_delay < 0:
-            raise ValueError(f"Negative time delay: {time_delay}")  # noqa: TRY003
-
-        trigger_time = self.time + time_delay
-        heapq.heappush(self._queue, (trigger_time, self._queue_seq, callback))
-        self._queue_seq += 1
-
-        logger.trace(f"scheduled event at t={trigger_time:.3f} (queue length={len(self._queue)})")
-
-    def _tick(self, dt: float) -> None:
-        """Tick abilities and effects by dt without advancing self.time."""
-        logger.trace("tick(dt={:.4f}) at t={:.3f}", dt, self.time)
-        if self.character is not None:
-            self.character._tick(dt)
-            for ability in self.character.abilities:
-                ability._tick(dt)
-            for effect in list(self.character.effects):
-                effect.tick(dt)
-        for enemy in self.enemies:
-            enemy._tick(dt)
-            for effect in list(enemy.effects):
-                effect.tick(dt)
-
-    def step(self) -> None:
-        """Process scheduled events until a callback returns True (player_available signal)
-        or the queue is empty.  State is the sole time driver; callers only schedule events.
-        """
-        while self._queue:
-            trigger_time, _, callback = heapq.heappop(self._queue)
-            elapsed = trigger_time - self.time
-            if elapsed > 0:
-                self._tick(elapsed)
-            self.time = trigger_time
-
-            # Callback returns True if player is available
-            if callback():
-                # Clear all events at time 0 to avoid weird situations
-                while self._queue and self._queue[0][0] == self.time:
-                    trigger_time, _, callback = heapq.heappop(self._queue)
-                    callback()
-
-                # Return control to player
-                return
-
-    def advance_time(self, dt: float) -> None:
-        """Advance time by dt, processing events in order (no halt on player_available).
-        Kept for tests and explicit raw-time advancement (e.g. effect-decay checks).
-        """
-        logger.debug("advance time +{:.3f}s (t={:.3f} → {:.3f})", dt, self.time, self.time + dt)
-        target = self.time + dt
-        while self._queue and self._queue[0][0] <= target:
-            trigger_time, _, callback = heapq.heappop(self._queue)
-            elapsed = trigger_time - self.time
-            if elapsed > 0:
-                self._tick(elapsed)
-            self.time = trigger_time
-            callback()
-        remaining = target - self.time
-        if remaining > 0:
-            self._tick(remaining)
-        self.time = target
 
     def select_targets(
         self,
@@ -221,3 +210,87 @@ class State:
             n_select -= len(selected_indices)
 
         return result
+
+    def deactivate(self) -> None:
+        """Clear the active state in the current context.
+        After this call, get_state() raises until another State is activated."""
+        _state_var.set(None)
+
+    def schedule(self, time_delay: float, callback: TimedEvent) -> None:
+        """Schedule callback to fire after time_delay seconds from now.
+        Returning True from callback halts step() early (player_available semantics).
+        """
+        if time_delay < 0:
+            raise ValueError(f"Negative time delay: {time_delay}")  # noqa: TRY003
+
+        trigger_time = self.time + time_delay
+        heapq.heappush(self._queue, (trigger_time, self._queue_seq, callback))
+        self._queue_seq += 1
+
+        logger.trace(f"scheduled event at t={trigger_time:.3f} (queue length={len(self._queue)})")
+
+    def _tick(self, dt: float) -> None:
+        """Tick abilities and effects by dt without advancing self.time."""
+        logger.trace("tick(dt={:.4f}) at t={:.3f}", dt, self.time)
+        if self.character is not None:
+            self.character._tick(dt)
+            for ability in self.character.abilities:
+                ability._tick(dt)
+            for effect in list(self.character.effects):
+                effect.tick(dt)
+        for enemy in self.enemies:
+            enemy._tick(dt)
+            for effect in list(enemy.effects):
+                effect.tick(dt)
+
+    def _process_until(self, *, stop_target: float | None, stop_when_available: bool) -> None:
+        """Core event loop shared by step() and advance_time().
+
+        Pops and fires events in chronological order.
+        All events sharing the same timestamp are always processed as a batch before
+        either stopping condition is evaluated.
+
+        Args:
+            stop_target: If set, stop before processing any event past this time.
+            stop_when_available: If True, return as soon as player_available after each batch.
+        """
+        while self._queue:
+            # NB: self._queue[0] is the earliest event; this is a subtle heapq contract
+            # self._queue[0][0] is thus the earliest time in the queue
+            # This is basically: heapq.peek(self._queue)[0]
+            if stop_target is not None and self._queue[0][0] > stop_target:
+                break
+
+            trigger_time, _, callback = heapq.heappop(self._queue)
+            elapsed = trigger_time - self.time
+            if elapsed > 0:
+                self._tick(elapsed)
+            self.time = trigger_time
+            self.player_status.apply_player_status_command(callback())
+
+            while self._queue and self._queue[0][0] == self.time:
+                _, _, callback = heapq.heappop(self._queue)
+                self.player_status.apply_player_status_command(callback())
+
+            if stop_when_available and self.player_status.player_available:
+                return
+
+    def step(self) -> None:
+        """Process scheduled events until player is available again or the queue is empty."""
+        self._process_until(stop_target=None, stop_when_available=True)
+
+    def advance_time(self, dt: float) -> None:
+        """Advance time by dt, processing events in order.
+
+        Critically, this ignores player availability.
+        """
+        logger.debug("advance time +{:.3f}s (t={:.3f} → {:.3f})", dt, self.time, self.time + dt)
+
+        target = self.time + dt
+        self._process_until(stop_target=target, stop_when_available=False)
+
+        remaining = target - self.time
+        if remaining > 0:
+            self._tick(remaining)
+
+        self.time = target

@@ -47,9 +47,7 @@ class EventHorizonBuff(Effect):
     duration: float = field(default=20.0, init=False)
 
     def on_add(self) -> None:
-        from fellowship_sim.base_classes.state import get_state
-
-        bus = get_state().bus
+        bus = self.owner.state.bus
         bus.subscribe(ComputeCooldownReduction, self._on_compute_cdr, owner=self)
         bus.subscribe(AbilityDamage, self._on_any_ability_damage, owner=self)
         bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)

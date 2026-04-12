@@ -21,7 +21,6 @@ from fellowship_sim.base_classes.events import (
     AbilityCastSuccess,
     ResourceSpent,
 )
-from fellowship_sim.base_classes.state import get_state
 from fellowship_sim.base_classes.timed_events import GenericTimedEvent
 from fellowship_sim.elarion.buff import (
     EmpoweredMultishotChargeBuff,
@@ -73,7 +72,7 @@ class ElarionAbility(Ability["Elarion"]):
         if focus_cost:
             self.owner._change_focus(-focus_cost)
 
-            state = get_state()
+            state = self.owner.state
             state.bus.emit(
                 ResourceSpent(
                     ability=self,
@@ -188,7 +187,7 @@ class Multishot(ElarionAbility):
         - empowered MS has a minimum number of arrows.
         """
         # Standard behavior: emit event
-        state = get_state()
+        state = self.owner.state
         event = AbilityCastSuccess(ability=self, owner=self.owner, target=target)
         state.bus.emit(event)
 
@@ -339,7 +338,7 @@ class HighwindArrow(ElarionAbility):
         is_rw_hwa = self.has_resurgent_winds_buff
 
         # Standard behavior: emit event
-        state = get_state()
+        state = self.owner.state
         event = AbilityCastSuccess(ability=self, owner=self.owner, target=target)
         state.bus.emit(event)
 
@@ -404,7 +403,7 @@ class Volley(ElarionAbility):
     def _do_cast(self, target: Entity) -> None:
         from fellowship_sim.elarion.effect import VolleyEffect
 
-        state = get_state()
+        state = self.owner.state
         event = AbilityCastSuccess(ability=self, owner=self.owner, target=target)
         state.bus.emit(event)
 
@@ -452,7 +451,7 @@ class HeartseekerBarrage(ElarionAbility):
         # gets cleared at AbilityCastSuccess
         has_impending_barrage = self.has_impending_barrage
 
-        state = get_state()
+        state = self.owner.state
         event = AbilityCastSuccess(ability=self, owner=self.owner, target=target)
         state.bus.emit(event)
 
@@ -502,7 +501,7 @@ class HeartseekerBarrage(ElarionAbility):
         Tick k deals snapshot * (1.0 + k * damage_step). Bounce targets take 70% of the primary hit.
         Secondary targets are chosen at fire-time from enemies that currently have LunarlightMark.
         """
-        state = get_state()
+        state = self.owner.state
 
         tick_multiplier = 1.0 + hit_counter * damage_step
         scaled_base_damage = self.average_damage * tick_multiplier
@@ -570,7 +569,7 @@ class LunarlightMark(ElarionAbility):
         )
 
         # Standard behavior: emit event
-        state = get_state()
+        state = self.owner.state
         event = AbilityCastSuccess(ability=self, owner=self.owner, target=target)
         state.bus.emit(event)
 
@@ -614,7 +613,7 @@ class LunarlightSalvo(ElarionAbility):
     def _do_cast(self, target: "Entity") -> None:
         """Overwritten to remove the event."""
         create_standard_damage(
-            get_state(),
+            self.owner.state,
             self,
             self.owner,
             target,
@@ -644,7 +643,7 @@ class LunarlightExplosion(ElarionAbility):
     def _do_cast(self, target: "Entity") -> None:
         """Overwritten to remove the event."""
         create_standard_damage(
-            get_state(),
+            self.owner.state,
             self,
             self.owner,
             target,
@@ -700,7 +699,7 @@ class SkystriderSupremacy(ElarionAbility):
     is_fervent_supremacy: bool = field(default=False, init=False)
 
     def _do_cast(self, target: Entity) -> None:
-        state = get_state()
+        state = self.owner.state
         event = AbilityCastSuccess(ability=self, owner=self.owner, target=target)
         state.bus.emit(event)
 

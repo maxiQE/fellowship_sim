@@ -6,7 +6,13 @@ from fellowship_sim.base_classes import AbilityDamage, Enemy, State
 from fellowship_sim.base_classes.events import SpiritProc
 from fellowship_sim.base_classes.stats import RawStatsFromPercents
 from fellowship_sim.elarion.ability import HeartseekerBarrage
-from fellowship_sim.elarion.effect import FinalCrescendo, ImpendingHeartseeker, Shimmer, VolleyEffect
+from fellowship_sim.elarion.effect import (
+    CelestialImpetusProc,
+    FinalCrescendo,
+    ImpendingHeartseeker,
+    Shimmer,
+    VolleyEffect,
+)
 from fellowship_sim.elarion.entity import Elarion
 from fellowship_sim.elarion.setup import ElarionSetup
 from tests.conftest import FixedRNG
@@ -29,7 +35,9 @@ class TestBootsLegendary:
 
     @pytest.fixture
     def state(self) -> State:
-        return State(enemies=[Enemy()], rng=FixedRNG(value=0.0))
+        state = State(rng=FixedRNG(value=0.0))
+        Enemy(state=state)
+        return state
 
     @pytest.fixture
     def elarion(self, state: State, haste_percent: float) -> Elarion:
@@ -115,32 +123,29 @@ class TestNeckLegendary:
     """Neck legendary (Starstriker's Ascent): spirit proc has 50% chance to grant ImpendingHeartseeker."""
 
     @pytest.fixture
-    def state(self) -> State:
-        return State(enemies=[Enemy()], rng=FixedRNG(value=0.0))
+    def elarion(self, state_always_procs__st: State) -> Elarion:
+        return ElarionSetup(raw_stats=_ZERO_STATS, legendary="Neck").finalize(state_always_procs__st)
 
-    @pytest.fixture
-    def elarion(self, state: State) -> Elarion:
-        return ElarionSetup(raw_stats=_ZERO_STATS, legendary="Neck").finalize(state)
-
-    def test_spirit_proc_applies_impending_heartseeker(self, state: State, elarion: Elarion) -> None:
+    def test_spirit_proc_applies_impending_heartseeker(self, state_always_procs__st: State, elarion: Elarion) -> None:
         """RNG(0.0) < 0.5 proc_chance → ImpendingHeartseeker is granted on spirit proc."""
-        state.bus.emit(SpiritProc(ability=elarion.celestial_shot, owner=elarion, resource_amount=15.0))
+        state_always_procs__st.bus.emit(SpiritProc(ability=elarion.celestial_shot, owner=elarion, resource_amount=15.0))
         assert isinstance(elarion.effects.get(ImpendingHeartseeker), ImpendingHeartseeker)
 
     def test_spirit_proc_no_buff_when_rng_fails(self) -> None:
         """RNG(1.0) >= 0.5 proc_chance → ImpendingHeartseeker is not granted."""
-        state = State(enemies=[Enemy()], rng=FixedRNG(value=1.0))
+        state = State(rng=FixedRNG(value=1.0))
+        Enemy(state=state)
         elarion = ElarionSetup(raw_stats=_ZERO_STATS, legendary="Neck").finalize(state)
         state.bus.emit(SpiritProc(ability=elarion.celestial_shot, owner=elarion, resource_amount=15.0))
         assert elarion.effects.get(ImpendingHeartseeker) is None
 
-    def test_chained_neck_procs_on_barrage(self, state: State) -> None:
+    def test_chained_neck_procs_on_barrage(self, state_always_procs__st: State) -> None:
         """Getting both a spirit proc and a neck proc enables elarion to chain IHB."""
-        elarion = ElarionSetup(raw_stats=replace(_ZERO_STATS, spirit_percent=0.25), legendary="Neck").finalize(state)
-        # rng = SequenceRNG(values=[])
-        # state.rng = rng
+        elarion = ElarionSetup(raw_stats=replace(_ZERO_STATS, spirit_percent=0.25), legendary="Neck").finalize(
+            state_always_procs__st
+        )
 
-        target = state.enemies[0]
+        target = state_always_procs__st.enemies[0]
 
         barrage_damage: list[AbilityDamage] = []
 
@@ -148,7 +153,7 @@ class TestNeckLegendary:
             if isinstance(event.damage_source, HeartseekerBarrage):
                 barrage_damage.append(event)
 
-        state.bus.subscribe(AbilityDamage, record_barrage_damage)
+        state_always_procs__st.bus.subscribe(AbilityDamage, record_barrage_damage)
 
         elarion.heartseeker_barrage.cast(target)
         elarion.wait(0.2)
@@ -185,13 +190,78 @@ class TestNeckLegendary:
             for idx, elem in enumerate(barrage_damage)
         )
 
+    def test_ibh__gain__usage__removal(self) -> None:
+        """Check that IBH is correctly applied, correctly removed, etc."""
+        state = State(rng=FixedRNG(value=1.0))
+        Enemy(state=state)
+        elarion = ElarionSetup(raw_stats=replace(_ZERO_STATS, spirit_percent=0.25), legendary="Neck").finalize(state)
+
+        target = state.enemies[0]
+
+        def do_casts_and_check_damage(is_impending: bool) -> None:
+            barrage_damage: list[AbilityDamage] = []
+            state.bus.subscribe(AbilityDamage, barrage_damage.append)
+
+            elarion.heartseeker_barrage._add_charge()
+            elarion.heartseeker_barrage.cast(target)
+            elarion.wait(0.2)  # wait for missile to hit target
+
+            assert len(barrage_damage) == 10
+            multiplier = 0.1 if is_impending else 0.0
+            assert all(
+                elem.damage == pytest.approx(elarion.heartseeker_barrage.average_damage * (1 + idx * multiplier))
+                for idx, elem in enumerate(barrage_damage)
+            )
+
+        # artificial application
+        elarion.effects.add(ImpendingHeartseeker(owner=elarion))
+        assert elarion.heartseeker_barrage.has_impending_barrage
+        assert elarion.effects.has(ImpendingHeartseeker)
+
+        do_casts_and_check_damage(True)
+
+        assert not elarion.heartseeker_barrage.has_impending_barrage
+        assert not elarion.effects.has(ImpendingHeartseeker)
+
+        do_casts_and_check_damage(False)
+
+        # artificial application, test expiry
+        elarion.effects.add(ImpendingHeartseeker(owner=elarion))
+        assert elarion.heartseeker_barrage.has_impending_barrage
+        assert elarion.effects.has(ImpendingHeartseeker)
+
+        elarion.wait(30)
+
+        assert not elarion.heartseeker_barrage.has_impending_barrage
+        assert not elarion.effects.has(ImpendingHeartseeker)
+
+        do_casts_and_check_damage(False)
+
+        # Application via CI
+        elarion.effects.add(
+            CelestialImpetusProc(owner=elarion, main_target_mark_count=3, triggers_impending_barrage=True)
+        )
+        elarion.celestial_shot.cast(target)
+
+        assert elarion.heartseeker_barrage.has_impending_barrage
+        assert elarion.effects.has(ImpendingHeartseeker)
+
+        do_casts_and_check_damage(True)
+
+        assert not elarion.heartseeker_barrage.has_impending_barrage
+        assert not elarion.effects.has(ImpendingHeartseeker)
+
+        do_casts_and_check_damage(False)
+
 
 class TestCloakLegendary:
     """Cloak legendary: each HighwindArrow damage hit applies Shimmer debuff to the target."""
 
     @pytest.fixture
     def state(self) -> State:
-        return State(enemies=[Enemy()], rng=FixedRNG(value=0.0))
+        state = State(rng=FixedRNG(value=0.0))
+        Enemy(state=state)
+        return state
 
     @pytest.fixture
     def elarion(self, state: State) -> Elarion:
@@ -207,7 +277,7 @@ class TestCloakLegendary:
     def test_highwind_arrow_applies_shimmer__final_crescendo_interaction(self, state: State, elarion: Elarion) -> None:
         """Casting HighwindArrow from a FC HWA applies Shimmer to 8 enemies in a group of 12."""
         for _ in range(11):
-            state.enemies.append(Enemy())
+            Enemy(state=state)
         assert state.num_enemies == 12
 
         final_crescendo = FinalCrescendo(owner=elarion)

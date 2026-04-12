@@ -11,7 +11,6 @@ from fellowship_sim.base_classes.events import (
     UltimateCast,
 )
 from fellowship_sim.base_classes.real_ppm import RealPPM
-from fellowship_sim.base_classes.state import get_state
 from fellowship_sim.base_classes.stats import (
     CritPercentAdditive,
     ExpertisePercentAdditive,
@@ -58,7 +57,7 @@ class DarkProphecy(Effect):
         )
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(AbilityDamage, self._on_damage, owner=self)
+        self.owner.state.bus.subscribe(AbilityDamage, self._on_damage, owner=self)
 
     def _on_damage(self, event: AbilityDamage) -> None:
         if not self._rppm.check():
@@ -102,7 +101,7 @@ class DraconicMight(Effect):
         )
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(AbilityDamage, self._on_damage, owner=self)
+        self.owner.state.bus.subscribe(AbilityDamage, self._on_damage, owner=self)
 
     def _on_damage(self, event: AbilityDamage) -> None:
         if not event.is_crit:
@@ -132,7 +131,7 @@ class DeathsGrasp(Buff):
 
     def on_add(self) -> None:
         super().on_add()
-        get_state().bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
+        self.owner.state.bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
 
     def _on_pre_damage(self, event: PreDamageSnapshotUpdate) -> None:
         if event.target.percent_hp <= self.low_health_threshold:
@@ -164,7 +163,7 @@ class DrakheimsAbsolution(Effect):
     name: str = field(default="drakheims_absolution_aura", init=False)
 
     def on_add(self) -> None:
-        get_state().bus.subscribe(UltimateCast, self._on_ultimate, owner=self)
+        self.owner.state.bus.subscribe(UltimateCast, self._on_ultimate, owner=self)
 
     def _on_ultimate(self, event: UltimateCast) -> None:
         self.owner.effects.add(DrakheimsAbsolutionBuff(owner=self.owner))

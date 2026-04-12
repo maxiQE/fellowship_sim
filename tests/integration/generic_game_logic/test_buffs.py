@@ -20,10 +20,9 @@ class TestSpiritOfHeroism:
     @pytest.fixture
     def state_and_elarion(self) -> tuple[State, Elarion]:
         """Single enemy state, Elarion with no setup effects applied."""
-        enemy = Enemy()
-        state = State(enemies=[enemy], rng=FixedRNG(value=0.99))
-        elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0))
-        state.character = elarion
+        state = State(rng=FixedRNG(value=0.99))
+        Enemy(state=state)
+        elarion = Elarion(state=state, raw_stats=RawStatsFromPercents(main_stat=1000.0))
         return state, elarion
 
     def test_increases_haste_by_30_percent(self, state_and_elarion: tuple[State, Elarion]) -> None:
@@ -138,10 +137,9 @@ class TestSpiritOfHeroismAura:
     @pytest.fixture
     def state_and_elarion(self) -> tuple[State, Elarion]:
         """Single enemy state, Elarion with SpiritOfHeroismAura manually added."""
-        enemy = Enemy()
-        state = State(enemies=[enemy], rng=FixedRNG(value=0.99))
-        elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0))
-        state.character = elarion
+        state = State(rng=FixedRNG(value=0.99))
+        Enemy(state=state)
+        elarion = Elarion(state=state, raw_stats=RawStatsFromPercents(main_stat=1000.0))
         elarion.effects.add(SpiritOfHeroismAura(owner=elarion))
         return state, elarion
 

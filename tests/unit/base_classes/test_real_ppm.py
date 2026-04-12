@@ -28,11 +28,10 @@ def _setup_rppm(
     crit: float = 0.0,
     rng_value: float = 0.0,
 ) -> tuple[RealPPM, State]:
-    entity = Enemy()
-    state = State(enemies=[entity], rng=FixedRNG(rng_value))
+    state = State(rng=FixedRNG(rng_value))
+    Enemy(state=state)
     state.information.delay_since_last_fight = None
-    player = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0, haste_percent=haste, crit_percent=crit))
-    state.character = player
+    player = Elarion(state=state, raw_stats=RawStatsFromPercents(main_stat=1000.0, haste_percent=haste, crit_percent=crit))
     rppm = RealPPM(
         base_ppm=_BASE_PPM,
         is_haste_scaled=is_haste_scaled,

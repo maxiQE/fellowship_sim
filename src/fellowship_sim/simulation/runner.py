@@ -48,7 +48,14 @@ def run_once(
         probes[pt] = probe
 
     with contextlib.suppress(FightOver):
-        rotation.run(elarion)
+        for ability in rotation(elarion):
+            if ability is not None:
+                ability.cast(state.main_target)
+
+    for entity in [*state.enemies, elarion]:
+        for effect in list(entity.effects):
+            if effect.attached_to:
+                effect.remove()
 
     return probes
 

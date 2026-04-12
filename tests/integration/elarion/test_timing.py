@@ -38,18 +38,22 @@ class TestVolleyTickCount:
         ],
     )
     def test_tick_count(
-        self, setup_hasted_elarion: Callable[..., Elarion], state_no_procs__st: State, haste: float, expected_ticks: int
+        self,
+        setup_hasted_elarion: Callable[..., Elarion],
+        state_always_procs__st: State,
+        haste: float,
+        expected_ticks: int,
     ) -> None:
         """Volley tick count matches 1 + floor(8 * (1 + haste)) for discrete haste values."""
         elarion = setup_hasted_elarion(haste=haste)
         volley_damages: list[AbilityDamage] = []
-        state_no_procs__st.bus.subscribe(
+        state_always_procs__st.bus.subscribe(
             AbilityDamage,
             lambda e: volley_damages.append(e) if isinstance(e.damage_source, Volley) else None,
         )
 
-        elarion.volley._do_cast(state_no_procs__st.enemies[0])
-        state_no_procs__st.advance_time(9.0)  # covers all haste cases
+        elarion.volley._do_cast(state_always_procs__st.enemies[0])
+        state_always_procs__st.advance_time(9.0)  # covers all haste cases
 
         assert len(volley_damages) == expected_ticks
 
@@ -59,10 +63,9 @@ class TestVolleyTickCount:
         Cast with haste=0.5 (13 ticks, tick_interval=0.667s).
         Haste at tick time does not affect tick scheduling — rate is baked in at cast.
         """
-        enemies = [Enemy()]
-        state = State(enemies=enemies, rng=FixedRNG(value=0.0))
-        elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0, haste_percent=0.5))
-        state.character = elarion
+        state = State(rng=FixedRNG(value=0.0))
+        enemies = [Enemy(state=state)]
+        elarion = Elarion(state=state, raw_stats=RawStatsFromPercents(main_stat=1000.0, haste_percent=0.5))
 
         elarion.volley._do_cast(enemies[0])
 
@@ -92,17 +95,21 @@ class TestHeartseekerBarrageTickCount:
         ],
     )
     def test_tick_count(
-        self, setup_hasted_elarion: Callable[..., Elarion], state_no_procs__st: State, haste: float, expected_ticks: int
+        self,
+        setup_hasted_elarion: Callable[..., Elarion],
+        state_always_procs__st: State,
+        haste: float,
+        expected_ticks: int,
     ) -> None:
         """Barrage breakpoints are at every 10%."""
         elarion = setup_hasted_elarion(haste=haste)
         barrage_damages: list[AbilityDamage] = []
-        state_no_procs__st.bus.subscribe(
+        state_always_procs__st.bus.subscribe(
             AbilityDamage,
             lambda e: barrage_damages.append(e) if isinstance(e.damage_source, HeartseekerBarrage) else None,
         )
 
-        elarion.heartseeker_barrage.cast(state_no_procs__st.enemies[0])
+        elarion.heartseeker_barrage.cast(state_always_procs__st.enemies[0])
         elarion.wait(0.2)
 
         assert get_state().time == pytest.approx(2.2)
@@ -121,18 +128,22 @@ class TestHeartseekerBarrageTickCount:
         ],
     )
     def test_tick_count__with_fusillade(
-        self, setup_hasted_elarion: Callable[..., Elarion], state_no_procs__st: State, haste: float, expected_ticks: int
+        self,
+        setup_hasted_elarion: Callable[..., Elarion],
+        state_always_procs__st: State,
+        haste: float,
+        expected_ticks: int,
     ) -> None:
         """With fusillade, barrage breakpoints at at 4% (13 hits) then every additional 8%."""
         elarion = setup_hasted_elarion(haste=haste)
         FusilladeSetup().apply(elarion, context=None)  # ty:ignore[invalid-argument-type]
         barrage_damages: list[AbilityDamage] = []
-        state_no_procs__st.bus.subscribe(
+        state_always_procs__st.bus.subscribe(
             AbilityDamage,
             lambda e: barrage_damages.append(e) if isinstance(e.damage_source, HeartseekerBarrage) else None,
         )
 
-        elarion.heartseeker_barrage.cast(state_no_procs__st.enemies[0])
+        elarion.heartseeker_barrage.cast(state_always_procs__st.enemies[0])
         elarion.wait(0.2)
 
         assert len(barrage_damages) == expected_ticks
@@ -155,16 +166,16 @@ class TestImpendingHeartseeker:
         At haste=0: 10 ticks (k=0..9)
         Total multiplier sum = sum(1 + k*0.10, k=0..9) = 10 + 0.1*45 = 14.5
         """
-        enemies = [Enemy()]
-        state = State(enemies=enemies, rng=FixedRNG(value=0.0))
+        state = State(rng=FixedRNG(value=0.0))
+        enemies = [Enemy(state=state)]
         elarion = Elarion(
+            state=state,
             raw_stats=RawStatsFromPercents(
                 main_stat=main_stat,
                 crit_percent=crit_percent,
                 expertise_percent=expertise_percent,
             )
         )
-        state.character = elarion
         elarion.effects.add(ImpendingHeartseeker(owner=elarion))
 
         barrage_damages: list[AbilityDamage] = []
@@ -188,7 +199,7 @@ class TestImpendingHeartseeker:
         total_damage = sum(e.damage for e in barrage_damages)
         assert total_damage == pytest.approx(expected_total, rel=1e-5)
 
-    def test_resets_barrage_cd(self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion) -> None:
+    def test_resets_barrage_cd(self, state_always_procs__st: State, unit_elarion__zero_stats: Elarion) -> None:
         """ImpendingHeartseeker.on_add resets HeartseekerBarrage cooldown."""
         elarion = unit_elarion__zero_stats
 
@@ -205,10 +216,10 @@ class TestVolleyStacking:
     """Two Volley instances can coexist and tick independently; each expires at its own time."""
 
     def test_two_instances_both_active_simultaneously(
-        self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion
+        self, state_always_procs__st: State, unit_elarion__zero_stats: Elarion
     ) -> None:
         """Cast Volley twice mid-duration → both VolleyEffect instances active on target."""
-        state = state_no_procs__st
+        state = state_always_procs__st
         elarion = unit_elarion__zero_stats
 
         elarion.volley._do_cast(state.enemies[0])
@@ -222,10 +233,10 @@ class TestVolleyStacking:
         assert len(VolleyEffect.get_volley(state.enemies[0])) == 2
 
     def test_two_instances_each_tick_independently(
-        self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion
+        self, state_always_procs__st: State, unit_elarion__zero_stats: Elarion
     ) -> None:
         """With 2 simultaneous VolleyEffects, both fire their first tick when cast back-to-back."""
-        state = state_no_procs__st
+        state = state_always_procs__st
         elarion = unit_elarion__zero_stats
 
         volley_hits: list[AbilityDamage] = []
@@ -250,10 +261,10 @@ class TestVolleyStacking:
         assert len(volley_hits) == 4
 
     def test_first_volley_expires_before_second(
-        self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion
+        self, state_always_procs__st: State, unit_elarion__zero_stats: Elarion
     ) -> None:
         """First Volley expires at ~t=8s; second (cast at t=3) expires at ~t=11s."""
-        state = state_no_procs__st
+        state = state_always_procs__st
         elarion = unit_elarion__zero_stats
 
         elarion.volley._do_cast(state.enemies[0])

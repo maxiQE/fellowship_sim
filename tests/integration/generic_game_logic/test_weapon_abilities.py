@@ -28,10 +28,9 @@ class TestVoidbringersTouch:
     @pytest.fixture
     def state_1e(self) -> tuple[State, Elarion, Enemy, VoidbringersTouch]:
         """One enemy, RNG never crits, Elarion with VBT weapon ability."""
-        target = Enemy()
-        state = State(enemies=[target], rng=FixedRNG(value=0.99))
-        elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0))
-        state.character = elarion
+        state = State(rng=FixedRNG(value=0.99))
+        target = Enemy(state=state)
+        elarion = Elarion(state=state, raw_stats=RawStatsFromPercents(main_stat=1000.0))
         vbt = VoidbringersTouch(owner=elarion)
         elarion.weapon_ability = vbt
         elarion.voidbringers_touch = vbt
@@ -147,10 +146,9 @@ class TestChronoshift:
     @pytest.fixture
     def state_1e(self) -> tuple[State, Elarion, Enemy, Chronoshift]:
         """One enemy, no crits, Elarion with Chronoshift weapon ability."""
-        target = Enemy()
-        state = State(enemies=[target], rng=FixedRNG(value=0.99))
-        elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0))
-        state.character = elarion
+        state = State(rng=FixedRNG(value=0.99))
+        target = Enemy(state=state)
+        elarion = Elarion(state=state, raw_stats=RawStatsFromPercents(main_stat=1000.0))
         cs = Chronoshift(owner=elarion)
         elarion.weapon_ability = cs
         elarion.chronoshift = cs
@@ -178,10 +176,9 @@ class TestChronoshift:
 
     def test_fires_3_full_ticks_with_haste(self) -> None:
         """At haste_percent=0.5: tick_interval=1.0s, num_full_ticks=3, no partial."""
-        target = Enemy()
-        state = State(enemies=[target], rng=FixedRNG(value=0.99))
-        elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0, haste_percent=0.5))
-        state.character = elarion
+        state = State(rng=FixedRNG(value=0.99))
+        target = Enemy(state=state)
+        elarion = Elarion(state=state, raw_stats=RawStatsFromPercents(main_stat=1000.0, haste_percent=0.5))
         cs = Chronoshift(owner=elarion)
         elarion.weapon_ability = cs
         elarion.chronoshift = cs
@@ -197,10 +194,9 @@ class TestChronoshift:
 
     def test_fires_partial_tick_at_fractional_haste(self) -> None:
         """At haste_percent=0.25: tick_interval=1.2s, 2 full ticks + 1 partial (0.5x damage)."""
-        target = Enemy()
-        state = State(enemies=[target], rng=FixedRNG(value=0.99))
-        elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0, haste_percent=0.25))
-        state.character = elarion
+        state = State(rng=FixedRNG(value=0.99))
+        target = Enemy(state=state)
+        elarion = Elarion(state=state, raw_stats=RawStatsFromPercents(main_stat=1000.0, haste_percent=0.25))
         cs = Chronoshift(owner=elarion)
         elarion.weapon_ability = cs
         elarion.chronoshift = cs
@@ -247,10 +243,9 @@ class TestChronoshift:
 
     def test_hits_multiple_enemies(self) -> None:
         """Each tick hits all enemies up to the 12-enemy cap."""
-        enemies = [Enemy() for _ in range(3)]
-        state = State(enemies=enemies, rng=FixedRNG(value=0.99))
-        elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0))
-        state.character = elarion
+        state = State(rng=FixedRNG(value=0.99))
+        enemies = [Enemy(state=state) for _ in range(3)]
+        elarion = Elarion(state=state, raw_stats=RawStatsFromPercents(main_stat=1000.0))
         cs = Chronoshift(owner=elarion)
         elarion.weapon_ability = cs
         elarion.chronoshift = cs
@@ -274,10 +269,9 @@ class TestNaturesFury:
     @pytest.fixture
     def state_5e(self) -> tuple[State, Elarion, list[Enemy], NaturesFury]:
         """Five enemies, no crits, Elarion with NaturesFury weapon ability."""
-        enemies = [Enemy() for _ in range(5)]
-        state = State(enemies=enemies, rng=FixedRNG(value=0.99))
-        elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0))
-        state.character = elarion
+        state = State(rng=FixedRNG(value=0.99))
+        enemies = [Enemy(state=state) for _ in range(5)]
+        elarion = Elarion(state=state, raw_stats=RawStatsFromPercents(main_stat=1000.0))
         nf = NaturesFury(owner=elarion)
         elarion.weapon_ability = nf
         elarion.natures_fury = nf
@@ -300,10 +294,9 @@ class TestNaturesFury:
 
     def test_all_hits_gain_30_percent_crit(self) -> None:
         """NaturesFuryAura adds +30% crit: at RNG=0.29, NaturesFury crits but FocusedShot does not."""
-        target = Enemy()
-        state = State(enemies=[target], rng=FixedRNG(value=0.29))
-        elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0, crit_percent=0.0))
-        state.character = elarion
+        state = State(rng=FixedRNG(value=0.29))
+        target = Enemy(state=state)
+        elarion = Elarion(state=state, raw_stats=RawStatsFromPercents(main_stat=1000.0, crit_percent=0.0))
         nf = NaturesFury(owner=elarion)
 
         # FocusedShot: crit_percent=0.0, 0.29 ≥ 0.0 → no crit
@@ -352,10 +345,9 @@ class TestIciclesOfAnzhyr:
     @pytest.fixture
     def state_2e(self) -> tuple[State, Elarion, list[Enemy], IciclesOfAnzhyr]:
         """Two enemies, no crits, Elarion with IciclesOfAnzhyr weapon ability."""
-        enemies = [Enemy(), Enemy()]
-        state = State(enemies=enemies, rng=FixedRNG(value=0.99))
-        elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0))
-        state.character = elarion
+        state = State(rng=FixedRNG(value=0.99))
+        enemies = [Enemy(state=state), Enemy(state=state)]
+        elarion = Elarion(state=state, raw_stats=RawStatsFromPercents(main_stat=1000.0))
         icicles = IciclesOfAnzhyr(owner=elarion)
         elarion.weapon_ability = icicles
         elarion.icicles_of_anzhyr = icicles

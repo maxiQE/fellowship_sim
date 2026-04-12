@@ -49,35 +49,35 @@ class _MainStatBuff(Buff):
 
 
 class TestEffectCollection:
-    def test_effect_collection_duplicate_raises(self, state_no_procs__st: State) -> None:
-        entity = Entity()
+    def test_effect_collection_duplicate_raises(self, state_always_procs__st: State) -> None:
+        entity = Entity(state=state_always_procs__st)
         entity.effects.add(_DummyEffect(owner=entity, name="dup"))
         with pytest.raises(DuplicateEffectError):
             entity.effects.add(_DummyEffect(owner=entity, name="dup"))
 
 
 class TestEffectExpiry:
-    def test_effect_expires_via_queue(self, state_no_procs__st: State) -> None:
-        entity = Entity()
+    def test_effect_expires_via_queue(self, state_always_procs__st: State) -> None:
+        entity = Entity(state=state_always_procs__st)
         entity.effects.add(_DummyEffect(owner=entity, name="expire", duration=2.0))
-        state_no_procs__st.advance_time(3.0)
+        state_always_procs__st.advance_time(3.0)
         assert not entity.effects.has(_DummyEffect)
 
-    def test_effect_renewal_defers_expiry(self, state_no_procs__st: State) -> None:
+    def test_effect_renewal_defers_expiry(self, state_always_procs__st: State) -> None:
         """Refreshing an effect cancels the stale expiry callback and schedules a new one."""
-        entity = Entity()
+        entity = Entity(state=state_always_procs__st)
         entity.effects.add(_DummyEffect(owner=entity, name="x", duration=2.0))  # expiry at t=2.0
-        state_no_procs__st.advance_time(1.0)  # t=1.0, still alive
+        state_always_procs__st.advance_time(1.0)  # t=1.0, still alive
 
         entity.effects.add(_DummyEffect(owner=entity, name="x", duration=2.0))  # refresh → expiry at t=3.0
-        state_no_procs__st.advance_time(1.5)  # t=2.5: old expiry (t=2.0) was stale
+        state_always_procs__st.advance_time(1.5)  # t=2.5: old expiry (t=2.0) was stale
         assert entity.effects.has(_DummyEffect)
 
-        state_no_procs__st.advance_time(1.0)  # t=3.5: new expiry (t=3.0) fires
+        state_always_procs__st.advance_time(1.0)  # t=3.5: new expiry (t=3.0) fires
         assert not entity.effects.has(_DummyEffect)
 
-    def test_effect_renewal_merges_stacks(self, state_no_procs__st: State) -> None:
-        entity = Entity()
+    def test_effect_renewal_merges_stacks(self, state_always_procs__st: State) -> None:
+        entity = Entity(state=state_always_procs__st)
         entity.effects.add(_StackEffect(owner=entity))  # stacks=1
         entity.effects.add(_StackEffect(owner=entity))  # stacks=2
         entity.effects.add(_StackEffect(owner=entity))  # stacks=3 (cap)
@@ -97,16 +97,16 @@ class TestBuff:
         unit_elarion__zero_stats.effects.add(_HasteBuff(owner=unit_elarion__zero_stats, bonus=0.3))
         assert unit_elarion__zero_stats.raw_stats.haste_percent == pytest.approx(0.0)  # ty:ignore[unresolved-attribute]
 
-    def test_buff_reverts_on_remove(self, unit_elarion__zero_stats: Elarion, state_no_procs__st: State) -> None:
+    def test_buff_reverts_on_remove(self, unit_elarion__zero_stats: Elarion, state_always_procs__st: State) -> None:
         unit_elarion__zero_stats.effects.add(_HasteBuff(owner=unit_elarion__zero_stats, bonus=0.3))
-        state_no_procs__st.advance_time(15.0)  # buff expires after 10s
+        state_always_procs__st.advance_time(15.0)  # buff expires after 10s
         assert unit_elarion__zero_stats.stats.haste_percent == pytest.approx(0.0)
 
-    def test_repeated_buff_no_accumulation(self, unit_elarion__zero_stats: Elarion, state_no_procs__st: State) -> None:
+    def test_repeated_buff_no_accumulation(self, unit_elarion__zero_stats: Elarion, state_always_procs__st: State) -> None:
         """Applying and expiring the same buff 10 times leaves stats exactly at base."""
         for _ in range(10):
             unit_elarion__zero_stats.effects.add(_MainStatBuff(owner=unit_elarion__zero_stats, value=0.03))
-            state_no_procs__st.advance_time(15.0)
+            state_always_procs__st.advance_time(15.0)
         assert unit_elarion__zero_stats.stats.main_stat == pytest.approx(1000.0)
 
     def test_two_buffs_stack_additively(self, setup_hasted_elarion: Callable[..., Elarion]) -> None:

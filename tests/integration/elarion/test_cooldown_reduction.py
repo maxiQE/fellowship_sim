@@ -28,12 +28,12 @@ class TestSkylitGrace:
     """Each active VolleyEffect increases SkystriderGrace CDR by 1.0."""
 
     def test_one_volley_doubles_skystrider_grace_cdr(
-        self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion
+        self, state_always_procs__st: State, unit_elarion__zero_stats: Elarion
     ) -> None:
         """With 1 active VolleyEffect, SkystriderGrace CDR multiplier = 2.0.
         Advancing time by 1s ticks SkystriderGrace CD by 2.0s (instead of 1.0s).
         """
-        state = state_no_procs__st
+        state = state_always_procs__st
         elarion = unit_elarion__zero_stats
         SkylitGraceSetup().apply(elarion, None)  # ty:ignore[invalid-argument-type]
 
@@ -52,10 +52,10 @@ class TestSkylitGrace:
         assert cd_reduction == pytest.approx(2.0, abs=0.01)
 
     def test_two_volleys_triple_skystrider_grace_cdr(
-        self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion
+        self, state_always_procs__st: State, unit_elarion__zero_stats: Elarion
     ) -> None:
         """With 2 simultaneous VolleyEffects, CDR multiplier = 3.0 → ticks by 3.0s per second."""
-        state = state_no_procs__st
+        state = state_always_procs__st
         elarion = unit_elarion__zero_stats
         SkylitGraceSetup().apply(elarion, None)  # ty:ignore[invalid-argument-type]
 
@@ -74,10 +74,10 @@ class TestSkylitGrace:
         assert elarion.skystrider_grace._cdr_multiplier == pytest.approx(3.0)
 
     def test_cdr_returns_to_one_after_volley_expires(
-        self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion
+        self, state_always_procs__st: State, unit_elarion__zero_stats: Elarion
     ) -> None:
         """After all VolleyEffects expire, SkystriderGrace CDR returns to 1.0."""
-        state = state_no_procs__st
+        state = state_always_procs__st
         elarion = unit_elarion__zero_stats
         SkylitGraceSetup().apply(elarion, None)  # ty:ignore[invalid-argument-type]
 
@@ -99,14 +99,14 @@ class TestSkywardMunitions:
     """CelestialShot and Multishot each reduce HWA CD and Barrage CD by 1s."""
 
     @pytest.fixture
-    def setup(self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion) -> tuple[State, Elarion]:
+    def setup(self, state_always_procs__st: State, unit_elarion__zero_stats: Elarion) -> tuple[State, Elarion]:
         elarion = unit_elarion__zero_stats
         elarion.effects.add(SkywardMunitions(owner=elarion))
         elarion.highwind_arrow.cooldown = 15.0
         elarion.highwind_arrow.charges = 0
         elarion.heartseeker_barrage.cooldown = 20.0
         elarion.heartseeker_barrage.charges = 0
-        return state_no_procs__st, elarion
+        return state_always_procs__st, elarion
 
     def test_celestial_shot_reduces_hwa_cd(self, setup: tuple[State, Elarion]) -> None:
         """CelestialShot cast reduces HWA cooldown by 1s."""
@@ -148,10 +148,9 @@ class TestRepeatingStars:
     @pytest.mark.parametrize("num_enemies", [1, 2, 3])
     def test_reduces_volley_cd_per_hit(self, num_enemies: int) -> None:
         """N enemies hit → Volley CD reduced by N×0.3s."""
-        enemies = [Enemy() for _ in range(num_enemies)]
-        state = State(enemies=enemies, rng=FixedRNG(value=0.0))
-        elarion = Elarion(raw_stats=RawStatsFromPercents(main_stat=1000.0))
-        state.character = elarion
+        state = State(rng=FixedRNG(value=0.0))
+        enemies = [Enemy(state=state) for _ in range(num_enemies)]
+        elarion = Elarion(state=state, raw_stats=RawStatsFromPercents(main_stat=1000.0))
 
         elarion.effects.add(RepeatingStars(owner=elarion))
         elarion.multishot.charges = 1

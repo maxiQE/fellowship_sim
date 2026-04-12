@@ -7,10 +7,11 @@ from typing import cast
 import pytest
 
 from fellowship_sim.base_classes import AbilityDamage, Enemy, RawStatsFromPercents, State, StateInformation
+from fellowship_sim.base_classes.entity import Entity
 from fellowship_sim.base_classes.state import get_state
 from fellowship_sim.elarion.ability import ElarionAbility
 from fellowship_sim.elarion.entity import Elarion
-from fellowship_sim.elarion.rotations.neck_barrage import NeckBarragePriorityList
+from fellowship_sim.elarion.rotations.neck_barrage_priority_list_method import NeckBarragePriorityListMethod
 from fellowship_sim.elarion.setup import ElarionSetup
 from fellowship_sim.simulation.metrics import DamageSourceProbe
 from fellowship_sim.simulation.runner import run_once
@@ -63,7 +64,7 @@ _SETUP_WITH_LL = ElarionSetup(
     weapon_ability="Voidbringer's Touch",
 )
 
-_ROTATION = NeckBarragePriorityList()
+_ROTATION = NeckBarragePriorityListMethod()
 
 
 # ---------------------------------------------------------------------------
@@ -85,7 +86,7 @@ def st_scenario() -> BossFightScenario:
 def aoe_scenario() -> TrashAOEFightScenario:
     return TrashAOEFightScenario(
         num_enemies=12,
-        duration=_DURATION,
+        pack_duration=_DURATION,
         bonus_spirit_point_per_s=0.5,
         delay_since_last_fight=_DELAY,
         initial_spirit_points=130,
@@ -111,12 +112,7 @@ class OnlyExecuteScenario(Scenario):
         with contextlib.suppress(RuntimeError):
             get_state().deactivate()
 
-        enemies = [Enemy(time_to_live=float("inf")) for _ in range(self.num_enemies)]
-        for enemy in enemies:
-            enemy.percent_hp = 0.2
-
         state = State(
-            enemies=enemies,
             rng=random.Random(x=rng_seed),
             information=StateInformation(
                 is_boss_fight=self.is_boss_fight,
@@ -125,6 +121,9 @@ class OnlyExecuteScenario(Scenario):
                 is_ult_authorized=self.is_ult_authorized,
             ),
         )
+        enemies = [Enemy(state=state, time_to_live=float("inf")) for _ in range(self.num_enemies)]
+        for enemy in enemies:
+            enemy.percent_hp = 0.2
 
         elarion = setup.finalize(state)
 
@@ -318,6 +317,56 @@ class TestCritRatesBarrageBuild:
             p, _ = observed["VoidbringersTouchEffect"]
             assert p == pytest.approx(1.0), f"ST VoidbringersTouchEffect: observed {p:.3%}, expected 100%"
 
+    def _cast_and_check(
+        self,
+        *,
+        ability: ElarionAbility,
+        target: Entity,
+        elarion: Elarion,
+        damage_list: list[AbilityDamage],
+        rng: FixedRNG,
+        expected_crit_chance: float,
+        bonus_crit: float,
+        bonus_damage: float,
+        secondary_damage_list: list[AbilityDamage] | None = None,
+        secondary_crit_threshold: float | None = None,
+    ) -> None:
+        """Cast ability twice (once above, once below the crit threshold) and assert damage.
+
+        main_stat=1000 in all callers, so damage = bonus_damage * ability.average_damage (scale=1.0).
+        If secondary_damage_list and secondary_crit_threshold are provided, the secondary hit on the
+        fixed-health enemy is also asserted (used for multishot).
+        """
+        _epsilon = 0.01
+
+        def _check_secondary() -> None:
+            if secondary_damage_list is None or secondary_crit_threshold is None:
+                return
+            secondary_is_crit = rng.value < secondary_crit_threshold
+            assert secondary_damage_list[-1].is_crit == secondary_is_crit
+            assert secondary_damage_list[-1].damage == pytest.approx(
+                (2 * 1.03 if secondary_is_crit else 1.0) * ability.average_damage
+            )
+
+        # Roll just above threshold → no crit
+        rng.value = expected_crit_chance + bonus_crit + _epsilon
+        elarion._change_focus(+100)
+        ability._add_charge()
+        ability.cast(target)
+        elarion.wait(0.01)
+        assert not damage_list[-1].is_crit
+        assert damage_list[-1].damage == pytest.approx(bonus_damage * ability.average_damage)
+        _check_secondary()
+
+        # Roll just below threshold → crit
+        rng.value = expected_crit_chance + bonus_crit - _epsilon
+        elarion._change_focus(+100)
+        ability._add_charge()
+        ability.cast(target)
+        assert damage_list[-1].is_crit
+        assert damage_list[-1].damage == pytest.approx(bonus_damage * 2 * 1.03 * ability.average_damage)
+        _check_secondary()
+
     @pytest.mark.parametrize("crit_percent", [0.05, 0.15, 0.30])
     def test_crit_rates__execute_damage__manual(self, crit_percent: float) -> None:
         """A lower-level functional test for crit rates.
@@ -331,7 +380,9 @@ class TestCritRatesBarrageBuild:
         - Test the crit rate again.
         """
         rng = FixedRNG(value=1.0)
-        state = State(enemies=[Enemy(time_to_live=100)], rng=rng)
+        state = State(rng=rng)
+        enemy_scaling_health = Enemy(state=state, time_to_live=100)
+        enemy_fixed_health = Enemy(state=state, time_to_live=float("inf"))
         target = state.enemies[0]
         setup = ElarionSetup(
             raw_stats=RawStatsFromPercents(
@@ -339,7 +390,7 @@ class TestCritRatesBarrageBuild:
                 crit_percent=crit_percent,
             ),
             talents=[
-                "Piercing Seekers",
+                # "Piercing Seekers",
                 "Fusillade",
                 "Lunar Fury",
                 "Lunarlight Affinity",
@@ -354,10 +405,16 @@ class TestCritRatesBarrageBuild:
         )
         elarion = setup.finalize(state)
 
-        damage_list: list[AbilityDamage] = []
-        state.bus.subscribe(AbilityDamage, lambda e: damage_list.append(e))
+        target_damage_list: list[AbilityDamage] = []
+        fixed_health_damage_list: list[AbilityDamage] = []
+        state.bus.subscribe(
+            AbilityDamage,
+            lambda e: target_damage_list.append(e) if e.target is target else fixed_health_damage_list.append(e),
+        )
 
         base_crit = elarion.stats.crit_percent
+        # SealedFate L2 always active on enemy_fixed_health: its HP never drops below 50%
+        fixed_crit_threshold = base_crit + 0.15
 
         expected_crit_chance_list: list[tuple[ElarionAbility, float]] = [
             (elarion.celestial_shot, base_crit),
@@ -365,76 +422,55 @@ class TestCritRatesBarrageBuild:
             (elarion.heartseeker_barrage, base_crit + 0.2),
         ]
 
-        epsilon = 0.01
-
-        bonus_damage = 1.0
-        bonus_crit = 0.15
-
+        # high HP — SealedFate L2 active on target (+0.15 crit)
         assert target.percent_hp > 0.5
         for ability, expected_crit_chance in expected_crit_chance_list:
-            rng.value = expected_crit_chance + bonus_crit + epsilon
-            elarion._change_focus(+100)
-            ability._add_charge()
-            ability.cast(target)
-            elarion.wait(0.01)
-            assert not damage_list[-1].is_crit
-            assert damage_list[-1].damage == pytest.approx(bonus_damage * ability.average_damage)
-
-            rng.value = expected_crit_chance + bonus_crit - epsilon
-            elarion._change_focus(+100)
-            ability._add_charge()
-            ability.cast(target)
-            assert damage_list[-1].is_crit
-            assert damage_list[-1].damage == pytest.approx(bonus_damage * 2 * 1.03 * ability.average_damage)
-
+            self._cast_and_check(
+                ability=ability,
+                target=target,
+                elarion=elarion,
+                damage_list=target_damage_list,
+                rng=rng,
+                expected_crit_chance=expected_crit_chance,
+                bonus_crit=0.15,
+                bonus_damage=1.0,
+                secondary_damage_list=fixed_health_damage_list if ability is elarion.multishot else None,
+                secondary_crit_threshold=fixed_crit_threshold if ability is elarion.multishot else None,
+            )
         assert target.percent_hp > 0.5
 
-        # middle HP
+        # middle HP — SealedFate deactivates (HP ≤ 0.5)
         elarion.wait(55 - state.time)
-
-        bonus_damage = 1.0
-        bonus_crit = 0.0
-
         assert 0.3 < target.percent_hp < 0.5
         for ability, expected_crit_chance in expected_crit_chance_list:
-            rng.value = expected_crit_chance + bonus_crit + epsilon
-            elarion._change_focus(+100)
-            ability._add_charge()
-            ability.cast(target)
-            elarion.wait(0.01)
-            assert not damage_list[-1].is_crit
-            assert damage_list[-1].damage == pytest.approx(bonus_damage * ability.average_damage)
-
-            rng.value = expected_crit_chance + bonus_crit - epsilon
-            elarion._change_focus(+100)
-            ability._add_charge()
-            ability.cast(target)
-            assert damage_list[-1].is_crit
-            assert damage_list[-1].damage == pytest.approx(bonus_damage * 2 * 1.03 * ability.average_damage)
-
+            self._cast_and_check(
+                ability=ability,
+                target=target,
+                elarion=elarion,
+                damage_list=target_damage_list,
+                rng=rng,
+                expected_crit_chance=expected_crit_chance,
+                bonus_crit=0.0,
+                bonus_damage=1.0,
+                secondary_damage_list=fixed_health_damage_list if ability is elarion.multishot else None,
+                secondary_crit_threshold=fixed_crit_threshold if ability is elarion.multishot else None,
+            )
         assert 0.3 < target.percent_hp < 0.5
 
-        # low HP
+        # low HP — Death's Grasp +1.15× damage, Last Lights +0.30 crit
         elarion.wait(80 - state.time)
-
-        bonus_damage = 1.15
-        bonus_crit = 0.3
-
         assert target.percent_hp < 0.3
         for ability, expected_crit_chance in expected_crit_chance_list:
-            rng.value = expected_crit_chance + bonus_crit + epsilon
-            elarion._change_focus(+100)
-            ability._add_charge()
-            ability.cast(target)
-            elarion.wait(0.01)
-            assert not damage_list[-1].is_crit
-            assert damage_list[-1].damage == pytest.approx(bonus_damage * ability.average_damage)
-
-            rng.value = expected_crit_chance + bonus_crit - epsilon
-            elarion._change_focus(+100)
-            ability._add_charge()
-            ability.cast(target)
-            assert damage_list[-1].is_crit
-            assert damage_list[-1].damage == pytest.approx(bonus_damage * 2 * 1.03 * ability.average_damage)
-
+            self._cast_and_check(
+                ability=ability,
+                target=target,
+                elarion=elarion,
+                damage_list=target_damage_list,
+                rng=rng,
+                expected_crit_chance=expected_crit_chance,
+                bonus_crit=0.3,
+                bonus_damage=1.15,
+                secondary_damage_list=fixed_health_damage_list if ability is elarion.multishot else None,
+                secondary_crit_threshold=fixed_crit_threshold if ability is elarion.multishot else None,
+            )
         assert target.percent_hp < 0.3

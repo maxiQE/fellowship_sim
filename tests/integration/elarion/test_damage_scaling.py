@@ -40,22 +40,22 @@ class TestFocusedShotDamageScaling:
 
     @pytest.mark.parametrize("main_stat,expertise_percent,crit_percent", STAT_TRIPLETS)
     def test_damage_formula(
-        self, state_no_procs__st: State, main_stat: float, expertise_percent: float, crit_percent: float
+        self, state_always_procs__st: State, main_stat: float, expertise_percent: float, crit_percent: float
     ) -> None:
         """Single hit matches the grievous-crit damage formula."""
         elarion = Elarion(
+            state=state_always_procs__st,
             raw_stats=RawStatsFromPercents(
                 main_stat=main_stat,
                 crit_percent=crit_percent,
                 expertise_percent=expertise_percent,
-            )
+            ),
         )
-        state_no_procs__st.character = elarion
         damages: list[AbilityDamage] = []
-        state_no_procs__st.bus.subscribe(AbilityDamage, damages.append)
+        state_always_procs__st.bus.subscribe(AbilityDamage, damages.append)
 
-        elarion.focused_shot._do_cast(state_no_procs__st.enemies[0])
-        state_no_procs__st.step()
+        elarion.focused_shot._do_cast(state_always_procs__st.enemies[0])
+        state_always_procs__st.step()
 
         expected = compute_expected_damage(
             base_damage=elarion.focused_shot.average_damage,
@@ -72,22 +72,22 @@ class TestCelestialShotDamageScaling:
 
     @pytest.mark.parametrize("main_stat,expertise_percent,crit_percent", STAT_TRIPLETS)
     def test_damage_formula(
-        self, state_no_procs__st: State, main_stat: float, expertise_percent: float, crit_percent: float
+        self, state_always_procs__st: State, main_stat: float, expertise_percent: float, crit_percent: float
     ) -> None:
         """Single hit matches the grievous-crit damage formula."""
         elarion = Elarion(
+            state=state_always_procs__st,
             raw_stats=RawStatsFromPercents(
                 main_stat=main_stat,
                 crit_percent=crit_percent,
                 expertise_percent=expertise_percent,
-            )
+            ),
         )
-        state_no_procs__st.character = elarion
         damages: list[AbilityDamage] = []
-        state_no_procs__st.bus.subscribe(AbilityDamage, damages.append)
+        state_always_procs__st.bus.subscribe(AbilityDamage, damages.append)
 
-        elarion.celestial_shot._do_cast(state_no_procs__st.enemies[0])
-        state_no_procs__st.step()
+        elarion.celestial_shot._do_cast(state_always_procs__st.enemies[0])
+        state_always_procs__st.step()
 
         expected = compute_expected_damage(
             base_damage=elarion.celestial_shot.average_damage,
@@ -107,16 +107,16 @@ class TestMultishotDamageScaling:
         self, main_stat: float, expertise_percent: float, crit_percent: float
     ) -> None:
         """Both hits match the grievous-crit formula (2 enemies → main + 1 secondary)."""
-        enemies = [Enemy(), Enemy()]
-        state = State(enemies=enemies, rng=FixedRNG(value=0.0))
+        state = State(rng=FixedRNG(value=0.0))
+        enemies = [Enemy(state=state), Enemy(state=state)]
         elarion = Elarion(
+            state=state,
             raw_stats=RawStatsFromPercents(
                 main_stat=main_stat,
                 crit_percent=crit_percent,
                 expertise_percent=expertise_percent,
-            )
+            ),
         )
-        state.character = elarion
         damages: list[AbilityDamage] = []
         state.bus.subscribe(AbilityDamage, damages.append)
 
@@ -153,16 +153,16 @@ class TestMultishotDamageScaling:
     ) -> None:
         """With FocusedExpanse active, each provider's per-arrow damage is multiplied by
         1.2 × provider_damage_multiplier. With 1 enemy, all 3 arrows land on the main target."""
-        enemies = [Enemy()]
-        state = State(enemies=enemies, rng=FixedRNG(value=0.0))
+        state = State(rng=FixedRNG(value=0.0))
+        enemies = [Enemy(state=state)]
         elarion = Elarion(
+            state=state,
             raw_stats=RawStatsFromPercents(
                 main_stat=main_stat,
                 crit_percent=crit_percent,
                 expertise_percent=expertise_percent,
-            )
+            ),
         )
-        state.character = elarion
         elarion.multishot.empowered_ms_bonus_damage = 0.25
         elarion.effects.add(provider_class(owner=elarion))
 
@@ -187,22 +187,22 @@ class TestHighwindArrowDamageScaling:
 
     @pytest.mark.parametrize("main_stat,expertise_percent,crit_percent", STAT_TRIPLETS)
     def test_main_target_damage_formula(
-        self, state_no_procs__st: State, main_stat: float, expertise_percent: float, crit_percent: float
+        self, state_always_procs__st: State, main_stat: float, expertise_percent: float, crit_percent: float
     ) -> None:
         """Main hit matches the grievous-crit formula at 100%."""
         elarion = Elarion(
+            state=state_always_procs__st,
             raw_stats=RawStatsFromPercents(
                 main_stat=main_stat,
                 crit_percent=crit_percent,
                 expertise_percent=expertise_percent,
-            )
+            ),
         )
-        state_no_procs__st.character = elarion
         damages: list[AbilityDamage] = []
-        state_no_procs__st.bus.subscribe(AbilityDamage, damages.append)
+        state_always_procs__st.bus.subscribe(AbilityDamage, damages.append)
 
-        elarion.highwind_arrow._do_cast(state_no_procs__st.enemies[0])
-        state_no_procs__st.step()
+        elarion.highwind_arrow._do_cast(state_always_procs__st.enemies[0])
+        state_always_procs__st.step()
 
         expected = compute_expected_damage(
             base_damage=elarion.highwind_arrow.average_damage,
@@ -218,16 +218,16 @@ class TestHighwindArrowDamageScaling:
         self, main_stat: float, expertise_percent: float, crit_percent: float
     ) -> None:
         """Secondary hit matches the formula applied to base * secondary_damage_multiplier."""
-        enemies = [Enemy(), Enemy()]
-        state = State(enemies=enemies, rng=FixedRNG(value=0.0))
+        state = State(rng=FixedRNG(value=0.0))
+        enemies = [Enemy(state=state), Enemy(state=state)]
         elarion = Elarion(
+            state=state,
             raw_stats=RawStatsFromPercents(
                 main_stat=main_stat,
                 crit_percent=crit_percent,
                 expertise_percent=expertise_percent,
-            )
+            ),
         )
-        state.character = elarion
         damages: list[AbilityDamage] = []
         state.bus.subscribe(AbilityDamage, damages.append)
 
@@ -256,25 +256,25 @@ class TestHeartseekerBarrageDamageScaling:
 
     @pytest.mark.parametrize("main_stat,expertise_percent,crit_percent", STAT_TRIPLETS)
     def test_per_tick_damage_formula(
-        self, state_no_procs__st: State, main_stat: float, expertise_percent: float, crit_percent: float
+        self, state_always_procs__st: State, main_stat: float, expertise_percent: float, crit_percent: float
     ) -> None:
         """Each tick matches the grievous-crit formula; 10 ticks at haste=0."""
         elarion = Elarion(
+            state=state_always_procs__st,
             raw_stats=RawStatsFromPercents(
                 main_stat=main_stat,
                 crit_percent=crit_percent,
                 expertise_percent=expertise_percent,
-            )
+            ),
         )
-        state_no_procs__st.character = elarion
         damages: list[AbilityDamage] = []
-        state_no_procs__st.bus.subscribe(
+        state_always_procs__st.bus.subscribe(
             AbilityDamage,
             lambda e: damages.append(e) if isinstance(e.damage_source, HeartseekerBarrage) else None,
         )
 
-        elarion.heartseeker_barrage._do_cast(state_no_procs__st.enemies[0])
-        state_no_procs__st.advance_time(2.1)  # haste=0 → 10 ticks over 2s
+        elarion.heartseeker_barrage._do_cast(state_always_procs__st.enemies[0])
+        state_always_procs__st.advance_time(2.1)  # haste=0 → 10 ticks over 2s
 
         expected_tick = compute_expected_damage(
             base_damage=elarion.heartseeker_barrage.average_damage,
@@ -289,7 +289,7 @@ class TestHeartseekerBarrageDamageScaling:
     @pytest.mark.parametrize("haste_percent", [0.0, 0.2, 0.5])
     def test_total_damage_formula(
         self,
-        state_no_procs__st: State,
+        state_always_procs__st: State,
         main_stat: float,
         expertise_percent: float,
         crit_percent: float,
@@ -297,22 +297,22 @@ class TestHeartseekerBarrageDamageScaling:
     ) -> None:
         """Each tick matches the grievous-crit formula; 10 ticks at haste=0."""
         elarion = Elarion(
+            state=state_always_procs__st,
             raw_stats=RawStatsFromPercents(
                 main_stat=main_stat,
                 crit_percent=crit_percent,
                 expertise_percent=expertise_percent,
                 haste_percent=haste_percent,
-            )
+            ),
         )
-        state_no_procs__st.character = elarion
         damages: list[AbilityDamage] = []
-        state_no_procs__st.bus.subscribe(
+        state_always_procs__st.bus.subscribe(
             AbilityDamage,
             lambda e: damages.append(e) if isinstance(e.damage_source, HeartseekerBarrage) else None,
         )
 
-        elarion.heartseeker_barrage._do_cast(state_no_procs__st.enemies[0])
-        state_no_procs__st.advance_time(2.1)  # haste=0 → 10 ticks over 2s
+        elarion.heartseeker_barrage._do_cast(state_always_procs__st.enemies[0])
+        state_always_procs__st.advance_time(2.1)  # haste=0 → 10 ticks over 2s
 
         base_number_of_ticks = 10
         expected_tick = base_number_of_ticks * compute_expected_damage__with_haste_scaling(
@@ -332,25 +332,25 @@ class TestVolleyDamageScaling:
 
     @pytest.mark.parametrize("main_stat,expertise_percent,crit_percent", STAT_TRIPLETS)
     def test_per_tick_damage_formula(
-        self, state_no_procs__st: State, main_stat: float, expertise_percent: float, crit_percent: float
+        self, state_always_procs__st: State, main_stat: float, expertise_percent: float, crit_percent: float
     ) -> None:
         """First tick matches the grievous-crit formula."""
         elarion = Elarion(
+            state=state_always_procs__st,
             raw_stats=RawStatsFromPercents(
                 main_stat=main_stat,
                 crit_percent=crit_percent,
                 expertise_percent=expertise_percent,
-            )
+            ),
         )
-        state_no_procs__st.character = elarion
         damages: list[AbilityDamage] = []
-        state_no_procs__st.bus.subscribe(
+        state_always_procs__st.bus.subscribe(
             AbilityDamage,
             lambda e: damages.append(e) if isinstance(e.damage_source, Volley) else None,
         )
 
-        elarion.volley._do_cast(state_no_procs__st.enemies[0])
-        state_no_procs__st.advance_time(10)
+        elarion.volley._do_cast(state_always_procs__st.enemies[0])
+        state_always_procs__st.advance_time(10)
 
         expected_tick = compute_expected_damage(
             base_damage=elarion.volley.average_damage,
@@ -367,7 +367,7 @@ class TestVolleyDamageScaling:
     @pytest.mark.parametrize("haste_percent", [0.0, 0.25, 0.5])
     def test_total_damage_formula(
         self,
-        state_no_procs__st: State,
+        state_always_procs__st: State,
         main_stat: float,
         expertise_percent: float,
         crit_percent: float,
@@ -375,22 +375,22 @@ class TestVolleyDamageScaling:
     ) -> None:
         """First tick matches the grievous-crit formula."""
         elarion = Elarion(
+            state=state_always_procs__st,
             raw_stats=RawStatsFromPercents(
                 main_stat=main_stat,
                 crit_percent=crit_percent,
                 expertise_percent=expertise_percent,
                 haste_percent=haste_percent,
-            )
+            ),
         )
-        state_no_procs__st.character = elarion
         damages: list[AbilityDamage] = []
-        state_no_procs__st.bus.subscribe(
+        state_always_procs__st.bus.subscribe(
             AbilityDamage,
             lambda e: damages.append(e) if isinstance(e.damage_source, Volley) else None,
         )
 
-        elarion.volley._do_cast(state_no_procs__st.enemies[0])
-        state_no_procs__st.advance_time(10)
+        elarion.volley._do_cast(state_always_procs__st.enemies[0])
+        state_always_procs__st.advance_time(10)
 
         base_number_of_ticks = 9
         expected_number_of_hits = 1 + int(8 * (1 + haste_percent))
@@ -410,22 +410,22 @@ class TestLunarlightSalvoDamageScaling:
 
     @pytest.mark.parametrize("main_stat,expertise_percent,crit_percent", STAT_TRIPLETS)
     def test_direct_cast_damage_formula(
-        self, state_no_procs__st: State, main_stat: float, expertise_percent: float, crit_percent: float
+        self, state_always_procs__st: State, main_stat: float, expertise_percent: float, crit_percent: float
     ) -> None:
         """Direct _do_cast matches the grievous-crit formula."""
         elarion = Elarion(
+            state=state_always_procs__st,
             raw_stats=RawStatsFromPercents(
                 main_stat=main_stat,
                 crit_percent=crit_percent,
                 expertise_percent=expertise_percent,
-            )
+            ),
         )
-        state_no_procs__st.character = elarion
         damages: list[AbilityDamage] = []
-        state_no_procs__st.bus.subscribe(AbilityDamage, damages.append)
+        state_always_procs__st.bus.subscribe(AbilityDamage, damages.append)
 
-        elarion._lunarlight_salvo._do_cast(state_no_procs__st.enemies[0])
-        state_no_procs__st.step()
+        elarion._lunarlight_salvo._do_cast(state_always_procs__st.enemies[0])
+        state_always_procs__st.step()
 
         expected = compute_expected_damage(
             base_damage=elarion._lunarlight_salvo.average_damage,
@@ -438,25 +438,25 @@ class TestLunarlightSalvoDamageScaling:
 
     @pytest.mark.parametrize("main_stat,expertise_percent,crit_percent", STAT_TRIPLETS)
     def test_via_mark_proc_damage_formula(
-        self, state_no_procs__st: State, main_stat: float, expertise_percent: float, crit_percent: float
+        self, state_always_procs__st: State, main_stat: float, expertise_percent: float, crit_percent: float
     ) -> None:
         """Apply a mark, hit the target → mark procs → salvo fires at current stats."""
         elarion = Elarion(
+            state=state_always_procs__st,
             raw_stats=RawStatsFromPercents(
                 main_stat=main_stat,
                 crit_percent=crit_percent,
                 expertise_percent=expertise_percent,
-            )
+            ),
         )
-        state_no_procs__st.character = elarion
-        state_no_procs__st.enemies[0].effects.add(LunarlightMarkEffect(owner=elarion, stacks=1))
+        state_always_procs__st.enemies[0].effects.add(LunarlightMarkEffect(owner=elarion, stacks=1))
 
         damages: list[AbilityDamage] = []
-        state_no_procs__st.bus.subscribe(AbilityDamage, damages.append)
+        state_always_procs__st.bus.subscribe(AbilityDamage, damages.append)
 
         # Grievous crit (crit > 1.0) → is_crit=True → proc_chance=0.5; FixedRNG(0.0) → procs
-        elarion.focused_shot._do_cast(state_no_procs__st.enemies[0])
-        state_no_procs__st.step()
+        elarion.focused_shot._do_cast(state_always_procs__st.enemies[0])
+        state_always_procs__st.advance_time(0.2)
 
         salvo_hits = [e for e in damages if isinstance(e.damage_source, LunarlightSalvo)]
         expected_salvo = compute_expected_damage(
@@ -475,16 +475,16 @@ class TestLunarlightSalvoDamageScaling:
         expertise = 0.0
         crit = 1.2  # grievous
 
-        enemies = [Enemy()]
-        state = State(enemies=enemies, rng=FixedRNG(value=0.0))
+        state = State(rng=FixedRNG(value=0.0))
+        enemies = [Enemy(state=state)]
         elarion = Elarion(
+            state=state,
             raw_stats=RawStatsFromPercents(
                 main_stat=main_stat_initial,
                 crit_percent=crit,
                 expertise_percent=expertise,
-            )
+            ),
         )
-        state.character = elarion
         enemies[0].effects.add(LunarlightMarkEffect(owner=elarion, stacks=1))
 
         # Change stats before the hit occurs (simulates stat change between mark and trigger)
@@ -499,7 +499,7 @@ class TestLunarlightSalvoDamageScaling:
         state.bus.subscribe(AbilityDamage, damages.append)
 
         elarion.focused_shot._do_cast(enemies[0])
-        state.step()
+        state.advance_time(0.2)
 
         salvo_hits = [e for e in damages if isinstance(e.damage_source, LunarlightSalvo)]
         assert len(salvo_hits) == 1
@@ -518,22 +518,22 @@ class TestLunarlightExplosionDamageScaling:
 
     @pytest.mark.parametrize("main_stat,expertise_percent,crit_percent", STAT_TRIPLETS)
     def test_direct_cast_damage_formula(
-        self, state_no_procs__st: State, main_stat: float, expertise_percent: float, crit_percent: float
+        self, state_always_procs__st: State, main_stat: float, expertise_percent: float, crit_percent: float
     ) -> None:
         """Single hit matches the grievous-crit formula."""
         elarion = Elarion(
+            state=state_always_procs__st,
             raw_stats=RawStatsFromPercents(
                 main_stat=main_stat,
                 crit_percent=crit_percent,
                 expertise_percent=expertise_percent,
-            )
+            ),
         )
-        state_no_procs__st.character = elarion
         damages: list[AbilityDamage] = []
-        state_no_procs__st.bus.subscribe(AbilityDamage, damages.append)
+        state_always_procs__st.bus.subscribe(AbilityDamage, damages.append)
 
-        elarion._lunarlight_explosion._do_cast(state_no_procs__st.enemies[0])
-        state_no_procs__st.step()
+        elarion._lunarlight_explosion._do_cast(state_always_procs__st.enemies[0])
+        state_always_procs__st.step()
 
         expected = compute_expected_damage(
             base_damage=elarion._lunarlight_explosion.average_damage,

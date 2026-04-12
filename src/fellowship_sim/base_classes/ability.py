@@ -83,10 +83,9 @@ class Ability(Generic[TCharacter]):  # noqa: UP046
 
         NB: on abilities without a target, it is ignored silently.
         """
-        from .state import get_state
-        from .timed_events import GenericTimedEvent, PlayerAvailableAgain
+        from .timed_events import GenericTimedEvent, PlayerAvailableAgain, PlayerUnavailable
 
-        state = get_state()
+        state = self.owner.state
 
         logger.trace(f"Attempting cast: {self}")
 
@@ -96,6 +95,8 @@ class Ability(Generic[TCharacter]):  # noqa: UP046
             return result
 
         logger.info(f"Starting cast: {self}")
+
+        state.schedule(time_delay=0, callback=PlayerUnavailable())
 
         # cache properties to enable their modification during the _finish_cast step
         cast_time = self.cast_time
@@ -160,13 +161,11 @@ class Ability(Generic[TCharacter]):  # noqa: UP046
 
     @can_cast_check
     def _check_spirit(self) -> CastReturnCode:
-        from fellowship_sim.base_classes.state import get_state
-
         if not self.is_ultimate_ability:
             return CastReturnCode.OK
         if self.owner.spirit_points < self.spirit_cost:
             return CastReturnCode.INSUFFICENT_RESOURCES
-        if not get_state().information.is_ult_authorized:
+        if not self.owner.state.information.is_ult_authorized:
             return CastReturnCode.ULTIMATE_FORBIDDEN
         return CastReturnCode.OK
 
@@ -202,9 +201,8 @@ class Ability(Generic[TCharacter]):  # noqa: UP046
 
         from .combat import create_standard_damage  # lazy — combat.py may import ability.py
         from .events import AbilityCastSuccess, UltimateCast  # lazy — events.py imports ability.py
-        from .state import get_state
 
-        state = get_state()
+        state = self.owner.state
         event = AbilityCastSuccess(ability=self, owner=self.owner, target=target)
         state.bus.emit(event)
 

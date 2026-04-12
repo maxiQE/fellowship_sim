@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from fellowship_sim.base_classes import AbilityPeriodicDamage, Enemy, SnapshotStats, State
+from fellowship_sim.base_classes import AbilityPeriodicDamage, Enemy, Player, SnapshotStats, State
 from fellowship_sim.base_classes.events import (
     AbilityCastSuccess,
     AbilityDamage,
@@ -156,24 +156,27 @@ SCENARIOS.append(
 )
 
 
-def _make_dot(damage: float, haste: float) -> AmethystSplintersDoT:
-    # TODO: fix me to have a proper owner
-    return AmethystSplintersDoT(stored_damage=damage * 0.1 * (1 + haste), haste_percent=haste, owner=None)  # ty:ignore[invalid-argument-type]
+def _make_dot(player: Player, damage: float, haste: float) -> AmethystSplintersDoT:
+    return AmethystSplintersDoT(owner=player, stored_damage=damage * 0.1 * (1 + haste), haste_percent=haste)
 
 
 def _run(scenario: DotScenario) -> list[tuple[float, float]]:
     """Run a scenario and return all (time, damage) DamageDealt events."""
-    target = Enemy()
-    state = State(enemies=[target], rng=FixedRNG(0.0))
+    state = State(rng=FixedRNG(0.0))
+    target = Enemy(state=state)
+    elarion = Elarion(state=state, raw_stats=RawStatsFromPercents(main_stat=1000))
 
     collected: list[tuple[float, float]] = []
     state.bus.subscribe(AbilityPeriodicDamage, lambda e: collected.append((state.time, e.damage)))
 
     for hit_time, damage, haste in scenario.hits[1:]:
-        dot = _make_dot(damage, haste)
-        state.schedule(time_delay=hit_time, callback=GenericTimedEvent(name="add dot", callback=lambda d=dot: target.effects.add(d)))
+        dot = _make_dot(elarion, damage, haste)
+        state.schedule(
+            time_delay=hit_time,
+            callback=GenericTimedEvent(name="add dot", callback=lambda d=dot: target.effects.add(d)),
+        )
 
-    target.effects.add(_make_dot(*scenario.hits[0][1:]))
+    target.effects.add(_make_dot(elarion, *scenario.hits[0][1:]))
     state.advance_time(scenario.advance_to)
     return collected
 
@@ -205,13 +208,13 @@ class TestBraveMachinations:
 
     @pytest.fixture
     def setup(
-        self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion
+        self, state_always_procs__st: State, unit_elarion__zero_stats: Elarion
     ) -> tuple[State, Elarion, BraveMachinations, VoidbringersTouch, Enemy]:
         elarion = unit_elarion__zero_stats
         brave = BraveMachinations(trait_level=4, owner=elarion)
         elarion.effects.add(brave)
         vbt = VoidbringersTouch(owner=elarion)
-        return state_no_procs__st, elarion, brave, vbt, state_no_procs__st.enemies[0]
+        return state_always_procs__st, elarion, brave, vbt, state_always_procs__st.enemies[0]
 
     def test_adds_crit_percent_to_weapon_ability_snapshot(
         self, setup: tuple[State, Elarion, BraveMachinations, VoidbringersTouch, Enemy]
@@ -273,13 +276,13 @@ class TestHeroicBrand:
 
     @pytest.fixture
     def setup(
-        self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion
+        self, state_always_procs__st: State, unit_elarion__zero_stats: Elarion
     ) -> tuple[State, Elarion, HeroicBrand, VoidbringersTouch, Enemy]:
         elarion = unit_elarion__zero_stats
         brand = HeroicBrand(trait_level=4, owner=elarion)
         elarion.effects.add(brand)
         vbt = VoidbringersTouch(owner=elarion)
-        return state_no_procs__st, elarion, brand, vbt, state_no_procs__st.enemies[0]
+        return state_always_procs__st, elarion, brand, vbt, state_always_procs__st.enemies[0]
 
     def test_scales_weapon_ability_average_damage(
         self, setup: tuple[State, Elarion, HeroicBrand, VoidbringersTouch, Enemy]
@@ -307,13 +310,13 @@ class TestMartialInitiative:
 
     @pytest.fixture
     def setup(
-        self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion
+        self, state_always_procs__st: State, unit_elarion__zero_stats: Elarion
     ) -> tuple[State, Elarion, MartialInitiative, VoidbringersTouch, Enemy]:
         elarion = unit_elarion__zero_stats
         mi = MartialInitiative(trait_level=4, owner=elarion)
         elarion.effects.add(mi)
         vbt = VoidbringersTouch(owner=elarion)
-        return state_no_procs__st, elarion, mi, vbt, state_no_procs__st.enemies[0]
+        return state_always_procs__st, elarion, mi, vbt, state_always_procs__st.enemies[0]
 
     def test_applies_buff_on_weapon_cast(
         self, setup: tuple[State, Elarion, MartialInitiative, VoidbringersTouch, Enemy]
@@ -348,14 +351,14 @@ class TestVisionsOfGrandeur:
 
     @pytest.fixture
     def setup(
-        self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion
+        self, state_always_procs__st: State, unit_elarion__zero_stats: Elarion
     ) -> tuple[State, Elarion, VisionsOfGrandeur, VoidbringersTouch, Enemy]:
         elarion = unit_elarion__zero_stats
         vog = VisionsOfGrandeur(trait_level=4, owner=elarion)
         elarion.effects.add(vog)
         vbt = VoidbringersTouch(owner=elarion)
         elarion.abilities.append(vbt)
-        return state_no_procs__st, elarion, vog, vbt, state_no_procs__st.enemies[0]
+        return state_always_procs__st, elarion, vog, vbt, state_always_procs__st.enemies[0]
 
     def test_weapon_cast_grants_spirit_points(
         self, setup: tuple[State, Elarion, VisionsOfGrandeur, VoidbringersTouch, Enemy]
@@ -381,14 +384,14 @@ class TestHuntersFocus:
 
     @pytest.fixture
     def setup(
-        self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion
+        self, state_always_procs__st: State, unit_elarion__zero_stats: Elarion
     ) -> tuple[State, Elarion, HuntersFocus, Enemy, Enemy]:
         elarion = unit_elarion__zero_stats
         hf = HuntersFocus(trait_level=4, owner=elarion)
         elarion.effects.add(hf)
-        enemy1 = state_no_procs__st.enemies[0]
-        enemy2 = Enemy()
-        return state_no_procs__st, elarion, hf, enemy1, enemy2
+        enemy1 = state_always_procs__st.enemies[0]
+        enemy2 = Enemy(state=state_always_procs__st)
+        return state_always_procs__st, elarion, hf, enemy1, enemy2
 
     def test_applies_haste_buff_on_targeted_cast(
         self, setup: tuple[State, Elarion, HuntersFocus, Enemy, Enemy]
@@ -426,18 +429,18 @@ class TestNavigatorsIntuition:
     @pytest.fixture
     def state_spirit_highest(self) -> tuple[State, Elarion, NavigatorsIntuition, Enemy]:
         """Elarion with spirit as the highest secondary stat (30% vs 10% for others)."""
-        enemy = Enemy()
-        state = State(enemies=[enemy], rng=FixedRNG(value=0.0))
+        state = State(rng=FixedRNG(value=0.0))
+        enemy = Enemy(state=state)
         elarion = Elarion(
+            state=state,
             raw_stats=RawStatsFromPercents(
                 main_stat=1000.0,
                 spirit_percent=0.30,
                 crit_percent=0.10,
                 haste_percent=0.10,
                 expertise_percent=0.10,
-            )
+            ),
         )
-        state.character = elarion
         ni = NavigatorsIntuition(trait_level=4, owner=elarion)
         elarion.effects.add(ni)
         return state, elarion, ni, enemy
@@ -445,18 +448,18 @@ class TestNavigatorsIntuition:
     @pytest.fixture
     def state_haste_highest(self) -> tuple[State, Elarion, NavigatorsIntuition, Enemy]:
         """Elarion with haste as the highest secondary stat (30% vs 10% for others)."""
-        enemy = Enemy()
-        state = State(enemies=[enemy], rng=FixedRNG(value=0.0))
+        state = State(rng=FixedRNG(value=0.0))
+        enemy = Enemy(state=state)
         elarion = Elarion(
+            state=state,
             raw_stats=RawStatsFromPercents(
                 main_stat=1000.0,
                 spirit_percent=0.10,
                 crit_percent=0.10,
                 haste_percent=0.30,
                 expertise_percent=0.10,
-            )
+            ),
         )
-        state.character = elarion
         ni = NavigatorsIntuition(trait_level=4, owner=elarion)
         elarion.effects.add(ni)
         return state, elarion, ni, enemy
@@ -512,12 +515,12 @@ class TestSeizedOpportunity:
 
     @pytest.fixture
     def setup(
-        self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion
+        self, state_always_procs__st: State, unit_elarion__zero_stats: Elarion
     ) -> tuple[State, Elarion, SeizedOpportunity, Enemy]:
         elarion = unit_elarion__zero_stats
         so = SeizedOpportunity(trait_level=4, owner=elarion)
         elarion.effects.add(so)
-        return state_no_procs__st, elarion, so, state_no_procs__st.enemies[0]
+        return state_always_procs__st, elarion, so, state_always_procs__st.enemies[0]
 
     def test_buff_applied_after_20_crits(self, setup: tuple[State, Elarion, SeizedOpportunity, Enemy]) -> None:
         """Exactly 20 critical hits trigger SeizedOpportunityBuff; 19 do not."""
@@ -580,12 +583,12 @@ class TestWillfulMomentum:
 
     @pytest.fixture
     def setup(
-        self, state_no_procs__st: State, unit_elarion__zero_stats: Elarion
+        self, state_always_procs__st: State, unit_elarion__zero_stats: Elarion
     ) -> tuple[State, Elarion, WillfulMomentum, Enemy]:
         elarion = unit_elarion__zero_stats
         wm = WillfulMomentum(trait_level=4, owner=elarion)
         elarion.effects.add(wm)
-        return state_no_procs__st, elarion, wm, state_no_procs__st.enemies[0]
+        return state_always_procs__st, elarion, wm, state_always_procs__st.enemies[0]
 
     def test_passive_adds_spirit_rating(self, setup: tuple[State, Elarion, WillfulMomentum, Enemy]) -> None:
         """WillfulMomentum level 4 adds +148 Spirit Rating, raising spirit_percent above zero."""
@@ -609,7 +612,7 @@ class TestPowerRevealedBuff:
         self,
         trait_level: int,
         expected_bonus: float,
-        state_no_procs__st: State,
+        state_always_procs__st: State,
         unit_elarion__zero_stats: Elarion,
     ) -> None:
         """PowerRevealedBuff grants the correct main stat % bonus for each trait level."""
@@ -626,7 +629,7 @@ class TestInspiredAllegianceBuff:
     def test_adds_haste_rating(
         self,
         trait_level: int,
-        state_no_procs__st: State,
+        state_always_procs__st: State,
         unit_elarion__zero_stats: Elarion,
     ) -> None:
         """InspiredAllegianceBuff raises haste_percent above baseline."""
@@ -644,7 +647,7 @@ class TestVengefulSoulBuff:
         self,
         trait_level: int,
         expected_bonus: float,
-        state_no_procs__st: State,
+        state_always_procs__st: State,
         unit_elarion__zero_stats: Elarion,
     ) -> None:
         """VengefulSoulBuff grants the correct main stat % bonus for each trait level."""

@@ -72,8 +72,8 @@ if NUM_TARGETS <= 0:
     raise ValueError(f"Configuration error: the number of targets is negative {NUM_TARGETS}")
 
 configure_logging(LOG_LEVEL)
-enemies: list[Enemy] = [Enemy() for _ in range(NUM_TARGETS)]
-state = State(enemies=enemies, rng=random.Random(x=SEED))
+state = State(rng=random.Random(x=SEED))
+enemies: list[Enemy] = [Enemy(state=state) for _ in range(NUM_TARGETS)]
 
 elarion: Elarion = character_setup.finalize(state)
 

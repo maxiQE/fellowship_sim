@@ -21,7 +21,9 @@ class TestCastTimes:
 
     @pytest.fixture
     def state(self) -> State:
-        return State(enemies=[Enemy()], rng=FixedRNG(value=0.0))
+        state = State(rng=FixedRNG(value=0.0))
+        Enemy(state=state)
+        return state
 
     @pytest.fixture
     def elarion(self, state: State, haste_percent: float) -> Elarion:
@@ -141,7 +143,8 @@ class TestComplexBreakpoints:
         NB: these are probably impossible in-game since they require sending the first multishot immediately after the supremacy cast.
         """
         # Note the "no-crits" RNG
-        state = State(enemies=[Enemy()], rng=FixedRNG(value=1.0))
+        state = State(rng=FixedRNG(value=1.0))
+        Enemy(state=state)
         target = state.enemies[0]
         setup = ElarionSetup(
             raw_stats=RawStatsFromPercents(
@@ -211,7 +214,8 @@ class TestComplexBreakpoints:
         NB: includes an approximation of the flight time of the barrage projectile and a small wait for that projectile to arrive.
         This is the observed CD at the end of the barrage cast.
         """
-        state = State(enemies=[Enemy()], rng=FixedRNG(value=1.0))
+        state = State(rng=FixedRNG(value=1.0))
+        Enemy(state=state)
         target = state.enemies[0]
         setup = ElarionSetup(
             raw_stats=RawStatsFromPercents(
