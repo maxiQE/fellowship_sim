@@ -8,6 +8,7 @@ from loguru import logger
 
 from fellowship_sim.base_classes import SetupEffectEarly
 from fellowship_sim.base_classes.setup import SetupContext, SetupEffectLate
+from fellowship_sim.elarion import elarion_config
 from fellowship_sim.elarion.effect import (
     CelestialImpetusAura,
     FinalCrescendo,
@@ -53,7 +54,7 @@ class SkylitGraceSetup(SetupEffectLate["Elarion"]):
 
 @dataclass(kw_only=True)
 class FusilladeSetup(SetupEffectLate["Elarion"]):
-    barrage_new_duration: float = field(default=2.5, init=False)
+    barrage_new_duration: float = field(default=elarion_config.FUSILLADE_BARRAGE_CHANNEL_DURATION, init=False)
 
     def apply(self, character: "Elarion", context: SetupContext) -> None:
         barrage = character.heartseeker_barrage
@@ -118,7 +119,7 @@ class FerventSupremacySetup(SetupEffectLate["Elarion"]):
     def apply(self, character: "Elarion", context: SetupContext) -> None:
         ability = character.skystrider_supremacy
         ability.is_fervent_supremacy = True
-        ability.base_cooldown -= 15.0
+        ability.base_cooldown -= elarion_config.FERVENT_SUPREMACY_COOLDOWN_REDUCTION
         logger.debug(
             "setup: Fervent Supremacy — Skystrider Supremacy talented → enabled, base cooldown → {:.0f}s",
             ability.base_cooldown,
@@ -195,8 +196,8 @@ class ElarionLegendarySelection(SetupEffectLate["Elarion"]):
 
     def _apply_boots(self, character: "Elarion") -> None:
         volley = character.volley
-        volley.duration += 2.0
-        volley.multishot_extends_duration_by = 0.5
+        volley.duration += elarion_config.LEGENDARY_BOOTS_VOLLEY_DURATION_BONUS
+        volley.multishot_extends_duration_by = elarion_config.LEGENDARY_BOOTS_MULTISHOT_EXTENDS_DURATION
         logger.debug(
             "legendary (Boots): Volley duration → {:.0f}s, multishot extends duration by → 0.5s",
             volley.duration,
@@ -263,15 +264,17 @@ _TALENT_COSTS: dict[str, int] = {
 @dataclass(kw_only=True)
 class FocusedExpanseSetup(SetupEffectLate["Elarion"]):
     def apply(self, character: "Elarion", context: SetupContext) -> None:
-        character.multishot.empowered_ms_bonus_damage += 0.25
+        character.multishot.empowered_ms_bonus_damage += elarion_config.FOCUSED_EXPANSE_MS_BONUS_DAMAGE
         character.effects.add(FocusedExpanseEffect(owner=character))
         logger.debug("setup: Focused Expanse added")
 
 
 @dataclass(kw_only=True)
 class PiercingSeekerSetup(SetupEffectLate["Elarion"]):
-    secondary_damage_multiplier: float = field(default=0.7, init=False)
-    num_secondary_targets: int = field(default=1, init=False)
+    secondary_damage_multiplier: float = field(
+        default=elarion_config.PIERCING_SEEKERS_SECONDARY_DAMAGE_MULTIPLIER, init=False
+    )
+    num_secondary_targets: int = field(default=elarion_config.PIERCING_SEEKERS_NUM_SECONDARY_TARGETS, init=False)
 
     def apply(self, character: "Elarion", context: SetupContext) -> None:
         character.heartseeker_barrage.secondary_damage_multiplier = self.secondary_damage_multiplier
@@ -309,7 +312,7 @@ class ElarionTalentSelection(SetupEffectLate["Elarion"]):
     """
 
     talents: list[ElarionTalentName] = field(default_factory=list)
-    total_talent_points: int = 13
+    total_talent_points: int = elarion_config.ELARION_MAX_TALENT_POINTS
 
     def __post_init__(self) -> None:
         total_cost = sum(_TALENT_COSTS[t] for t in self.talents)

@@ -7,7 +7,11 @@ from fellowship_sim.base_classes.state import get_state
 
 
 def get_game_time() -> str:
-    return f"{get_state().time:>7.2f}"
+    """Return the current simulation time formatted as a right-aligned string."""
+    try:
+        return f"{get_state().time:>7.2f}"
+    except RuntimeError:
+        return "no state"
 
 
 def patch_game_time(record: Any) -> None:
@@ -20,6 +24,12 @@ def configure_logging(
     level: str = "WARNING",
     mode: str = "user",
 ) -> None:
+    """Configure loguru for simulation output.
+
+    Args:
+        level: Minimum log level to emit (e.g. "WARNING", "INFO", "DEBUG").
+        mode: "user" for compact output; "dev" for full timestamps and source location.
+    """
     USER_FORMAT = "<level>{level: <8}</level> | <cyan>{extra[game_time]}</cyan> | <level>{message}</level>"
     DEV_FORMAT = "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <cyan>{extra[game_time]}</cyan> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
 

@@ -30,16 +30,17 @@ SEED = 1234
 
 character_setup = ElarionSetup(
     initial_spirit_points=100,
+    # 20/20/25/30
     raw_stats=RawStatsFromScores(
         main_stat=2444.0,
-        crit_score=1125,
-        expertise_score=1125,
-        haste_score=1125,
-        spirit_score=1125,
+        crit_score=900,
+        expertise_score=1100,
+        haste_score=1655,
+        spirit_score=855,
     ),
     legendary="Neck",
     weapon_ability="Voidbringer's Touch",
-    master_trait="Amethyst Splinters",
+    master_trait="Visions Of Grandeur",
     heroic_traits=[
         "Willful Momentum",
         "Inspired Allegiance",

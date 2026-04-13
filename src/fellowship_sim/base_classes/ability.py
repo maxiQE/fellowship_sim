@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, Generic, TypeVar
 
 from loguru import logger
 
+from . import base_config
 from .effect import Effect
 
 if TYPE_CHECKING:
@@ -44,8 +45,8 @@ TCharacter = TypeVar("TCharacter", bound="Player", covariant=True)
 class Ability(Generic[TCharacter]):  # noqa: UP046
     owner: TCharacter
 
-    base_cast_time: float = field(default=0.0, init=False)
-    base_player_downtime: float = field(default=1.5, init=False)
+    base_cast_time: float = field(default=base_config.INSTANT_CAST_TIME, init=False)
+    base_player_downtime: float = field(default=base_config.GCD_DURATION, init=False)
     average_damage: float = field(default=0.0, init=False)
     effect_list: list[type[Effect]] = field(default_factory=list, init=False)
     # cooldown and charges parameters
@@ -94,7 +95,7 @@ class Ability(Generic[TCharacter]):  # noqa: UP046
             logger.warning(f"Cast blocked — {self} ({result.value.replace('_', ' ')})")
             return result
 
-        logger.info(f"Starting cast: {self}")
+        logger.success(f"Starting cast: {self}")
 
         state.schedule(time_delay=0, callback=PlayerUnavailable())
 
@@ -133,11 +134,12 @@ class Ability(Generic[TCharacter]):  # noqa: UP046
 
     @property
     def is_available(self) -> bool:
+        """True if the ability has a charge available or is off cooldown."""
         return self.cooldown <= 0.0 or self.charges > 0
 
     @property
     def cast_time(self) -> float:
-        """Effective cast time, reduced by haste unless ."""
+        """Effective cast time, reduced by haste (channels are not haste-reduced)."""
         if self.is_channel:
             return self.base_cast_time
         else:
@@ -153,14 +155,17 @@ class Ability(Generic[TCharacter]):  # noqa: UP046
 
     @property
     def spirit_cost(self) -> float:
+        """Spirit cost: owner.spirit_ability_cost for ultimates, 0 otherwise."""
         return self.owner.spirit_ability_cost if self.is_ultimate_ability else 0
 
     @can_cast_check
     def _check_availability(self) -> CastReturnCode:
+        """Return ON_COOLDOWN if no charge is available, else OK."""
         return CastReturnCode.OK if self.is_available else CastReturnCode.ON_COOLDOWN
 
     @can_cast_check
     def _check_spirit(self) -> CastReturnCode:
+        """Return INSUFFICENT_RESOURCES or ULTIMATE_FORBIDDEN for ultimates that can't be cast."""
         if not self.is_ultimate_ability:
             return CastReturnCode.OK
         if self.owner.spirit_points < self.spirit_cost:
@@ -170,6 +175,13 @@ class Ability(Generic[TCharacter]):  # noqa: UP046
         return CastReturnCode.OK
 
     def can_cast(self) -> bool:
+        """Return True if ability is ready to cast.
+
+        This checks:
+
+        - ability is off-cooldown or has charges.
+        - resources are sufficient.
+        """
         return self._can_cast() is CastReturnCode.OK
 
     def _can_cast(self) -> CastReturnCode:

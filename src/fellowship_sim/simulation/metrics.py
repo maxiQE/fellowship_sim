@@ -3,10 +3,10 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
-from typing import cast
+from typing import Literal, cast
 
 from fellowship_sim.base_classes import Effect, WeaponAbility
-from fellowship_sim.base_classes.entity import Entity
+from fellowship_sim.base_classes.entity import DamageTracker, Entity
 from fellowship_sim.base_classes.events import (
     AbilityCastSuccess,
     EffectApplied,
@@ -38,6 +38,14 @@ class MeanStd:
 
 
 def mean_stderr(vals: list[float]) -> MeanStd:
+    """Compute the mean and standard error of vals.
+
+    Args:
+        vals: Non-empty list of floats.
+
+    Returns:
+        MeanStd with mean and stderr (0.0 for a single value).
+    """
     n = len(vals)
     if n == 0:
         raise ValueError("Can't compute the mean and stderr of an empty list")  # noqa: TRY003
@@ -78,7 +86,8 @@ def _format_ability_cast_count(cast_count_dicts: list[dict[str, int]]) -> str:
     return "  ".join(f"{key} {value:.1f}" for key, value in avg.items())
 
 
-def _format_buff_uptime(probes: "list[BuffUptimeProbe]", duration: float) -> str:
+def _format_buff_uptime(probes: "list[BuffUptimeProbe]", duration_list: list[float]) -> str:
+    duration = sum(duration_list) / len(duration_list)
     all_keys: set[str] = set()
     for probe in probes:
         all_keys.update(probe.total_uptime_dict.keys())
@@ -140,7 +149,14 @@ class MetricsResult:
 
 class Probe(ABC):
     @abstractmethod
-    def attach(self, bus: EventBus, enemies: Sequence[Entity]) -> None: ...
+    def attach(self, bus: EventBus, enemies: Sequence[Entity]) -> None:
+        """Subscribe to bus events and/or store enemies for post-run reads.
+
+        Args:
+            bus: The simulation event bus.
+            enemies: The list of enemies for this run.
+        """
+        ...
 
 
 @dataclass(kw_only=True)
@@ -154,15 +170,44 @@ class DamageSplitProbe(Probe):
 
     @property
     def main_damage(self) -> float:
-        return self._enemies[0].damage_tracker.total
+        """Total damage dealt to the main enemy."""
+        return sum(e.damage_tracker.total for e in self._enemies if e.is_main)
 
     @property
     def secondary_damage(self) -> float:
-        return sum(e.damage_tracker.total for e in self._enemies[1:])
+        """Total damage dealt to all non-main enemies."""
+        return sum(e.damage_tracker.total for e in self._enemies if not e.is_main)
 
     @property
     def total_damage(self) -> float:
+        """Total damage dealt to all enemies."""
         return sum(e.damage_tracker.total for e in self._enemies)
+
+    @property
+    def main_by_time_bin(self) -> dict[int, float]:
+        result: dict[int, float] = {}
+        for enemy in self._enemies:
+            if enemy.is_main:
+                for bin_idx, dmg in enemy.damage_tracker.total_by_time_bin.items():
+                    result[bin_idx] = result.get(bin_idx, 0.0) + dmg
+        return result
+
+    @property
+    def secondary_by_time_bin(self) -> dict[int, float]:
+        result: dict[int, float] = {}
+        for enemy in self._enemies:
+            if not enemy.is_main:
+                for bin_idx, dmg in enemy.damage_tracker.total_by_time_bin.items():
+                    result[bin_idx] = result.get(bin_idx, 0.0) + dmg
+        return result
+
+    @property
+    def total_by_time_bin(self) -> dict[int, float]:
+        result: dict[int, float] = {}
+        for enemy in self._enemies:
+            for bin_idx, dmg in enemy.damage_tracker.total_by_time_bin.items():
+                result[bin_idx] = result.get(bin_idx, 0.0) + dmg
+        return result
 
 
 @dataclass(kw_only=True)
@@ -181,6 +226,7 @@ class BuffUptimeProbe(Probe):
         bus.subscribe(EffectRemoved, self._on_removed, owner=self)
 
     def effect_key(self, effect: Effect) -> str:
+        """Return the string key used to track this effect. Defaults to effect.name."""
         return effect.name
 
     def _on_apply(self, event: EffectApplied) -> None:
@@ -218,6 +264,7 @@ class BuffUptimeProbe(Probe):
 
     @property
     def total_uptime_dict(self) -> dict[str, float]:
+        """Total uptime in seconds for each tracked effect key."""
         return {
             key: sum(stop - start for start, stop in intervals) for key, intervals in self.uptime_intervals_dict.items()
         }
@@ -260,18 +307,27 @@ class DamageSourceProbe(Probe):
 
     @property
     def main_by_source(self) -> dict[str, float]:
-        return {name: record.total for name, record in self._enemies[0].damage_tracker.by_source.items()}
+        """Total damage to the main enemy, keyed by ability class name."""
+        result: dict[str, float] = {}
+        for enemy in self._enemies:
+            if enemy.is_main:
+                for name, record in enemy.damage_tracker.by_source.items():
+                    result[name] = result.get(name, 0.0) + record.total
+        return result
 
     @property
     def secondary_by_source(self) -> dict[str, float]:
+        """Total damage to all non-main enemies, summed across them, keyed by source."""
         result: dict[str, float] = {}
-        for enemy in self._enemies[1:]:
-            for name, record in enemy.damage_tracker.by_source.items():
-                result[name] = result.get(name, 0.0) + record.total
+        for enemy in self._enemies:
+            if not enemy.is_main:
+                for name, record in enemy.damage_tracker.by_source.items():
+                    result[name] = result.get(name, 0.0) + record.total
         return result
 
     @property
     def total_by_source(self) -> dict[str, float]:
+        """Total damage to all enemies, summed, keyed by source."""
         result: dict[str, float] = {}
         for enemy in self._enemies:
             for name, record in enemy.damage_tracker.by_source.items():
@@ -294,18 +350,22 @@ class DamageSourceProbe(Probe):
 
     @property
     def avg_damage_by_source(self) -> dict[str, float]:
+        """Average damage per hit for each source, across all enemies."""
         return {name: total / count for name, (total, count, _, _) in self._aggregate_records().items() if count > 0}
 
     @property
     def count_by_source(self) -> dict[str, int]:
+        """Hit count per source, summed across all enemies."""
         return {name: count for name, (_, count, _, _) in self._aggregate_records().items() if count > 0}
 
     @property
     def crit_rate_by_source(self) -> dict[str, float]:
+        """Crit rate [0, 1] per source, summed across all enemies."""
         return {name: crits / count for name, (_, count, crits, _) in self._aggregate_records().items() if count > 0}
 
     @property
     def grievous_crit_rate_by_source(self) -> dict[str, float]:
+        """Grievous crit rate [0, 1] per source, summed across all enemies."""
         return {name: gcrits / count for name, (_, count, _, gcrits) in self._aggregate_records().items() if count > 0}
 
 
@@ -318,7 +378,7 @@ class DamageSourceProbe(Probe):
 class ScalarMetric:
     name: str
     probe_type: type[Probe]
-    aggregate: Callable[[list[Probe], float], MeanStd]
+    aggregate: Callable[[list[Probe], list[float]], list[float]]
     show_on_st: bool = True
 
 
@@ -326,7 +386,7 @@ class ScalarMetric:
 class TextMetric:
     name: str
     probe_type: type[Probe]
-    render: Callable[[list[Probe], float], str]
+    render: Callable[[list[Probe], list[float]], str]
     show_on_st: bool = True
 
 
@@ -334,169 +394,176 @@ Metric = ScalarMetric | TextMetric
 
 
 # ---------------------------------------------------------------------------
-# Default metric set
+# Named metrics
+# ---------------------------------------------------------------------------
+
+TOTAL = ScalarMetric(
+    name="total",
+    probe_type=DamageSplitProbe,
+    aggregate=lambda probe_list, duration_list: [cast(DamageSplitProbe, probe).total_damage for probe in probe_list],
+    show_on_st=False,
+)
+MAIN = ScalarMetric(
+    name="main",
+    probe_type=DamageSplitProbe,
+    aggregate=lambda probe_list, duration_list: [cast(DamageSplitProbe, probe).main_damage for probe in probe_list],
+)
+SECONDARY = ScalarMetric(
+    name="secondary",
+    probe_type=DamageSplitProbe,
+    aggregate=lambda probe_list, duration_list: [
+        cast(DamageSplitProbe, probe).secondary_damage for probe in probe_list
+    ],
+    show_on_st=False,
+)
+TOTAL_DPS = ScalarMetric(
+    name="total_dps",
+    probe_type=DamageSplitProbe,
+    aggregate=lambda probe_list, duration_list: [
+        cast(DamageSplitProbe, probe).total_damage / d for probe, d in zip(probe_list, duration_list, strict=True)
+    ],
+    show_on_st=False,
+)
+MAIN_DPS = ScalarMetric(
+    name="main_dps",
+    probe_type=DamageSplitProbe,
+    aggregate=lambda probe_list, duration_list: [
+        cast(DamageSplitProbe, probe).main_damage / d for probe, d in zip(probe_list, duration_list, strict=True)
+    ],
+)
+SECONDARY_DPS = ScalarMetric(
+    name="secondary_dps",
+    probe_type=DamageSplitProbe,
+    aggregate=lambda probe_list, duration_list: [
+        cast(DamageSplitProbe, probe).secondary_damage / d for probe, d in zip(probe_list, duration_list, strict=True)
+    ],
+    show_on_st=False,
+)
+ULTS_CAST = ScalarMetric(
+    name="ults_cast",
+    probe_type=CastCountProbe,
+    aggregate=lambda probe_list, duration_list: [float(cast(CastCountProbe, probe).ult_count) for probe in probe_list],
+)
+WEAPON_ABILITY_CASTS = ScalarMetric(
+    name="weapon_ability_casts",
+    probe_type=CastCountProbe,
+    aggregate=lambda probe_list, duration_list: [
+        float(cast(CastCountProbe, probe).weapon_cast_count) for probe in probe_list
+    ],
+)
+SPIRIT_PROCS = ScalarMetric(
+    name="spirit_procs",
+    probe_type=CastCountProbe,
+    aggregate=lambda probe_list, duration_list: [
+        float(cast(CastCountProbe, probe).spirit_proc_count) for probe in probe_list
+    ],
+)
+SOURCES_TOTAL = TextMetric(
+    name="sources_total",
+    probe_type=DamageSourceProbe,
+    render=lambda probe_list, duration_list: _format_damage_source_contribution([
+        cast(DamageSourceProbe, probe).total_by_source for probe in probe_list
+    ]),
+    show_on_st=False,
+)
+SOURCES_MAIN = TextMetric(
+    name="sources_main",
+    probe_type=DamageSourceProbe,
+    render=lambda probe_list, duration_list: _format_damage_source_contribution([
+        cast(DamageSourceProbe, probe).main_by_source for probe in probe_list
+    ]),
+)
+SOURCES_SECONDARY = TextMetric(
+    name="sources_secondary",
+    probe_type=DamageSourceProbe,
+    render=lambda probe_list, duration_list: _format_damage_source_contribution([
+        cast(DamageSourceProbe, probe).secondary_by_source for probe in probe_list
+    ]),
+    show_on_st=False,
+)
+NUMBER_OF_CASTS = TextMetric(
+    name="number_of_casts",
+    probe_type=CastCountProbe,
+    render=lambda probe_list, duration_list: _format_ability_cast_count([
+        cast(CastCountProbe, probe).ability_cast_count for probe in probe_list
+    ]),
+)
+SOURCE_DETAILS = TextMetric(
+    name="source_details",
+    probe_type=DamageSourceProbe,
+    render=lambda probe_list, duration_list: _format_source_details([
+        cast(DamageSourceProbe, probe) for probe in probe_list
+    ]),
+)
+BUFF_UPTIME = TextMetric(
+    name="buff_uptime",
+    probe_type=BuffUptimeProbe,
+    render=lambda probe_list, duration_list: _format_buff_uptime(
+        [cast(BuffUptimeProbe, probe) for probe in probe_list], duration_list
+    ),
+)
+
+
+# ---------------------------------------------------------------------------
+# Parametric metrics
+# ---------------------------------------------------------------------------
+
+
+def ability_cast_count_metric(ability_name: str) -> ScalarMetric:
+    return ScalarMetric(
+        name=f"casts_{ability_name}",
+        probe_type=CastCountProbe,
+        aggregate=lambda probe_list, duration_list: [
+            float(cast(CastCountProbe, probe).ability_cast_count[ability_name])
+            for probe in probe_list
+        ],
+    )
+
+
+def bin_dps_metric(bin_index: int, target: Literal["main", "secondary", "total"] = "main") -> ScalarMetric:
+    """Return a ScalarMetric for DPS in a single time bin, normalised by DAMAGE_TRACKER_BIN_SIZE."""
+
+    def aggregate(probe_list: list[Probe], duration_list: list[float]) -> list[float]:
+        return [
+            {
+                "main": cast(DamageSplitProbe, probe).main_by_time_bin,
+                "secondary": cast(DamageSplitProbe, probe).secondary_by_time_bin,
+                "total": cast(DamageSplitProbe, probe).total_by_time_bin,
+            }[target].get(bin_index, 0.0)
+            / DamageTracker.bin_key_size
+            for probe in probe_list
+        ]
+
+    return ScalarMetric(
+        name=f"{target}_bin_{bin_index}_dps",
+        probe_type=DamageSplitProbe,
+        aggregate=aggregate,
+        show_on_st=target == "main",
+    )
+
+
+# ---------------------------------------------------------------------------
+# Metric sets
 # ---------------------------------------------------------------------------
 
 DEFAULT_METRICS: list[Metric] = [
-    ScalarMetric(
-        name="total",
-        probe_type=DamageSplitProbe,
-        aggregate=lambda probe_list, duration: mean_stderr([
-            cast(DamageSplitProbe, probe).total_damage for probe in probe_list
-        ]),
-        show_on_st=False,
-    ),
-    ScalarMetric(
-        name="main",
-        probe_type=DamageSplitProbe,
-        aggregate=lambda probe_list, duration: mean_stderr([
-            cast(DamageSplitProbe, probe).main_damage for probe in probe_list
-        ]),
-    ),
-    ScalarMetric(
-        name="secondary",
-        probe_type=DamageSplitProbe,
-        aggregate=lambda probe_list, duration: mean_stderr([
-            cast(DamageSplitProbe, probe).secondary_damage for probe in probe_list
-        ]),
-        show_on_st=False,
-    ),
-    ScalarMetric(
-        name="total_dps",
-        probe_type=DamageSplitProbe,
-        aggregate=lambda probe_list, duration: mean_stderr([
-            cast(DamageSplitProbe, probe).total_damage / duration for probe in probe_list
-        ]),
-        show_on_st=False,
-    ),
-    ScalarMetric(
-        name="main_dps",
-        probe_type=DamageSplitProbe,
-        aggregate=lambda probe_list, duration: mean_stderr([
-            cast(DamageSplitProbe, probe).main_damage / duration for probe in probe_list
-        ]),
-    ),
-    ScalarMetric(
-        name="secondary_dps",
-        probe_type=DamageSplitProbe,
-        aggregate=lambda probe_list, duration: mean_stderr([
-            cast(DamageSplitProbe, probe).secondary_damage / duration for probe in probe_list
-        ]),
-        show_on_st=False,
-    ),
+    TOTAL,
+    MAIN,
+    SECONDARY,
+    TOTAL_DPS,
+    MAIN_DPS,
+    SECONDARY_DPS,
 ]
 
-
 DETAILED_METRICS: list[Metric] = [
-    ScalarMetric(
-        name="total",
-        probe_type=DamageSplitProbe,
-        aggregate=lambda probe_list, duration: mean_stderr([
-            cast(DamageSplitProbe, probe).total_damage for probe in probe_list
-        ]),
-        show_on_st=False,
-    ),
-    ScalarMetric(
-        name="main",
-        probe_type=DamageSplitProbe,
-        aggregate=lambda probe_list, duration: mean_stderr([
-            cast(DamageSplitProbe, probe).main_damage for probe in probe_list
-        ]),
-    ),
-    ScalarMetric(
-        name="secondary",
-        probe_type=DamageSplitProbe,
-        aggregate=lambda probe_list, duration: mean_stderr([
-            cast(DamageSplitProbe, probe).secondary_damage for probe in probe_list
-        ]),
-        show_on_st=False,
-    ),
-    ScalarMetric(
-        name="total_dps",
-        probe_type=DamageSplitProbe,
-        aggregate=lambda probe_list, duration: mean_stderr([
-            cast(DamageSplitProbe, probe).total_damage / duration for probe in probe_list
-        ]),
-        show_on_st=False,
-    ),
-    ScalarMetric(
-        name="main_dps",
-        probe_type=DamageSplitProbe,
-        aggregate=lambda probe_list, duration: mean_stderr([
-            cast(DamageSplitProbe, probe).main_damage / duration for probe in probe_list
-        ]),
-    ),
-    ScalarMetric(
-        name="secondary_dps",
-        probe_type=DamageSplitProbe,
-        aggregate=lambda probe_list, duration: mean_stderr([
-            cast(DamageSplitProbe, probe).secondary_damage / duration for probe in probe_list
-        ]),
-        show_on_st=False,
-    ),
-    ScalarMetric(
-        name="ults_cast",
-        probe_type=CastCountProbe,
-        aggregate=lambda probe_list, duration: mean_stderr([
-            float(cast(CastCountProbe, probe).ult_count) for probe in probe_list
-        ]),
-    ),
-    ScalarMetric(
-        name="weapon_ability_casts",
-        probe_type=CastCountProbe,
-        aggregate=lambda probe_list, duration: mean_stderr([
-            float(cast(CastCountProbe, probe).weapon_cast_count) for probe in probe_list
-        ]),
-    ),
-    ScalarMetric(
-        name="spirit_procs",
-        probe_type=CastCountProbe,
-        aggregate=lambda probe_list, duration: mean_stderr([
-            float(cast(CastCountProbe, probe).spirit_proc_count) for probe in probe_list
-        ]),
-    ),
-    TextMetric(
-        name="sources_total",
-        probe_type=DamageSourceProbe,
-        render=lambda probe_list, duration: _format_damage_source_contribution([
-            cast(DamageSourceProbe, probe).total_by_source for probe in probe_list
-        ]),
-        show_on_st=False,
-    ),
-    TextMetric(
-        name="sources_main",
-        probe_type=DamageSourceProbe,
-        render=lambda probe_list, duration: _format_damage_source_contribution([
-            cast(DamageSourceProbe, probe).main_by_source for probe in probe_list
-        ]),
-    ),
-    TextMetric(
-        name="sources_secondary",
-        probe_type=DamageSourceProbe,
-        render=lambda probe_list, duration: _format_damage_source_contribution([
-            cast(DamageSourceProbe, probe).secondary_by_source for probe in probe_list
-        ]),
-        show_on_st=False,
-    ),
-    TextMetric(
-        name="number_of_casts",
-        probe_type=CastCountProbe,
-        render=lambda probe_list, duration: _format_ability_cast_count([
-            cast(CastCountProbe, probe).ability_cast_count for probe in probe_list
-        ]),
-    ),
-    TextMetric(
-        name="source_details",
-        probe_type=DamageSourceProbe,
-        render=lambda probe_list, duration: _format_source_details([
-            cast(DamageSourceProbe, probe) for probe in probe_list
-        ]),
-    ),
-    TextMetric(
-        name="buff_uptime",
-        probe_type=BuffUptimeProbe,
-        render=lambda probe_list, duration: _format_buff_uptime(
-            [cast(BuffUptimeProbe, probe) for probe in probe_list], duration
-        ),
-    ),
+    *DEFAULT_METRICS,
+    ULTS_CAST,
+    WEAPON_ABILITY_CASTS,
+    SPIRIT_PROCS,
+    SOURCES_TOTAL,
+    SOURCES_MAIN,
+    SOURCES_SECONDARY,
+    NUMBER_OF_CASTS,
+    SOURCE_DETAILS,
+    BUFF_UPTIME,
 ]

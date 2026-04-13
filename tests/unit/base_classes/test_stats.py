@@ -86,6 +86,10 @@ class TestFinalStatsSpiritProcChance:
                 haste_percent=0.0,
                 spirit_percent=percent,
                 crit_multiplier=1.0,
+                crit_score=0,
+                expertise_score=0,
+                haste_score=0,
+                spirit_score=0,
             )
             assert stats.spirit_proc_chance == pytest.approx(expected, abs=0.0001), f"spirit_percent={percent}"
 
@@ -154,6 +158,10 @@ class TestFinalStats:
             haste_percent=0.2,
             spirit_percent=0.03,
             crit_multiplier=1.5,
+            crit_score=0,
+            expertise_score=0,
+            haste_score=0,
+            spirit_score=0,
         )
         with pytest.raises((AttributeError, TypeError)):
             fs.main_stat = 1100.0  # ty:ignore[invalid-assignment]

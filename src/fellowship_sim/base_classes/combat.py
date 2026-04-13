@@ -38,7 +38,20 @@ def deal_damage(
     target: "Entity",
     cast_specific_predamage_snapshot_modifiers: "list[Callable[..., None]] | None" = None,
     is_dot: bool = False,
+    is_secondary: bool = False,
 ) -> "AbilityDamage | AbilityPeriodicDamage":
+    """Resolve a single damage hit: fire PreDamageSnapshotUpdate, roll crit, emit the damage event.
+
+    Args:
+        snapshot: Pre-built snapshot with average_damage, crit stats.
+        damage_origin: The ability or effect dealing the damage (determines the event type label).
+        target: The entity taking the hit.
+        cast_specific_predamage_snapshot_modifiers: Per-cast closures applied after bus listeners.
+        is_dot: True for periodic (DoT) ticks; fires AbilityPeriodicDamage instead of AbilityDamage.
+
+    Returns:
+        The emitted damage event.
+    """
     state = damage_origin.owner.state
 
     # Give global listeners and cast-specific closures a chance to update the snapshot.
@@ -47,6 +60,7 @@ def deal_damage(
         target=target,
         snapshot=snapshot,
         is_dot=is_dot,
+        is_secondary=is_secondary,
         predamage_snapshot_modifiers=list(cast_specific_predamage_snapshot_modifiers)
         if cast_specific_predamage_snapshot_modifiers
         else [],
@@ -82,6 +96,7 @@ def deal_damage(
             is_crit=is_crit,
             is_grievous_crit=is_grievous_crit,
             damage=damage,
+            is_secondary=is_secondary,
         )
     else:
         event = AbilityDamage(
@@ -91,6 +106,7 @@ def deal_damage(
             is_crit=is_crit,
             is_grievous_crit=is_grievous_crit,
             damage=damage,
+            is_secondary=is_secondary,
         )
     state.bus.emit(event)
     return event
@@ -159,7 +175,24 @@ def apply_standard_damage(
     is_scaled_by_expertise: bool = True,
     is_scaled_by_main_stat: bool = True,
 ) -> None:
-    """Apply standard damage formula to main and secondary targets."""
+    """Compute a snapshot and immediately deal damage to main and secondary targets.
+
+    Unlike create_standard_damage, this is called at hit time (no scheduling).
+
+    Args:
+        state: The current simulation state.
+        damage_source: Ability or effect originating the hit.
+        owner: The casting player (stats used for the snapshot).
+        target: Main target; if None, skips the primary hit.
+        base_damage: Raw base damage before stat scaling.
+        main_damage_multiplier: Damage multiplier for the primary hit.
+        num_secondary_targets: How many additional targets to hit.
+        secondary_damage_multiplier: Damage multiplier for each secondary hit.
+        cast_specific_predamage_snapshot_modifiers: Per-cast closures applied at hit time.
+        priority_func: Scoring function for secondary target selection.
+        is_scaled_by_expertise: Whether expertise applies.
+        is_scaled_by_main_stat: Whether main stat applies.
+    """
     snapshot = SnapshotStats.from_base_damage_and_character(
         base_damage=base_damage,
         character=owner,
@@ -192,4 +225,5 @@ def apply_standard_damage(
                 damage_source,
                 secondary,
                 cast_specific_predamage_snapshot_modifiers=cast_specific_predamage_snapshot_modifiers,
+                is_secondary=True,
             )

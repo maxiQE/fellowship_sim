@@ -20,8 +20,6 @@ def _color_map(metrics: list[Metric]) -> dict[str, str]:
 def scenario_figure(
     all_results: dict[tuple[str, str, str], RepetitionResult],
     scenario_name: str,
-    setup_names: list[str],
-    rotation_names: list[str],
     metrics: list[Metric] = DEFAULT_METRICS,
 ) -> go.Figure:
     """Bar chart for a single scenario.
@@ -34,7 +32,7 @@ def scenario_figure(
     show/hide traces without knowing their index or order.
     Metrics with show_on_st=False are omitted when the scenario is single-target.
     """
-    pairs: list[tuple[str, str]] = [(s, r) for s in setup_names for r in rotation_names]
+    pairs: list[tuple[str, str]] = [(s, r) for sc, s, r in all_results if sc == scenario_name]
     ref_setup, ref_rotation = pairs[0]
     pair_labels: list[str] = [f"{s}\n{r}" for s, r in pairs]
 
@@ -87,8 +85,6 @@ def scenario_figure(
 def grouped_figure(
     all_results: dict[tuple[str, str, str], RepetitionResult],
     scenario_names: list[str],
-    setup_names: list[str],
-    rotation_names: list[str],
     metrics: list[Metric] = DEFAULT_METRICS,
 ) -> go.Figure:
     """Bar chart for all scenarios combined into a single figure.
@@ -103,9 +99,9 @@ def grouped_figure(
     all three axes can be toggled independently in the browser.
     Metric suppression is evaluated against the first scenario's first pair.
     """
-    pairs: list[tuple[str, str]] = [(s, r) for s in setup_names for r in rotation_names]
-    ref_setup, ref_rotation = pairs[0]
-    ref_scenario = scenario_names[0]
+    scenario_set = set(scenario_names)
+    triples: list[tuple[str, str, str]] = [(sc, s, r) for sc, s, r in all_results if sc in scenario_set]
+    ref_scenario, ref_setup, ref_rotation = triples[0]
 
     ref_result = all_results[(ref_scenario, ref_setup, ref_rotation)].metrics
     is_st = ref_result.is_single_target
@@ -117,35 +113,30 @@ def grouped_figure(
     fig = go.Figure()
     metric_legend_shown: set[str] = set()
 
-    for scenario_name in scenario_names:
-        for metric_idx, metric in enumerate(visible_metrics):
-            ref_mean: float = all_results[(ref_scenario, ref_setup, ref_rotation)].metrics.scalars[metric.name].mean
-            ref = ref_mean if ref_mean != 0.0 else 1.0
+    for metric_idx, metric in enumerate(visible_metrics):
+        ref_mean: float = all_results[(ref_scenario, ref_setup, ref_rotation)].metrics.scalars[metric.name].mean
+        ref = ref_mean if ref_mean != 0.0 else 1.0
 
-            for setup_name, rotation_name in pairs:
-                ms: MeanStd = all_results[(scenario_name, setup_name, rotation_name)].metrics.scalars[metric.name]
-                show_in_legend = metric.name not in metric_legend_shown
-                if show_in_legend:
-                    metric_legend_shown.add(metric.name)
-                fig.add_trace(go.Bar(
-                    name=metric.name,
-                    x=[f"{scenario_name}\n{setup_name}\n{rotation_name}"],
-                    y=[ms.mean / ref],
-                    error_y={"type": "data", "array": [ms.stderr / ref], "visible": True},
-                    customdata=[[f"{ms.mean:,.1f} ± {ms.stderr:,.1f}", f"{(ms.mean / ref - 1.0) * 100.0:+.1f}%"]],
-                    hovertemplate="%{customdata[0]}<br>%{customdata[1]}<extra>%{fullData.name}</extra>",
-                    legendgroup=metric.name,
-                    showlegend=show_in_legend,
-                    marker_color=colors[metric.name],
-                    offsetgroup=str(metric_idx),
-                    meta={"scenario": scenario_name, "setup": setup_name, "rotation": rotation_name},
-                ))
+        for scenario_name, setup_name, rotation_name in triples:
+            ms: MeanStd = all_results[(scenario_name, setup_name, rotation_name)].metrics.scalars[metric.name]
+            show_in_legend = metric.name not in metric_legend_shown
+            if show_in_legend:
+                metric_legend_shown.add(metric.name)
+            fig.add_trace(go.Bar(
+                name=metric.name,
+                x=[f"{scenario_name}\n{setup_name}\n{rotation_name}"],
+                y=[ms.mean / ref],
+                error_y={"type": "data", "array": [ms.stderr / ref], "visible": True},
+                customdata=[[f"{ms.mean:,.1f} ± {ms.stderr:,.1f}", f"{(ms.mean / ref - 1.0) * 100.0:+.1f}%"]],
+                hovertemplate="%{customdata[0]}<br>%{customdata[1]}<extra>%{fullData.name}</extra>",
+                legendgroup=metric.name,
+                showlegend=show_in_legend,
+                marker_color=colors[metric.name],
+                offsetgroup=str(metric_idx),
+                meta={"scenario": scenario_name, "setup": setup_name, "rotation": rotation_name},
+            ))
 
-    triple_labels: list[str] = [
-        f"{scenario}\n{setup}\n{rotation}"
-        for scenario in scenario_names
-        for setup, rotation in pairs
-    ]
+    triple_labels: list[str] = [f"{sc}\n{s}\n{r}" for sc, s, r in triples]
     fig.update_xaxes(categoryorder="array", categoryarray=triple_labels)
     fig.update_layout(
         barmode="group",
@@ -276,8 +267,6 @@ def _open_html(page: str) -> None:
 def show_comparison(
     all_results: dict[tuple[str, str, str], RepetitionResult],
     scenario_names: list[str],
-    setup_names: list[str],
-    rotation_names: list[str],
     metrics: list[Metric] = DEFAULT_METRICS,
 ) -> None:
     """Open one browser tab per scenario, each showing a bar chart for that scenario.
@@ -286,20 +275,16 @@ def show_comparison(
     first (setup, rotation) pair.  Metrics with show_on_st=False are omitted for
     single-target scenarios.
     """
-    pairs: list[tuple[str, str]] = [(s, r) for s in setup_names for r in rotation_names]
-    pair_labels: list[str] = [f"{s}\n{r}" for s, r in pairs]
-    axes: list[tuple[str, list[str], str]] = [
-        ("Setups", setup_names, "setup"),
-        ("Rotations", rotation_names, "rotation"),
-    ]
     for scenario_name in scenario_names:
-        fig = scenario_figure(
-            all_results=all_results,
-            scenario_name=scenario_name,
-            setup_names=setup_names,
-            rotation_names=rotation_names,
-            metrics=metrics,
-        )
+        pairs: list[tuple[str, str]] = [(s, r) for sc, s, r in all_results if sc == scenario_name]
+        pair_labels: list[str] = [f"{s}\n{r}" for s, r in pairs]
+        unique_setups = list(dict.fromkeys(s for s, r in pairs))
+        unique_rotations = list(dict.fromkeys(r for s, r in pairs))
+        axes: list[tuple[str, list[str], str]] = [
+            ("Setups", unique_setups, "setup"),
+            ("Rotations", unique_rotations, "rotation"),
+        ]
+        fig = scenario_figure(all_results=all_results, scenario_name=scenario_name, metrics=metrics)
         plotly_html = fig.to_html(include_plotlyjs="cdn", full_html=False, div_id="main-plot")
         _open_html(_build_html(plotly_html=plotly_html, axes=axes, orig_x_labels=pair_labels))
 
@@ -307,8 +292,6 @@ def show_comparison(
 def show_grouped_comparison(
     all_results: dict[tuple[str, str, str], RepetitionResult],
     scenario_names: list[str],
-    setup_names: list[str],
-    rotation_names: list[str],
     metrics: list[Metric] = DEFAULT_METRICS,
 ) -> None:
     """Open one browser tab showing all scenarios, setups, and rotations in a single figure.
@@ -318,23 +301,17 @@ def show_grouped_comparison(
     filtered independently.  Bars are normalized per-scenario to the first
     (setup, rotation) pair within that scenario.
     """
-    pairs: list[tuple[str, str]] = [(s, r) for s in setup_names for r in rotation_names]
-    triple_labels: list[str] = [
-        f"{scenario}\n{setup}\n{rotation}"
-        for scenario in scenario_names
-        for setup, rotation in pairs
-    ]
+    scenario_set = set(scenario_names)
+    triples: list[tuple[str, str, str]] = [(sc, s, r) for sc, s, r in all_results if sc in scenario_set]
+    triple_labels: list[str] = [f"{sc}\n{s}\n{r}" for sc, s, r in triples]
+    unique_scenarios = list(dict.fromkeys(sc for sc, s, r in triples))
+    unique_setups = list(dict.fromkeys(s for sc, s, r in triples))
+    unique_rotations = list(dict.fromkeys(r for sc, s, r in triples))
     axes: list[tuple[str, list[str], str]] = [
-        ("Scenarios", scenario_names, "scenario"),
-        ("Setups", setup_names, "setup"),
-        ("Rotations", rotation_names, "rotation"),
+        ("Scenarios", unique_scenarios, "scenario"),
+        ("Setups", unique_setups, "setup"),
+        ("Rotations", unique_rotations, "rotation"),
     ]
-    fig = grouped_figure(
-        all_results=all_results,
-        scenario_names=scenario_names,
-        setup_names=setup_names,
-        rotation_names=rotation_names,
-        metrics=metrics,
-    )
+    fig = grouped_figure(all_results=all_results, scenario_names=scenario_names, metrics=metrics)
     plotly_html = fig.to_html(include_plotlyjs="cdn", full_html=False, div_id="main-plot")
     _open_html(_build_html(plotly_html=plotly_html, axes=axes, orig_x_labels=triple_labels))

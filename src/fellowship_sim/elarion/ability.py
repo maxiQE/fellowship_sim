@@ -13,6 +13,7 @@ from fellowship_sim.base_classes.ability import (
     can_cast_check,
 )
 from fellowship_sim.base_classes.entity import Entity
+from fellowship_sim.elarion import elarion_config
 
 if TYPE_CHECKING:
     from .entity import Elarion  # noqa: F401
@@ -53,6 +54,7 @@ class ElarionAbility(Ability["Elarion"]):
 
     @property
     def focus_cost(self) -> int:
+        """Effective focus cost; halved when Event Horizon's focus reduction is active."""
         if self.owner.event_horizon__reduce_focust_cost:
             return math.ceil(self.base_focus_cost * self.owner.event_horizon.focus_cost_multiplier)
         else:
@@ -95,33 +97,39 @@ class ElarionAbility(Ability["Elarion"]):
 class FocusedShot(ElarionAbility):
     """1.5s cast, no CD. Deals damage. Generates 20 focus. 2 PPM CI proc."""
 
-    average_damage: float = field(default=(1212 + 1481) / 2, init=False)
-    base_cast_time: float = field(default=1.5, init=False)
+    average_damage: float = field(
+        default=(elarion_config.FOCUSED_SHOT_DAMAGE_MIN + elarion_config.FOCUSED_SHOT_DAMAGE_MAX) / 2, init=False
+    )
+    base_cast_time: float = field(default=elarion_config.FOCUSED_SHOT_CAST_TIME, init=False)
 
-    focus_gain: int = field(default=20, init=False)
+    focus_gain: int = field(default=elarion_config.FOCUSED_SHOT_FOCUS_GAIN, init=False)
 
 
 @dataclass(kw_only=True, repr=False)
 class CelestialShot(ElarionAbility):
     """instant cast, GCD, no CD. 15 focus cost. CI proc: applies 3 LunarlightMarks."""
 
-    average_damage: float = field(default=(2591 + 3166) / 2, init=False)
+    average_damage: float = field(
+        default=(elarion_config.CELESTIAL_SHOT_DAMAGE_MIN + elarion_config.CELESTIAL_SHOT_DAMAGE_MAX) / 2, init=False
+    )
 
-    base_focus_cost: int = field(default=15, init=False)
+    base_focus_cost: int = field(default=elarion_config.CELESTIAL_SHOT_FOCUS_COST, init=False)
 
 
 @dataclass(kw_only=True, repr=False)
 class Multishot(ElarionAbility):
     """1.5s cast, no CD. 20 focus cost. Hits primary + up to num_secondary_targets enemies."""
 
-    average_damage: float = field(default=(2173 + 2655) / 2, init=False)
+    average_damage: float = field(
+        default=(elarion_config.MULTISHOT_DAMAGE_MIN + elarion_config.MULTISHOT_DAMAGE_MAX) / 2, init=False
+    )
 
-    max_charges: int = field(default=5, init=False)
+    max_charges: int = field(default=elarion_config.MULTISHOT_MAX_CHARGES, init=False)
     initial_charges: int = field(default=0, init=False)
-    base_focus_cost: int = field(default=20, init=False)
-    num_secondary_targets: int = field(default=11, init=False)
+    base_focus_cost: int = field(default=elarion_config.MULTISHOT_FOCUS_COST, init=False)
+    num_secondary_targets: int = field(default=elarion_config.MULTISHOT_NUM_SECONDARY_TARGETS, init=False)
 
-    empowered_num_arrows_min: int = field(default=3, init=False)
+    empowered_num_arrows_min: int = field(default=elarion_config.MULTISHOT_EMPOWERED_MIN_ARROWS, init=False)
     empowered_ms_bonus_damage: float = field(default=0.0, init=False)  # Provided by FE
 
     _empowered_providers: list[EmpoweredMultishotProvider] = field(default_factory=list, init=False)
@@ -154,12 +162,14 @@ class Multishot(ElarionAbility):
         return min(self._empowered_providers, key=lambda p: p.consume_priority)
 
     def register_empowered_provider(self, provider: EmpoweredMultishotProvider) -> None:
+        """Add provider to the empowered-provider list. Called by EmpoweredMultishotProvider.on_add."""
         self._empowered_providers.append(provider)
 
         provider_label = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", type(provider).__name__)
         logger.debug(f"Multishot: empowered provider registered: {provider_label}")
 
     def unregister_empowered_provider(self, provider: EmpoweredMultishotProvider) -> None:
+        """Remove provider from the empowered-provider list. Called by EmpoweredMultishotProvider.on_remove."""
         if provider in self._empowered_providers:
             self._empowered_providers.remove(provider)
 
@@ -266,27 +276,37 @@ class Multishot(ElarionAbility):
 class HighwindArrow(ElarionAbility):
     """2s cast (haste-reduced), 15s CD. Primary + up to 2 secondary at 70% damage."""
 
-    base_cooldown: float = field(default=15.0, init=False)
-    base_cast_time: float = field(default=2.0, init=False)
-    base_player_downtime: float = field(default=2.0, init=False)
-    average_damage: float = field(default=(8370 + 10230) / 2, init=False)
-    max_charges: int = field(default=3, init=False)
-    initial_charges: int = field(default=3, init=False)
+    base_cooldown: float = field(default=elarion_config.HIGHWIND_ARROW_COOLDOWN, init=False)
+    base_cast_time: float = field(default=elarion_config.HIGHWIND_ARROW_CAST_TIME, init=False)
+    base_player_downtime: float = field(default=elarion_config.HIGHWIND_ARROW_CAST_TIME, init=False)
+    average_damage: float = field(
+        default=(elarion_config.HIGHWIND_ARROW_DAMAGE_MIN + elarion_config.HIGHWIND_ARROW_DAMAGE_MAX) / 2, init=False
+    )
+    max_charges: int = field(default=elarion_config.HIGHWIND_ARROW_MAX_CHARGES, init=False)
+    initial_charges: int = field(default=elarion_config.HIGHWIND_ARROW_MAX_CHARGES, init=False)
     has_hasted_cdr: bool = field(default=True, init=False)
 
-    base_focus_cost: int = field(default=30, init=False)
+    base_focus_cost: int = field(default=elarion_config.HIGHWIND_ARROW_FOCUS_COST, init=False)
 
-    num_secondary_targets: int = field(default=2, init=False)
-    secondary_damage_multiplier: float = field(default=0.7, init=False)
+    num_secondary_targets: int = field(default=elarion_config.HIGHWIND_ARROW_NUM_SECONDARY_TARGETS, init=False)
+    secondary_damage_multiplier: float = field(
+        default=elarion_config.HIGHWIND_ARROW_SECONDARY_DAMAGE_MULTIPLIER, init=False
+    )
 
     has_final_crescendo_buff: bool = field(default=False, init=False)
-    final_crescendo_damage_multiplier: float = field(default=2.0, init=False)
-    final_crescendo_num_secondary_targets: int = field(default=7, init=False)
+    final_crescendo_damage_multiplier: float = field(
+        default=elarion_config.HIGHWIND_ARROW_FC_DAMAGE_MULTIPLIER, init=False
+    )
+    final_crescendo_num_secondary_targets: int = field(
+        default=elarion_config.HIGHWIND_ARROW_FC_NUM_SECONDARY_TARGETS, init=False
+    )
 
     has_resurgent_winds_buff: bool = field(default=False, init=False)
     resurgent_winds_cast_time: float = field(default=0, init=False)
-    resurgent_winds_player_downtime: float = field(default=1.5, init=False)
-    resurgent_winds_damage_multiplier: float = field(default=1.5, init=False)
+    resurgent_winds_player_downtime: float = field(default=elarion_config.HIGHWIND_ARROW_RW_PLAYER_DOWNTIME, init=False)
+    resurgent_winds_damage_multiplier: float = field(
+        default=elarion_config.HIGHWIND_ARROW_RW_DAMAGE_MULTIPLIER, init=False
+    )
 
     def is_empowered(self) -> bool:
         """Boolean check for whether the ability is empowered (in-game: yellow border on ability)."""
@@ -354,7 +374,7 @@ class HighwindArrow(ElarionAbility):
             cast_specific_predamage_snapshot_modifiers = [self._rw_snapshot_modifier]
 
         # NON-STANDARD: HWA gives multishot charges if hitting 3 or more enemies
-        if state.num_enemies >= 3:
+        if state.num_enemies >= elarion_config.HIGHWIND_ARROW_MULTISHOT_CHARGE_MIN_ENEMIES:
             self.owner.multishot._add_charge()
 
         # Standard behavior: create damage
@@ -388,15 +408,17 @@ class Volley(ElarionAbility):
     TODO: secondary targets (up to 11 additional, 100% damage each).
     """
 
-    base_cooldown: float = field(default=30.0, init=False)
-    average_damage: float = field(default=(977 + 1195) / 2, init=False)
+    base_cooldown: float = field(default=elarion_config.VOLLEY_COOLDOWN, init=False)
+    average_damage: float = field(
+        default=(elarion_config.VOLLEY_DAMAGE_MIN + elarion_config.VOLLEY_DAMAGE_MAX) / 2, init=False
+    )
 
-    base_focus_cost: int = field(default=30, init=False)
+    base_focus_cost: int = field(default=elarion_config.VOLLEY_FOCUS_COST, init=False)
 
-    num_secondary_targets: int = field(default=11, init=False)
+    num_secondary_targets: int = field(default=elarion_config.VOLLEY_NUM_SECONDARY_TARGETS, init=False)
 
-    duration: float = field(default=8.0 + 1e-9, init=False)
-    tick_time: float = field(default=1.0, init=False)
+    duration: float = field(default=elarion_config.VOLLEY_DURATION, init=False)
+    tick_time: float = field(default=elarion_config.VOLLEY_TICK_TIME, init=False)
     has_skylit_grace: bool = field(default=False, init=False)
     multishot_extends_duration_by: float = field(default=0, init=False)
 
@@ -427,24 +449,27 @@ class HeartseekerBarrage(ElarionAbility):
     Secondary targets (when num_secondary_targets >= 1) are selected from marked enemies only.
     """
 
-    base_cooldown: float = field(default=20.0, init=False)
-    base_player_downtime: float = field(default=2.0, init=False)
-    average_damage: float = field(default=(1124 + 1373) / 2, init=False)
+    base_cooldown: float = field(default=elarion_config.HEARTSEEKER_BARRAGE_COOLDOWN, init=False)
+    base_player_downtime: float = field(default=elarion_config.HEARTSEEKER_BARRAGE_CHANNEL_DURATION, init=False)
+    average_damage: float = field(
+        default=(elarion_config.HEARTSEEKER_BARRAGE_DAMAGE_MIN + elarion_config.HEARTSEEKER_BARRAGE_DAMAGE_MAX) / 2,
+        init=False,
+    )
 
     is_channel: bool = field(default=True, init=False)
-    tick_time: float = field(default=0.2, init=False)
+    tick_time: float = field(default=elarion_config.HEARTSEEKER_BARRAGE_TICK_TIME, init=False)
 
     delay_until_hit: float = field(
-        default=0.05, init=False
+        default=elarion_config.HEARTSEEKER_BARRAGE_DELAY_UNTIL_HIT, init=False
     )  # Flight time of the missile; this matters for volley reset during ultimate
 
-    base_focus_cost: int = field(default=30, init=False)
+    base_focus_cost: int = field(default=elarion_config.HEARTSEEKER_BARRAGE_FOCUS_COST, init=False)
 
     num_secondary_targets: int = field(default=0, init=False)
     secondary_damage_multiplier: float = field(default=0.0, init=False)
 
     has_impending_barrage: bool = field(default=False, init=False)
-    impending_barrage_step: float = field(default=0.1, init=False)
+    impending_barrage_step: float = field(default=elarion_config.HEARTSEEKER_BARRAGE_IMPENDING_STEP, init=False)
 
     def _do_cast(self, target: Entity) -> None:
         """Overwritten: to check for IHB buff and apply it to channel."""
@@ -551,11 +576,11 @@ class LunarlightMark(ElarionAbility):
     3 stacks to up to 11 secondary targets.
     """
 
-    base_cooldown: float = field(default=30.0, init=False)
+    base_cooldown: float = field(default=elarion_config.LUNARLIGHT_MARK_COOLDOWN, init=False)
     base_player_downtime: float = field(default=0.0, init=False)
 
-    num_secondary_targets: int = field(default=11, init=False)
-    mark_stacks: int = field(default=3, init=False)
+    num_secondary_targets: int = field(default=elarion_config.LUNARLIGHT_MARK_NUM_SECONDARY_TARGETS, init=False)
+    mark_stacks: int = field(default=elarion_config.LUNARLIGHT_MARK_STACKS, init=False)
 
     has_increased_proc_chance_volley: bool = field(default=False, init=False)
     has_increased_proc_chance_barrage: bool = field(default=False, init=False)
@@ -602,7 +627,10 @@ class LunarlightMark(ElarionAbility):
 class LunarlightSalvo(ElarionAbility):
     """Triggered proc (no CD, no cast time). Fires when LunarlightMark procs."""
 
-    average_damage: float = field(default=(2033 + 2485) / 2, init=False)
+    average_damage: float = field(
+        default=(elarion_config.LUNARLIGHT_SALVO_DAMAGE_MIN + elarion_config.LUNARLIGHT_SALVO_DAMAGE_MAX) / 2,
+        init=False,
+    )
 
     max_charges: int = field(default=0, init=False)
     initial_charges: int = field(default=0, init=False)
@@ -630,12 +658,15 @@ class LunarlightExplosion(ElarionAbility):
     Deals full damage to the bearer and up to 11 additional enemies.
     """
 
-    average_damage: float = field(default=(2033 + 2485) / 2, init=False)
+    average_damage: float = field(
+        default=(elarion_config.LUNARLIGHT_SALVO_DAMAGE_MIN + elarion_config.LUNARLIGHT_SALVO_DAMAGE_MAX) / 2,
+        init=False,
+    )
 
     max_charges: int = field(default=0, init=False)
     initial_charges: int = field(default=0, init=False)
 
-    num_secondary_targets: int = field(default=11, init=False)
+    num_secondary_targets: int = field(default=elarion_config.LUNARLIGHT_EXPLOSION_NUM_SECONDARY_TARGETS, init=False)
 
     def cast(self, target: "Entity") -> CastReturnCode:
         raise Exception(f"{self!s} is a fake ability and is not callable.")  # noqa: TRY002, TRY003
@@ -659,7 +690,7 @@ class SkystriderGrace(ElarionAbility):
     """Instant cast, 120s CD. Applies SkystriderGrace buff (+30% haste, 20s)."""
 
     base_player_downtime: float = field(default=0.0, init=False)
-    base_cooldown: float = field(default=120.0, init=False)
+    base_cooldown: float = field(default=elarion_config.SKYSTRIDER_GRACE_COOLDOWN, init=False)
 
     effect_list: list[type[Effect]] = field(default_factory=lambda: [SkystriderGraceBuff], init=False)
 
@@ -673,14 +704,14 @@ class EventHorizon(ElarionAbility):
     - flat cooldown reduction to volley (from barrage damage) and to barrage (from HWA damage)
     """
 
-    base_cast_time: float = field(default=0.7, init=False)
-    base_player_downtime: float = field(default=0.7, init=False)
+    base_cast_time: float = field(default=elarion_config.EVENT_HORIZON_CAST_TIME, init=False)
+    base_player_downtime: float = field(default=elarion_config.EVENT_HORIZON_CAST_TIME, init=False)
 
     effect_list: list[type[Effect]] = field(default_factory=lambda: [EventHorizonBuff], init=False)
 
     is_ultimate_ability: bool = field(default=True, init=False)
 
-    focus_cost_multiplier: float = field(default=0.5, init=False)
+    focus_cost_multiplier: float = field(default=elarion_config.EVENT_HORIZON_FOCUS_COST_MULTIPLIER, init=False)
 
 
 @dataclass(kw_only=True, repr=False)
@@ -694,7 +725,7 @@ class SkystriderSupremacy(ElarionAbility):
     """
 
     base_player_downtime: float = field(default=0.0, init=False)
-    base_cooldown: float = field(default=40.0, init=False)
+    base_cooldown: float = field(default=elarion_config.SKYSTRIDER_SUPREMACY_COOLDOWN, init=False)
 
     is_fervent_supremacy: bool = field(default=False, init=False)
 

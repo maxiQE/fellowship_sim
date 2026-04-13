@@ -29,6 +29,7 @@ class RealPPM:
 
     @property
     def current_ppm(self) -> float:
+        """Effective procs-per-minute after optional haste and crit scaling."""
         ppm = self.base_ppm
         if self.is_haste_scaled:
             ppm *= 1.0 + self.owner.stats.haste_percent
@@ -50,6 +51,7 @@ class RealPPM:
 
     @property
     def proc_chance(self) -> float:
+        """Probability [0, 1+) of proc on the current roll: time since last / proc interval."""
         return self.interval_since_last_proc / self.current_proc_interval
 
     def check(self) -> bool:

@@ -13,7 +13,7 @@ from loguru import logger
 from fellowship_sim.base_classes.entity import Enemy
 
 from .events import EventBus
-from .timed_events import FightOverTimedEvent, TimedEvent
+from .timed_events import TimedEvent
 
 if TYPE_CHECKING:
     from .entity import Entity, Player
@@ -21,8 +21,6 @@ if TYPE_CHECKING:
 
 @dataclass(kw_only=True)
 class StateInformation:
-    is_boss_fight: bool = False
-    duration: float = float("inf")
     delay_since_last_fight: float | None = 20.0
     is_ult_authorized: bool = True
 
@@ -45,9 +43,15 @@ class PlayerStatus:
 
     @property
     def player_available(self) -> bool:
+        """True when both casting and downtime phases are done."""
         return self.player_casting_done and self.player_downtime_done
 
     def apply_player_status_command(self, command: PlayerStatusCommand | None) -> None:
+        """Transition player status based on command; no-op if command is None.
+
+        Args:
+            command: One of the PlayerStatusCommand variants, or None to skip.
+        """
         if command is None:
             return
         match command:
@@ -77,6 +81,7 @@ _state_var: contextvars.ContextVar[State | None] = contextvars.ContextVar("state
 
 
 def get_state() -> State:
+    """Return the active State for this context. Raises RuntimeError if none exists."""
     state = _state_var.get()
     if state is None:
         raise RuntimeError("no active State — construct a State before running the sim")  # noqa: TRY003
@@ -84,6 +89,7 @@ def get_state() -> State:
 
 
 def get_bus() -> EventBus:
+    """Return the event bus of the active State."""
     return get_state().bus
 
 
@@ -109,8 +115,6 @@ class State:
     _queue_seq: int = field(default=0, init=False, repr=False)
 
     def __post_init__(self) -> None:
-        if self.information.duration != float("inf"):
-            self.schedule(time_delay=self.information.duration, callback=FightOverTimedEvent())
         _state_var.set(self)
 
     def __str__(self) -> str:
@@ -120,26 +124,31 @@ class State:
         return str(self)
 
     def add_character(self, character: Player) -> None:
+        """Register the player character. Raises if one is already registered."""
         if self.character is not None:
             raise Exception(f"character has already been set: {self.character = }")  # noqa: TRY002, TRY003
 
         self.character = character
 
     def add_enemy(self, enemy: Enemy) -> None:
+        """Append enemy to the enemy list."""
         self._enemies.append(enemy)
 
     @property
     def main_target(self) -> Enemy:
+        """First alive enemy; raises if none exist."""
         if len(self.enemies) == 0:
             raise Exception("State has no valid main target.")  # noqa: TRY002, TRY003
         return self.enemies[0]
 
     @property
     def enemies(self) -> list[Enemy]:
+        """List of currently alive enemies."""
         return [e for e in self._enemies if e.is_alive]
 
     @property
     def num_enemies(self) -> int:
+        """Number of alive enemies."""
         return len(self.enemies)
 
     def select_targets(

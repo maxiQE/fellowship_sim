@@ -5,7 +5,7 @@ from fellowship_sim.base_classes.stats import RawStatsFromPercents
 from fellowship_sim.elarion.ability import HeartseekerBarrage
 from fellowship_sim.elarion.entity import Elarion
 from fellowship_sim.elarion.setup import ElarionSetup
-from fellowship_sim.elarion.setup_effect import FocusedExpanseSetup, FusilladeSetup
+from fellowship_sim.elarion.setup_effect import FocusedExpanseSetup, FusilladeSetup, PiercingSeekerSetup
 from tests.conftest import FixedRNG
 
 
@@ -134,7 +134,16 @@ class TestCastTimes:
 
 class TestComplexBreakpoints:
     @pytest.mark.parametrize(
-        "haste, num_casts", [(0.0, 3), (0.124, 3), (0.126, 4), (0.49, 4), (0.51, 5), (0.874, 5), (0.876, 6)]
+        "haste, num_casts",
+        [
+            (0.0, 3),
+            (0.124, 3),
+            (0.126, 4),
+            (0.49, 4),
+            (0.51, 5),
+            (0.874, 5),
+            (0.876, 6),
+        ],
     )
     @pytest.mark.parametrize("has_fe", [False, True])
     def test_skystrider_supremacy_breakpoints(self, haste: float, num_casts: int, has_fe: bool) -> None:
@@ -216,6 +225,7 @@ class TestComplexBreakpoints:
         """
         state = State(rng=FixedRNG(value=1.0))
         Enemy(state=state)
+        Enemy(state=state)
         target = state.enemies[0]
         setup = ElarionSetup(
             raw_stats=RawStatsFromPercents(
@@ -227,6 +237,7 @@ class TestComplexBreakpoints:
             ),
         )
         setup.setup_effect_list.append(FusilladeSetup())
+        setup.setup_effect_list.append(PiercingSeekerSetup())
         elarion = setup.finalize(state)
 
         barrage_damages: list[AbilityDamage] = []
@@ -240,11 +251,12 @@ class TestComplexBreakpoints:
         elarion.event_horizon.cast(target)
         elarion.volley.cast(target)
         elarion.heartseeker_barrage.cast(target)
+
+        # make sure the final hit hits the target
         elarion.wait(0.06)
 
         hit_count = len(barrage_damages)
-        assert hit_count == barrage_hit_count
-        # NB: -1 because the final hit is still flying through the air at that point
+        assert hit_count == 2 * barrage_hit_count
 
         assert elarion.volley.cooldown == pytest.approx(remaining_cooldown, abs=0.01)
 

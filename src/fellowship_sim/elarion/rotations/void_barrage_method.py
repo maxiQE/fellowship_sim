@@ -7,9 +7,15 @@ from fellowship_sim.simulation.base import Rotation
 from fellowship_sim.simulation.rotation import Optional, PriorityList
 
 
-class NeckBarragePriorityListMethod(Rotation):
+class VoidBarrageMethod(Rotation):
     description = """
     An AOE rotation for neck barrage, using the method.gg priority list.
+
+    Vastly suboptimal due to:
+    - not aligning grace and ult,
+    - not aligning weapon and ult,
+    - failing to cast FS when proc is ready,
+    - not having a dedicated ultimate-active priority list.
     """
 
     def __call__(self, elarion: Elarion) -> Iterator[Ability | None]:

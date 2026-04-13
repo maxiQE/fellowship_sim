@@ -22,6 +22,7 @@ from fellowship_sim.base_classes.events import (
     SpiritProc,
 )
 from fellowship_sim.base_classes.timed_events import GenericTimedEvent
+from fellowship_sim.elarion import elarion_config
 from fellowship_sim.elarion.ability import (
     CelestialShot,
     FocusedShot,
@@ -46,8 +47,8 @@ class CelestialImpetusProc(Effect):
     owner: "Elarion" = field(init=True)
 
     name: str = field(default="celestial_impetus_proc", init=False)
-    max_stacks: int = field(default=2, init=False)
-    duration: float = field(default=15.0, init=False)
+    max_stacks: int = field(default=elarion_config.CELESTIAL_IMPETUS_PROC_MAX_STACKS, init=False)
+    duration: float = field(default=elarion_config.CELESTIAL_IMPETUS_PROC_DURATION, init=False)
 
     main_target_mark_count: int = field(init=True)
     triggers_impending_barrage: bool = field(init=True)
@@ -92,14 +93,16 @@ class CelestialImpetusAura(Effect):
 
     name: str = field(default="celestial_impetus_aura", init=False)
 
-    main_target_mark_count: int = field(default=3, init=False)
+    main_target_mark_count: int = field(
+        default=elarion_config.CELESTIAL_IMPETUS_AURA_MAIN_TARGET_MARK_COUNT, init=False
+    )
     triggers_impending_barrage: bool = field(default=False, init=False)
 
     real_ppm: RealPPM = field(init=False)
 
     def __post_init__(self) -> None:
         self.real_ppm = RealPPM(
-            base_ppm=2.0,
+            base_ppm=elarion_config.CELESTIAL_IMPETUS_AURA_PPM,
             is_haste_scaled=True,
             is_crit_scaled=False,
             owner=self.owner,
@@ -136,10 +139,10 @@ class LunarlightMarkEffect(Effect):
     stacks: int = field(default=1, init=True)  # Mark as init since multiple mechanics can apply multiple stacks at once
 
     name: str = field(default="lunarlight_mark", init=False)
-    duration: float = field(default=15.0, init=False)
-    max_stacks: int = field(default=20, init=False)
+    duration: float = field(default=elarion_config.LUNARLIGHT_MARK_EFFECT_DURATION, init=False)
+    max_stacks: int = field(default=elarion_config.LUNARLIGHT_MARK_EFFECT_MAX_STACKS, init=False)
 
-    explosion_chance: float = field(default=0.20, init=False)
+    explosion_chance: float = field(default=elarion_config.LUNARLIGHT_MARK_EFFECT_EXPLOSION_CHANCE, init=False)
 
     # Initialize a list of sources which do not trigger
     no_trigger_sources: list[type[Ability[Player]] | type[Effect]] = field(
@@ -161,7 +164,11 @@ class LunarlightMarkEffect(Effect):
         if isinstance(event.damage_source, tuple(self.no_trigger_sources)):
             return
 
-        proc_chance = 0.5 if event.is_crit else 0.25
+        proc_chance = (
+            elarion_config.LUNARLIGHT_MARK_CRIT_PROC_CHANCE
+            if event.is_crit
+            else elarion_config.LUNARLIGHT_MARK_NORMAL_PROC_CHANCE
+        )
 
         # double proc chance on barrage and volley, if the owner has the appropriate talent
         # fmt: on
@@ -169,7 +176,7 @@ class LunarlightMarkEffect(Effect):
             self.owner.has_increased_proc_chance_volley and isinstance(event.damage_source, Volley)
         ):
             # fmt:on
-            proc_chance = min(1.0, proc_chance * 2)
+            proc_chance = min(1.0, proc_chance * elarion_config.LUNARLIGHT_MARK_TALENTED_PROC_CHANCE_MULTIPLIER)
 
         state = self.owner.state
         roll = state.rng.random()
@@ -214,9 +221,11 @@ class SpiritEffectProc(Effect):
 
     name: str = field(default="spirit_effect", init=False)
 
-    main_target_mark_count: int = field(default=5, init=False)
-    secondary_target_mark_count: int = field(default=2, init=False)
-    num_secondary_targets: int = field(default=2, init=False)
+    main_target_mark_count: int = field(default=elarion_config.SPIRIT_EFFECT_MAIN_TARGET_MARK_COUNT, init=False)
+    secondary_target_mark_count: int = field(
+        default=elarion_config.SPIRIT_EFFECT_SECONDARY_TARGET_MARK_COUNT, init=False
+    )
+    num_secondary_targets: int = field(default=elarion_config.SPIRIT_EFFECT_NUM_SECONDARY_TARGETS, init=False)
 
     def on_add(self) -> None:
         self.owner.state.bus.subscribe(ResourceSpent, self._on_resource_spent, owner=self)
@@ -278,7 +287,7 @@ class FinalCrescendo(Effect):
 
     name: str = field(default="final_crescendo", init=False)
     stacks: int = field(default=0, init=False)
-    max_stacks: int = field(default=3, init=False)
+    max_stacks: int = field(default=elarion_config.FINAL_CRESCENDO_MAX_STACKS, init=False)
 
     def on_add(self) -> None:
         self.owner.state.bus.subscribe(AbilityCastSuccess, self._on_ability_cast, owner=self)
@@ -288,22 +297,26 @@ class FinalCrescendo(Effect):
             return
 
         # if at 3 stacks, clear stacks and remove buff from ability
-        if self.stacks == 3:
+        if self.stacks == elarion_config.FINAL_CRESCENDO_MAX_STACKS:
             self.stacks = 0
             highwind_arrow = self.owner.highwind_arrow
             highwind_arrow.has_final_crescendo_buff = False
-            logger.trace(f"Final crescendo applied to HWA: stacks reset {self.stacks}/3; buff removed from HWA")
+            logger.trace(
+                f"Final crescendo applied to HWA: stacks reset {self.stacks}/{elarion_config.FINAL_CRESCENDO_MAX_STACKS}; buff removed from HWA"
+            )
             return
 
         # else, add a stack
         else:
             self.stacks += 1
-            if self.stacks == 3:
+            if self.stacks == elarion_config.FINAL_CRESCENDO_MAX_STACKS:
                 highwind_arrow = self.owner.highwind_arrow
                 highwind_arrow.has_final_crescendo_buff = True
-                logger.debug(f"Final_crescendo: stacks {self.stacks}/3; buff added to HWA")
+                logger.debug(
+                    f"Final_crescendo: stacks {self.stacks}/{elarion_config.FINAL_CRESCENDO_MAX_STACKS}; buff added to HWA"
+                )
             else:
-                logger.trace(f"Final_crescendo: stacks {self.stacks}/3")
+                logger.trace(f"Final_crescendo: stacks {self.stacks}/{elarion_config.FINAL_CRESCENDO_MAX_STACKS}")
 
 
 @dataclass(kw_only=True, repr=False)
@@ -318,8 +331,8 @@ class ResurgentWinds(Effect):
 
     name: str = field(default="resurgent_winds", init=False)
 
-    duration: float = field(default=15.0, init=False)
-    max_stacks: int = field(default=2, init=False)
+    duration: float = field(default=elarion_config.RESURGENT_WINDS_DURATION, init=False)
+    max_stacks: int = field(default=elarion_config.RESURGENT_WINDS_MAX_STACKS, init=False)
 
     def on_add(self) -> None:
 
@@ -329,7 +342,7 @@ class ResurgentWinds(Effect):
         logger.debug("Resurgent winds: HWA +1 charge and buff gained")
         self.owner.state.bus.subscribe(AbilityCastSuccess, self._on_ability_cast, owner=self)
 
-    def on_remove(self) -> None:
+    def on_remove(self, *, is_remove_from_expiration: bool = False) -> None:
         highwind_arrow = self.owner.highwind_arrow
         highwind_arrow.has_resurgent_winds_buff = False
 
@@ -351,7 +364,7 @@ class ImpendingHeartseeker(Effect):
     owner: "Elarion" = field(init=True)
 
     name: str = field(default="impending_heartseeker", init=False)
-    duration: float = field(default=15.0, init=False)
+    duration: float = field(default=elarion_config.IMPENDING_HEARTSEEKER_DURATION, init=False)
 
     def on_add(self) -> None:
 
@@ -361,7 +374,7 @@ class ImpendingHeartseeker(Effect):
         logger.debug("Impending Heartseeker: Heartseeker Barrage cooldown reset and buff gained")
         self.owner.state.bus.subscribe(AbilityCastSuccess, self._on_ability_cast, owner=self)
 
-    def on_remove(self) -> None:
+    def on_remove(self, *, is_remove_from_expiration: bool = False) -> None:
         barrage = self.owner.heartseeker_barrage
         barrage.has_impending_barrage = False
 
@@ -380,7 +393,7 @@ class Fusillade(Effect):
 
     name: str = field(default="fusillade", init=False)
 
-    crit_bonus: float = field(default=0.20, init=False)
+    crit_bonus: float = field(default=elarion_config.FUSILLADE_CRIT_BONUS, init=False)
 
     def on_add(self) -> None:
         self.owner.state.bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
@@ -394,12 +407,12 @@ class Fusillade(Effect):
 
 @dataclass(kw_only=True, repr=False)
 class FocusedExpanseEffect(Effect):
-    """"""
+    """Passive aura: each FocusedShot or Multishot cast has a 20% chance to grant an EmpoweredMultishotCharge."""
 
     owner: "Elarion" = field(init=True)
     name: str = field(default="focused_expanse", init=False)
 
-    proc_chance: float = field(default=0.20, init=False)
+    proc_chance: float = field(default=elarion_config.FOCUSED_EXPANSE_PROC_CHANCE, init=False)
 
     def on_add(self) -> None:
         self.owner.state.bus.subscribe(AbilityCastSuccess, self._on_ability_cast, owner=self)
@@ -424,8 +437,8 @@ class LastLights(Effect):
 
     name: str = field(default="last_lights", init=False)
 
-    hp_percent_threshold: float = field(default=0.30, init=False)
-    crit_bonus: float = field(default=0.30, init=False)
+    hp_percent_threshold: float = field(default=elarion_config.LAST_LIGHTS_HP_THRESHOLD, init=False)
+    crit_bonus: float = field(default=elarion_config.LAST_LIGHTS_CRIT_BONUS, init=False)
 
     def on_add(self) -> None:
         self.owner.state.bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
@@ -472,6 +485,7 @@ class VolleyEffect(Effect):
 
     @staticmethod
     def get_volley(enemy: Entity) -> "list[VolleyEffect]":
+        """Return all active VolleyEffect instances on enemy."""
         return [e for e in enemy.effects if isinstance(e, VolleyEffect)]
 
     def on_add(self) -> None:
@@ -490,7 +504,7 @@ class VolleyEffect(Effect):
 
         state.schedule(time_delay=0.0, callback=GenericTimedEvent(name="volley tick", callback=self._do_tick))
 
-    def on_remove(self) -> None:
+    def on_remove(self, *, is_remove_from_expiration: bool = False) -> None:
         if self.has_skylit_grace:
             self.owner._recalculate_cdr_multipliers()
 
@@ -547,9 +561,9 @@ class SkywardMunitions(Effect):
             return
 
         hwa = self.owner.highwind_arrow
-        hwa._reduce_cooldown(1.0)
+        hwa._reduce_cooldown(elarion_config.SKYWARD_MUNITIONS_CDR)
         barrage = self.owner.heartseeker_barrage
-        barrage._reduce_cooldown(1.0)
+        barrage._reduce_cooldown(elarion_config.SKYWARD_MUNITIONS_CDR)
 
         ability_label = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", type(event.ability).__name__)
         logger.trace(f"Skyward Munitions: {ability_label} → Highwind Arrow/Heartseeker Barrage CD -1s")
@@ -573,7 +587,7 @@ class RepeatingStars(Effect):
             return
 
         volley = self.owner.volley
-        volley._reduce_cooldown(0.3)
+        volley._reduce_cooldown(elarion_config.REPEATING_STARS_VOLLEY_CDR)
         logger.trace("Repeating Stars: Multishot hit → Volley CD -0.3s")
 
 
@@ -587,7 +601,7 @@ class LethalShots(Effect):
 
     name: str = field(default="lethal_shots")
 
-    proc_chance: float = field(default=0.40, init=False)
+    proc_chance: float = field(default=elarion_config.LETHAL_SHOTS_PROC_CHANCE, init=False)
 
     def on_add(self) -> None:
         self.owner.state.bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
@@ -598,7 +612,7 @@ class LethalShots(Effect):
 
         roll = self.owner.state.rng.random()
         if roll < self.proc_chance:
-            event.snapshot = event.snapshot.add_crit_percent(1.0)
+            event.snapshot = event.snapshot.add_crit_percent(elarion_config.LETHAL_SHOTS_CRIT_BONUS)
             logger.trace(f"Lethal Shots: proc ({roll:.3f} < {self.proc_chance:.2f}) → +100% crit on {event.target}")
         else:
             logger.trace("Lethal Shots: no proc ({:.3f} >= {:.2f})", roll, self.proc_chance)
@@ -612,7 +626,7 @@ class LunarFury(Effect):
 
     name: str = field(default="lunarlight_fury", init=False)
 
-    bonus_damage_percent: float = field(default=0.3, init=False)
+    bonus_damage_percent: float = field(default=elarion_config.LUNAR_FURY_DAMAGE_BONUS, init=False)
 
     def on_add(self) -> None:
         self.owner.state.bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
@@ -635,7 +649,7 @@ class LunarlightAffinity(Effect):
 
     name: str = field(default="lunarlight_affinity", init=False)
 
-    bonus_crit_percent: float = field(default=0.4, init=False)
+    bonus_crit_percent: float = field(default=elarion_config.LUNARLIGHT_AFFINITY_CRIT_BONUS, init=False)
 
     def on_add(self) -> None:
         self.owner.state.bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
@@ -659,9 +673,9 @@ class Shimmer(Effect):
     """
 
     name: str = field(default="shimmer", init=False)
-    duration: float = field(default=9.0, init=False)
+    duration: float = field(default=elarion_config.SHIMMER_DURATION, init=False)
 
-    max_stacks: int = field(default=2, init=False)
+    max_stacks: int = field(default=elarion_config.SHIMMER_MAX_STACKS, init=False)
 
     def on_add(self) -> None:
         self.owner.state.bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
@@ -669,11 +683,13 @@ class Shimmer(Effect):
     def _on_pre_damage(self, event: PreDamageSnapshotUpdate) -> None:
         if event.target is not self.attached_to:
             return
-        event.snapshot = event.snapshot.scale_average_damage(1.0 + 0.10 * self.stacks)
+        event.snapshot = event.snapshot.scale_average_damage(
+            1.0 + elarion_config.SHIMMER_DAMAGE_PER_STACK * self.stacks
+        )
         logger.trace(
             "shimmer: {} +{:.0%} damage on {} ({} stacks)",
             event.damage_source,
-            0.10 * self.stacks,
+            elarion_config.SHIMMER_DAMAGE_PER_STACK * self.stacks,
             event.target,
             self.stacks,
         )
@@ -703,7 +719,7 @@ class StarstrikersAscentLegendary(Effect):
 
     name: str = field(default="startstrikers_ascent", init=False)
 
-    proc_chance: float = field(default=0.50, init=False)
+    proc_chance: float = field(default=elarion_config.STARSTRIKERS_ASCENT_PROC_CHANCE, init=False)
 
     def on_add(self) -> None:
         self.owner.state.bus.subscribe(SpiritProc, self._on_spirit_proc, owner=self)

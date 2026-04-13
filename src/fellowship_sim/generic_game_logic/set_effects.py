@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from typing import Literal
 
-from fellowship_sim.base_classes import Player
+from fellowship_sim.base_classes import Player, base_config
 from fellowship_sim.base_classes.effect import Buff, Effect
 from fellowship_sim.base_classes.events import (
     AbilityDamage,
@@ -21,6 +21,8 @@ from fellowship_sim.base_classes.stats import (
     StatModifier,
 )
 
+from . import generic_config
+
 # ---------------------------------------------------------------------------
 # Dark Prophecy (2-piece)
 # 0.8 rPPM (haste-scaled) on damage → +25% haste for 20s
@@ -32,10 +34,10 @@ class DarkProphecyBuff(Buff):
     """+25% Haste for 20s, applied by DarkProphecy on proc."""
 
     name: str = field(default="dark_prophecy_buff", init=False)
-    duration: float = field(default=20.0, init=False)
+    duration: float = field(default=generic_config.DARK_PROPHECY_BUFF_DURATION, init=False)
 
     def stat_modifiers(self) -> list[StatModifier]:
-        return [HastePercentAdditive(value=0.25)]
+        return [HastePercentAdditive(value=generic_config.DARK_PROPHECY_HASTE_BONUS)]
 
 
 @dataclass(kw_only=True, repr=False)
@@ -50,7 +52,7 @@ class DarkProphecy(Effect):
 
     def __post_init__(self) -> None:
         self._rppm = RealPPM(
-            base_ppm=0.8,
+            base_ppm=generic_config.DARK_PROPHECY_PPM,
             is_haste_scaled=False,
             is_crit_scaled=False,
             owner=self.owner,
@@ -76,10 +78,10 @@ class DraconicMightBuff(Buff):
     """+18% Main Stat for 14s, applied by DraconicMight on crit proc."""
 
     name: str = field(default="draconic_might_buff", init=False)
-    duration: float = field(default=14.0, init=False)
+    duration: float = field(default=generic_config.DRACONIC_MIGHT_BUFF_DURATION, init=False)
 
     def stat_modifiers(self) -> list[StatModifier]:
-        return [MainStatAdditiveMultiplierCharacter(value=0.18)]
+        return [MainStatAdditiveMultiplierCharacter(value=generic_config.DRACONIC_MIGHT_MAIN_STAT_BONUS)]
 
 
 @dataclass(kw_only=True, repr=False)
@@ -94,7 +96,7 @@ class DraconicMight(Effect):
 
     def __post_init__(self) -> None:
         self._rppm = RealPPM(
-            base_ppm=0.9,
+            base_ppm=generic_config.DRACONIC_MIGHT_PPM,
             is_haste_scaled=False,
             is_crit_scaled=True,
             owner=self.owner,
@@ -123,11 +125,11 @@ class DeathsGrasp(Buff):
 
     name: str = field(default="deaths_grasp", init=False)
 
-    low_health_threshold: float = 0.30
-    damage_bonus: float = 0.15
+    low_health_threshold: float = base_config.LOW_HEALTH_THRESHOLD
+    damage_bonus: float = generic_config.DEATHS_GRASP_DAMAGE_BONUS
 
     def stat_modifiers(self) -> list[StatModifier]:
-        return [SpiritPercentAdditive(value=0.03)]
+        return [SpiritPercentAdditive(value=generic_config.DEATHS_GRASP_SPIRIT_BONUS)]
 
     def on_add(self) -> None:
         super().on_add()
@@ -149,11 +151,11 @@ class DrakheimsAbsolutionBuff(Buff):
     """+20% Main stat for 20s, applied by DrakheimsAbsolution on spirit ability cast."""
 
     name: str = field(default="drakheims_absolution", init=False)
-    duration: float = field(default=20.0, init=False)
-    max_stacks: int = field(default=5, init=False)
+    duration: float = field(default=generic_config.DRAKHEIMS_ABSOLUTION_BUFF_DURATION, init=False)
+    max_stacks: int = field(default=generic_config.DRAKHEIMS_ABSOLUTION_MAX_STACKS, init=False)
 
     def stat_modifiers(self) -> list[StatModifier]:
-        return [MainStatTrueMultiplierCharacter(multiplier=1.20)]
+        return [MainStatTrueMultiplierCharacter(multiplier=generic_config.DRAKHEIMS_ABSOLUTION_MAIN_STAT_MULTIPLIER)]
 
 
 @dataclass(kw_only=True, repr=False)
@@ -182,7 +184,7 @@ class EldrinDeceit(Buff):
     name: str = field(default="eldrin_deceit", init=False)
 
     def stat_modifiers(self) -> list[StatModifier]:
-        return [CritPercentAdditive(value=0.03)]
+        return [CritPercentAdditive(value=generic_config.ELDRIN_DECEIT_CRIT_BONUS)]
 
 
 # ---------------------------------------------------------------------------
@@ -198,7 +200,7 @@ class HauntingLament(Buff):
     name: str = field(default="haunting_lament", init=False)
 
     def stat_modifiers(self) -> list[StatModifier]:
-        return [SpiritPercentAdditive(value=0.03)]
+        return [SpiritPercentAdditive(value=generic_config.HAUNTING_LAMENT_SPIRIT_BONUS)]
 
 
 # ---------------------------------------------------------------------------
@@ -214,7 +216,7 @@ class SinWarding(Buff):
     name: str = field(default="sin_warding", init=False)
 
     def stat_modifiers(self) -> list[StatModifier]:
-        return [ExpertisePercentAdditive(value=0.03)]
+        return [ExpertisePercentAdditive(value=generic_config.SIN_WARDING_EXPERTISE_BONUS)]
 
 
 # ---------------------------------------------------------------------------
@@ -230,7 +232,7 @@ class SintharasVeil(Buff):
     name: str = field(default="sintharas_veil", init=False)
 
     def stat_modifiers(self) -> list[StatModifier]:
-        return [SpiritPercentAdditive(value=0.03)]
+        return [SpiritPercentAdditive(value=generic_config.SINTHARAS_VEIL_SPIRIT_BONUS)]
 
 
 # ---------------------------------------------------------------------------
@@ -246,7 +248,7 @@ class TormentOfBaelAurum(Buff):
     name: str = field(default="torment_of_baelaurum", init=False)
 
     def stat_modifiers(self) -> list[StatModifier]:
-        return [MainStatTrueMultiplierCharacter(multiplier=1.04)]
+        return [MainStatTrueMultiplierCharacter(multiplier=generic_config.TORMENT_OF_BAELAURUM_MAIN_STAT_MULTIPLIER)]
 
 
 # ---------------------------------------------------------------------------
@@ -262,7 +264,7 @@ class TuzariGrace(Buff):
     name: str = field(default="tuzari_grace", init=False)
 
     def stat_modifiers(self) -> list[StatModifier]:
-        return [HastePercentAdditive(value=0.03)]
+        return [HastePercentAdditive(value=generic_config.TUZARI_GRACE_HASTE_BONUS)]
 
 
 # ---------------------------------------------------------------------------

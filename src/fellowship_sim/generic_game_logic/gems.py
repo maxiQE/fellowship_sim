@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 
 from loguru import logger
 
+from fellowship_sim.base_classes import base_config
 from fellowship_sim.base_classes.effect import Buff, Effect
 from fellowship_sim.base_classes.entity import Player
 from fellowship_sim.base_classes.events import (
@@ -27,6 +28,7 @@ from fellowship_sim.base_classes.stats import (
     SpiritScoreAdditive,
     StatModifier,
 )
+from fellowship_sim.generic_game_logic import generic_config
 
 
 @dataclass(kw_only=True, repr=False)
@@ -38,9 +40,9 @@ class MightOfTheMinotaur(Buff):
 
     def stat_modifiers(self) -> list[StatModifier]:
         hp_pct = self.owner.percent_hp
-        if hp_pct <= 0.8:
+        if hp_pct <= generic_config.MIGHT_OF_THE_MINOTAUR_HP_THRESHOLD:
             return []
-        value = 0.09 if self.is_level_2 else 0.03
+        value = generic_config.MIGHT_OF_THE_MINOTAUR_STAT_BONUS_L2 if self.is_level_2 else generic_config.MIGHT_OF_THE_MINOTAUR_STAT_BONUS_L1
         return [MainStatAdditiveMultiplierCharacter(value=value)]
 
 
@@ -52,7 +54,7 @@ class ChampionsHeart(Buff):
     is_level_2: bool = False
 
     def stat_modifiers(self) -> list[StatModifier]:
-        value = 45 if self.is_level_2 else 15
+        value = generic_config.CHAMPIONS_HEART_STAT_BONUS_L2 if self.is_level_2 else generic_config.CHAMPIONS_HEART_STAT_BONUS_L1
         return [MainStatAdditiveCharacter(value=value)]
 
 
@@ -83,9 +85,9 @@ class BlessingOfTheConqueror(Effect):
         self.owner.state.bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
 
     def _on_pre_damage(self, event: PreDamageSnapshotUpdate) -> None:
-        if not self.owner.state.information.is_boss_fight:
+        if not any(enemy.is_boss for enemy in self.owner.state.enemies):
             return
-        multiplier = 1.15 if self.is_level_2 else 1.05
+        multiplier = generic_config.BLESSING_OF_THE_CONQUEROR_DAMAGE_MULTIPLIER_L2 if self.is_level_2 else generic_config.BLESSING_OF_THE_CONQUEROR_DAMAGE_MULTIPLIER_L1
         event.snapshot = event.snapshot.scale_average_damage(multiplier)
 
 
@@ -100,9 +102,9 @@ class SealedFate(Effect):
         self.owner.state.bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
 
     def _on_pre_damage(self, event: PreDamageSnapshotUpdate) -> None:
-        if event.target.percent_hp <= 0.5:
+        if event.target.percent_hp <= generic_config.SEALED_FATE_HP_THRESHOLD:
             return
-        delta = 0.15 if self.is_level_2 else 0.05
+        delta = generic_config.SEALED_FATE_CRIT_BONUS_L2 if self.is_level_2 else generic_config.SEALED_FATE_CRIT_BONUS_L1
         event.snapshot = event.snapshot.add_crit_percent(delta)
 
 
@@ -114,7 +116,7 @@ class BerserkersZeal(Buff):
     is_level_2: bool = False
 
     def stat_modifiers(self) -> list[StatModifier]:
-        value = 300 if self.is_level_2 else 100
+        value = generic_config.BERSERKERS_ZEAL_CRIT_SCORE_L2 if self.is_level_2 else generic_config.BERSERKERS_ZEAL_CRIT_SCORE_L1
         return [CritScoreAdditive(value=value)]
 
 
@@ -134,7 +136,7 @@ class KillerInstinct(Buff):
     is_level_2: bool = False
 
     def stat_modifiers(self) -> list[StatModifier]:
-        value = 0.09 if self.is_level_2 else 0.03
+        value = generic_config.KILLER_INSTINCT_CRIT_BONUS_L2 if self.is_level_2 else generic_config.KILLER_INSTINCT_CRIT_BONUS_L1
         return [CritPercentAdditive(value=value)]
 
 
@@ -146,7 +148,7 @@ class BlessingOfTheDeathdealer(Buff):
     is_level_2: bool = False
 
     def stat_modifiers(self) -> list[StatModifier]:
-        multiplier = 1.09 if self.is_level_2 else 1.03
+        multiplier = generic_config.BLESSING_OF_THE_DEATHDEALER_CRIT_MULTIPLIER_L2 if self.is_level_2 else generic_config.BLESSING_OF_THE_DEATHDEALER_CRIT_MULTIPLIER_L1
         return [CritMultiplierMultiplicativeCharacter(multiplier=multiplier)]
 
 
@@ -155,11 +157,11 @@ class AdrenalineRushBuff(Buff):
     """+3% Haste for 10s, applied by AdrenalineRush on low-health targets (+9% at level 2)."""
 
     name: str = field(default="adrenaline_rush", init=False)
-    duration: float = field(default=10.0, init=False)
+    duration: float = field(default=generic_config.ADRENALINE_RUSH_BUFF_DURATION, init=False)
     is_level_2: bool = False
 
     def stat_modifiers(self) -> list[StatModifier]:
-        value = 0.09 if self.is_level_2 else 0.03
+        value = generic_config.ADRENALINE_RUSH_HASTE_BONUS_L2 if self.is_level_2 else generic_config.ADRENALINE_RUSH_HASTE_BONUS_L1
         return [HastePercentAdditive(value=value)]
 
 
@@ -174,7 +176,7 @@ class AdrenalineRush(Effect):
         self.owner.state.bus.subscribe(AbilityDamage, self._on_damage, owner=self)
 
     def _on_damage(self, event: AbilityDamage) -> None:
-        if event.target.percent_hp > 0.3:
+        if event.target.percent_hp > base_config.LOW_HEALTH_THRESHOLD:
             return
         self.owner.effects.add(AdrenalineRushBuff(is_level_2=self.is_level_2, owner=self.owner))
 
@@ -187,7 +189,7 @@ class ThiefsAlacrity(Buff):
     is_level_2: bool = False
 
     def stat_modifiers(self) -> list[StatModifier]:
-        value = 300 if self.is_level_2 else 100
+        value = generic_config.THIEFS_ALACRITY_HASTE_SCORE_L2 if self.is_level_2 else generic_config.THIEFS_ALACRITY_HASTE_SCORE_L1
         return [HasteScoreAdditive(value=value)]
 
 
@@ -207,7 +209,7 @@ class FelineGrace(Buff):
     is_level_2: bool = False
 
     def stat_modifiers(self) -> list[StatModifier]:
-        value = 0.09 if self.is_level_2 else 0.03
+        value = generic_config.FELINE_GRACE_HASTE_BONUS_L2 if self.is_level_2 else generic_config.FELINE_GRACE_HASTE_BONUS_L1
         return [HastePercentAdditive(value=value)]
 
 
@@ -219,7 +221,7 @@ class BlessingOfTheVirtuoso(Buff):
     is_level_2: bool = False
 
     def stat_modifiers(self) -> list[StatModifier]:
-        value = 0.09 if self.is_level_2 else 0.03
+        value = generic_config.BLESSING_OF_THE_VIRTUOSO_HASTE_BONUS_L2 if self.is_level_2 else generic_config.BLESSING_OF_THE_VIRTUOSO_HASTE_BONUS_L1
         return [HastePercentAdditive(value=value)]
 
 
@@ -228,11 +230,11 @@ class FirstStrikeBuff(Buff):
     """+5% Expertise for 15s, granted by FirstStrike on the first hit against a new enemy (+15% at level 2)."""
 
     name: str = field(default="first_strike_buff", init=False)
-    duration: float = field(default=15.0, init=False)
+    duration: float = field(default=generic_config.FIRST_STRIKE_BUFF_DURATION, init=False)
     is_level_2: bool = False
 
     def stat_modifiers(self) -> list[StatModifier]:
-        value = 0.15 if self.is_level_2 else 0.05
+        value = generic_config.FIRST_STRIKE_EXPERTISE_BONUS_L2 if self.is_level_2 else generic_config.FIRST_STRIKE_EXPERTISE_BONUS_L1
         return [ExpertisePercentAdditive(value=value)]
 
 
@@ -266,7 +268,7 @@ class VanguardsResolve(Buff):
     is_level_2: bool = False
 
     def stat_modifiers(self) -> list[StatModifier]:
-        value = 300 if self.is_level_2 else 100
+        value = generic_config.VANGUARDS_RESOLVE_EXPERTISE_SCORE_L2 if self.is_level_2 else generic_config.VANGUARDS_RESOLVE_EXPERTISE_SCORE_L1
         return [ExpertiseScoreAdditive(value=value)]
 
 
@@ -286,7 +288,7 @@ class TacticiansAcumen(Buff):
     is_level_2: bool = False
 
     def stat_modifiers(self) -> list[StatModifier]:
-        value = 0.09 if self.is_level_2 else 0.03
+        value = generic_config.TACTICIANS_ACUMEN_EXPERTISE_BONUS_L2 if self.is_level_2 else generic_config.TACTICIANS_ACUMEN_EXPERTISE_BONUS_L1
         return [ExpertisePercentAdditive(value=value)]
 
 
@@ -301,7 +303,7 @@ class BlessingOfTheCommander(Effect):
         self.owner.state.bus.subscribe(ComputeCooldownReduction, self._on_cdr, owner=self)
 
     def _on_cdr(self, event: ComputeCooldownReduction) -> None:
-        event.cdr_modifiers.append(0.12 if self.is_level_2 else 0.04)
+        event.cdr_modifiers.append(generic_config.BLESSING_OF_THE_COMMANDER_CDR_L2 if self.is_level_2 else generic_config.BLESSING_OF_THE_COMMANDER_CDR_L1)
 
 
 @dataclass(kw_only=True, repr=False)
@@ -312,7 +314,7 @@ class MysticsIntuition(Buff):
     is_level_2: bool = False
 
     def stat_modifiers(self) -> list[StatModifier]:
-        value = 300 if self.is_level_2 else 100
+        value = generic_config.MYSTICS_INTUITION_SPIRIT_SCORE_L2 if self.is_level_2 else generic_config.MYSTICS_INTUITION_SPIRIT_SCORE_L1
         return [SpiritScoreAdditive(value=value)]
 
 
@@ -332,7 +334,7 @@ class OraclesForesight(Buff):
     is_level_2: bool = False
 
     def stat_modifiers(self) -> list[StatModifier]:
-        value = 0.09 if self.is_level_2 else 0.03
+        value = generic_config.ORACLES_FORESIGHT_SPIRIT_BONUS_L2 if self.is_level_2 else generic_config.ORACLES_FORESIGHT_SPIRIT_BONUS_L1
         return [SpiritPercentAdditive(value=value)]
 
 
@@ -348,10 +350,10 @@ class HarmoniousSoulBuff(Buff):
     owner: Player
 
     name: str = field(default="harmonious_soul", init=False)
-    duration: float = field(default=5.0, init=False)
+    duration: float = field(default=generic_config.HARMONIOUS_SOUL_BUFF_DURATION, init=False)
 
     is_level_2: bool = field(default=False, init=True)
-    max_stacks: int = field(default=10, init=False)
+    max_stacks: int = field(default=generic_config.HARMONIOUS_SOUL_MAX_STACKS, init=False)
 
     def _expire(self, seq: int) -> None:
         """Overwritten: on expiry, remove a single stack."""
@@ -362,6 +364,7 @@ class HarmoniousSoulBuff(Buff):
         self._decay_one_stack()
 
     def _decay_one_stack(self) -> None:
+        """Remove one stack; if zero remain, remove the buff; otherwise renew duration and reschedule expiry."""
         if self.attached_to is None:
             raise Exception("HarmoniousSoul unattached")  # noqa: TRY002, TRY003
 
@@ -376,7 +379,7 @@ class HarmoniousSoulBuff(Buff):
             self.owner._recalculate_stats()
 
     def stat_modifiers(self) -> list[StatModifier]:
-        v = self.stacks * (0.009 if self.is_level_2 else 0.003)
+        v = self.stacks * (generic_config.HARMONIOUS_SOUL_STAT_BONUS_PER_STACK_L2 if self.is_level_2 else generic_config.HARMONIOUS_SOUL_STAT_BONUS_PER_STACK_L1)
         return [
             CritPercentAdditive(value=v),
             HastePercentAdditive(value=v),
@@ -411,7 +414,7 @@ class StoicsTeachings(Buff):
     is_level_2: bool = False
 
     def stat_modifiers(self) -> list[StatModifier]:
-        value = 75 if self.is_level_2 else 25
+        value = generic_config.STOICS_TEACHINGS_MAIN_STAT_L2 if self.is_level_2 else generic_config.STOICS_TEACHINGS_MAIN_STAT_L1
         return [MainStatAdditiveCharacter(value=value)]
 
 
@@ -431,7 +434,7 @@ class AncientsWisdom(Buff):
     is_level_2: bool = False
 
     def stat_modifiers(self) -> list[StatModifier]:
-        multiplier = 1.09 if self.is_level_2 else 1.03
+        multiplier = generic_config.ANCIENTS_WISDOM_MAIN_STAT_MULTIPLIER_L2 if self.is_level_2 else generic_config.ANCIENTS_WISDOM_MAIN_STAT_MULTIPLIER_L1
         return [MainStatTrueMultiplierCharacter(multiplier=multiplier)]
 
 
@@ -459,4 +462,4 @@ class GemOvercap(Buff):
             raise ValueError(f"gem overcap should be strictly positive, but got {self.overcap}")  # noqa: TRY003
 
     def stat_modifiers(self) -> list[StatModifier]:
-        return [MainStatAdditiveMultiplierCharacter(value=self.overcap * 0.00005)]
+        return [MainStatAdditiveMultiplierCharacter(value=self.overcap * generic_config.GEM_OVERCAP_MAIN_STAT_BONUS_PER_POINT)]

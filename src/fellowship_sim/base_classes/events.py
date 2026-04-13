@@ -101,12 +101,14 @@ class PreDamageSnapshotUpdate:
     ``is_dot`` is True when the hit originates from a DoT/periodic tick
     (deal_damage called with is_dot=True).  Listeners that only want to
     modify direct hits should check ``not event.is_dot``.
+    ``is_secondary`` is True when the hit targets a secondary (cleave) target.
     """
 
     damage_source: Ability[Player] | Effect
     target: Entity
     snapshot: SnapshotStats
     is_dot: bool = False
+    is_secondary: bool = False
     predamage_snapshot_modifiers: list[Callable[["PreDamageSnapshotUpdate"], None]] = field(default_factory=list)
     time: float = field(init=False)
 
@@ -129,6 +131,7 @@ class AbilityDamage:
     is_crit: bool
     is_grievous_crit: bool
     damage: float
+    is_secondary: bool = False
     time: float = field(init=False)
 
     def __post_init__(self) -> None:
@@ -156,6 +159,7 @@ class AbilityPeriodicDamage:
     is_crit: bool
     is_grievous_crit: bool
     damage: float
+    is_secondary: bool = False
     time: float = field(init=False)
 
     def __post_init__(self) -> None:
@@ -218,7 +222,7 @@ class EffectApplied:
 
         self.time = self.effect.owner.state.time
 
-        if self.effect.name in IMPORTANT_EFFECTS:
+        if isinstance(self.effect, tuple(IMPORTANT_EFFECTS)):
             logger.success(f"effect applied: {self.effect} on {self.target}")
         else:
             logger.debug(f"effect applied: {self.effect} on {self.target}")
@@ -237,7 +241,7 @@ class EffectRemoved:
 
         self.time = self.effect.owner.state.time
 
-        if self.effect.name in IMPORTANT_EFFECTS:
+        if isinstance(self.effect, tuple(IMPORTANT_EFFECTS)):
             logger.success(f"effect removed: {self.effect} on {self.target}")
         else:
             logger.debug(f"effect removed: {self.effect} on {self.target}")
@@ -256,7 +260,7 @@ class EffectRefreshed:
 
         self.time = self.effect.owner.state.time
 
-        if self.effect.name in IMPORTANT_EFFECTS:
+        if isinstance(self.effect, tuple(IMPORTANT_EFFECTS)):
             logger.success(f"effect refreshed: {self.effect} on {self.target}")
         else:
             logger.debug(f"effect refreshed: {self.effect} on {self.target}")
@@ -399,6 +403,13 @@ class EventBus:
         self._owner_handlers: dict[int, list[tuple[type, EventHandler]]] = defaultdict(list)
 
     def subscribe(self, event_type: type, handler: EventHandler, owner: object | None = None) -> None:
+        """Register a handler for a specific event type.
+
+        Args:
+            event_type: The event class to listen for.
+            handler: Callable invoked with the event instance when emitted.
+            owner: Optional owner for bulk unsubscribe via unsubscribe_all(owner).
+        """
         self._handlers[event_type].append(handler)
         if owner is not None:
             self._owner_handlers[id(owner)].append((event_type, handler))
@@ -407,6 +418,13 @@ class EventBus:
         logger.debug(f"bus subscribe: {event_label} ← {getattr(handler, '__qualname__', repr(handler))}")
 
     def unsubscribe_all(self, owner: object) -> None:
+        """Remove every handler registered under owner.
+
+        Typically called in Effect.remove() to clean up all subscriptions at once.
+
+        Args:
+            owner: The object whose handlers should be removed.
+        """
         pairs = self._owner_handlers.pop(id(owner), [])
         for event_type, handler in pairs:
             self._handlers[event_type].remove(handler)
@@ -414,6 +432,13 @@ class EventBus:
             logger.debug(f"bus unsubscribe all: {owner} ({len(pairs)} handler(s))")
 
     def emit(self, event: SimEvent) -> None:
+        """Dispatch event to all registered handlers for its type.
+
+        Handlers are called in subscription order with event as the sole argument.
+
+        Args:
+            event: The event instance to dispatch.
+        """
         handlers = list(self._handlers.get(type(event), []))
 
         event_label = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", type(event).__name__).lower()

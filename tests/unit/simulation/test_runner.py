@@ -2,6 +2,7 @@
 
 from collections.abc import Iterator
 from dataclasses import dataclass, field
+from unittest.mock import patch
 
 from fellowship_sim.base_classes.ability import Ability
 from fellowship_sim.base_classes.events import AbilityDamage
@@ -11,7 +12,7 @@ from fellowship_sim.elarion.entity import Elarion
 from fellowship_sim.elarion.setup import ElarionSetup
 from fellowship_sim.simulation.base import Rotation
 from fellowship_sim.simulation.runner import run_k, run_once
-from fellowship_sim.simulation.scenarios import BossFightScenario, Scenario
+from fellowship_sim.simulation.scenarios import Scenario, boss_fight_scenario, generate_new_scenario
 
 # ---------------------------------------------------------------------------
 # Minimal fixtures
@@ -19,9 +20,8 @@ from fellowship_sim.simulation.scenarios import BossFightScenario, Scenario
 
 _SETUP = ElarionSetup(raw_stats=RawStatsFromPercents(main_stat=1000.0))
 
-_SCENARIO = BossFightScenario(
+_SCENARIO = boss_fight_scenario(
     duration=10.0,
-    bonus_spirit_point_per_s=0.0,
     delay_since_last_fight=None,
 )
 
@@ -40,29 +40,6 @@ class _StubDamageSource:
 
     def __str__(self) -> str:
         return "stub"
-
-
-@dataclass(kw_only=True)
-class _SeedCapturingScenario:
-    """Wraps a Scenario and records every rng_seed passed to generate_new_scenario."""
-
-    _inner: Scenario
-    seeds_seen: list[int | None] = field(default_factory=list)
-    last_state: State | None = field(default=None, init=False)
-
-    @property
-    def duration(self) -> float:
-        return self._inner.duration
-
-    @property
-    def num_enemies(self) -> int:
-        return self._inner.num_enemies
-
-    def generate_new_scenario(self, setup: ElarionSetup, rng_seed: int | None) -> tuple[State, Elarion]:
-        self.seeds_seen.append(rng_seed)
-        state, elarion = self._inner.generate_new_scenario(setup, rng_seed=rng_seed)
-        self.last_state = state
-        return state, elarion
 
 
 @dataclass(kw_only=True)
@@ -114,9 +91,13 @@ class TestRunOnce:
 
     def test_seed_forwarded_to_scenario(self) -> None:
         """The seed passed to run_once reaches generate_new_scenario unchanged."""
-        scenario = _SeedCapturingScenario(_inner=_SCENARIO)
-        run_once(scenario=scenario, rotation=_StateCapturingRotation(), setup=_SETUP, seed=99)  # ty:ignore[invalid-argument-type]
-        assert scenario.seeds_seen == [99]
+        real_state, real_elarion = generate_new_scenario(scenario=_SCENARIO, setup=_SETUP, rng_seed=0)
+
+        with patch(
+            "fellowship_sim.simulation.runner.generate_new_scenario", return_value=(real_state, real_elarion)
+        ) as mock_gen:
+            run_once(scenario=_SCENARIO, rotation=_StateCapturingRotation(), setup=_SETUP, seed=99)
+        mock_gen.assert_called_once_with(scenario=_SCENARIO, setup=_SETUP, rng_seed=99)
 
     def test_active_state_during_rotation_is_from_scenario(self) -> None:
         """The State that is active when the rotation runs is the one generate_new_scenario returned.
@@ -124,10 +105,9 @@ class TestRunOnce:
         Verifies that run_once does not silently replace or deactivate the state between
         setup and execution.
         """
-        scenario = _SeedCapturingScenario(_inner=_SCENARIO)
         rotation = _StateCapturingRotation()
-        run_once(scenario=scenario, rotation=rotation, setup=_SETUP, seed=0)  # ty:ignore[invalid-argument-type]
-        assert rotation.captured_states[0] is scenario.last_state
+        run_once(scenario=_SCENARIO, rotation=rotation, setup=_SETUP, seed=0)
+        assert rotation.captured_states[0] is get_state()
 
 
 # ---------------------------------------------------------------------------
@@ -140,9 +120,16 @@ class TestRunK:
 
     def test_seeds_are_sequential(self) -> None:
         """Each run receives seed = base_seed + i (i = 0 … k-1), in order."""
-        scenario = _SeedCapturingScenario(_inner=_SCENARIO)
-        run_k(k=3, scenario=scenario, rotation=_StateCapturingRotation(), setup=_SETUP, base_seed=10, metrics=[])  # ty:ignore[invalid-argument-type]
-        assert scenario.seeds_seen == [10, 11, 12]
+        seeds_seen: list[float | None] = []
+
+        def _capturing_gen(scenario: Scenario, setup: ElarionSetup, rng_seed: float | None) -> tuple[State, Elarion]:
+            seeds_seen.append(rng_seed)
+            return generate_new_scenario(scenario=scenario, setup=setup, rng_seed=rng_seed)
+
+        with patch("fellowship_sim.simulation.runner.generate_new_scenario", _capturing_gen):
+            run_k(k=3, scenario=_SCENARIO, rotation=_StateCapturingRotation(), setup=_SETUP, base_seed=10, metrics=[])
+
+        assert seeds_seen == [10, 11, 12]
 
     def test_each_run_gets_fresh_state(self) -> None:
         """Each of the k runs operates on a distinct State instance."""

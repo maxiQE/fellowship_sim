@@ -32,6 +32,17 @@ BARRAGE_BUILD__NO_IHB: list[ElarionTalentName] = [
 ]
 
 
+BASIC_HWA_BUILD: list[ElarionTalentName] = [
+    "Final Crescendo",
+    "Skyward Munitions",
+    "Lethal Shots",
+    "Lunarlight Affinity",
+    "Fervent Supremacy",
+    "Resurgent Winds",
+    "Last Lights",
+]
+
+
 # Gems
 
 # +762 overcap; 1 set
@@ -178,8 +189,8 @@ class ElarionSetupAngryMultiplierStack(ElarionSetup):
 class ElarionSetupAngryThreeSet(ElarionSetup):
     """Alternative build to consensus:
 
-    - 3 set setup: Drakheim + Torment
-    - 10b 4w 1r
+    - 3 set setup: Drakheim + Torment + execute
+    - 10b
 
     The objective is to stack main stat modifiers.
     """
@@ -210,3 +221,31 @@ class ElarionSetupAngryThreeSet(ElarionSetup):
     weapon_ability: WeaponName | None = field(default="Voidbringer's Touch", init=True)
     master_trait: WeaponMasterTraitName | None = field(default="Visions Of Grandeur", init=True)
     gem_power: dict[GemColorName, int] | None = field(default_factory=lambda: {**GEM_BUILD_10b__3_set}, init=True)
+
+
+@dataclass(kw_only=True)
+class ElarionShimmer(ElarionSetup):
+    """HWA build attempt."""
+
+    raw_stats: RawStats
+
+    high_hp_uptime: float | None = field(default=None, init=True)
+
+    heroic_traits: list[WeaponHeroicTraitName] | None = field(
+        default_factory=lambda: [
+            "Kindling",
+            "Inspired Allegiance",
+        ],
+        init=True,
+    )
+    sets: list[SetEffectName] | None = field(
+        default_factory=lambda: [],
+        init=True,
+    )
+    num_sets: int | None = field(default=0, init=True)
+
+    talents: list[ElarionTalentName] | None = field(default_factory=lambda: BASIC_HWA_BUILD, init=True)
+    legendary: ElarionLegendaryName | None = field(default="Cloak", init=True)
+    weapon_ability: WeaponName | None = field(default="Voidbringer's Touch", init=True)
+    master_trait: WeaponMasterTraitName | None = field(default="Visions Of Grandeur", init=True)
+    gem_power: dict[GemColorName, int] | None = field(default_factory=lambda: {**GEM_BUILD_10b_6r_6p__0_set}, init=True)

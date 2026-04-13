@@ -9,6 +9,7 @@ from loguru import logger
 from fellowship_sim.base_classes import Effect
 from fellowship_sim.base_classes.entity import Player
 from fellowship_sim.base_classes.setup import SetupContext, SetupEffectEarly, SetupEffectLate
+from fellowship_sim.generic_game_logic import generic_config
 from fellowship_sim.generic_game_logic.buff import BaseCritPercent, RandomizePlayerPercentHP, SpiritOfHeroismAura
 from fellowship_sim.generic_game_logic.gems import (
     AdrenalineRush,
@@ -52,9 +53,9 @@ from fellowship_sim.generic_game_logic.weapon_traits import (
     WeaponMasterTraitName,
 )
 
-_UNLOCK_THRESHOLDS: list[int] = [120, 240, 480, 720, 960]
-_LEVELUP_THRESHOLDS: list[int] = [1200, 1560, 1920, 2280, 2640]
-_OVERCAP_THRESHOLD: int = 2640
+_UNLOCK_THRESHOLDS: list[int] = generic_config.GEM_UNLOCK_THRESHOLDS
+_LEVELUP_THRESHOLDS: list[int] = generic_config.GEM_LEVELUP_THRESHOLDS
+_OVERCAP_THRESHOLD: int = generic_config.GEM_OVERCAP_THRESHOLD
 
 
 @dataclass(kw_only=True)
@@ -62,6 +63,7 @@ class DefaultEffectSetup(SetupEffectEarly[Player]):
     """Add the default +5% crit and SpiritOfHeroismAura effects."""
 
     def apply(self, character: Player, context: SetupContext) -> None:
+        """Add BaseCritPercent and SpiritOfHeroismAura; store the aura in context for downstream setup effects."""
         soh_aura = SpiritOfHeroismAura(owner=character)
         character.effects.add(BaseCritPercent(owner=character))
         character.effects.add(soh_aura)
@@ -131,7 +133,7 @@ class SetEffectSelection(SetupEffectLate[Player]):
 class RandomizePlayerPercentHPSetup(SetupEffectLate[Player]):
     """Setup effect to randomly shift player HP from 100% to low_hp_percent."""
 
-    high_hp_uptime: float = field(default=0.80, init=True)
+    high_hp_uptime: float = field(default=generic_config.RANDOMIZE_PLAYER_HP_DEFAULT_HIGH_UPTIME, init=True)
 
     def __str__(self) -> str:
         return f"High HP uptime: {100 * self.high_hp_uptime:.0f}%"
@@ -188,7 +190,8 @@ class AncestralSurgeSetup(_GenericGemSetupEffectLate):
     """
 
     def apply(self, character: Player, context: SetupContext) -> None:
-        bonus = 30 if self.is_level_2 else 10
+        """Increase max_spirit_points and set spirit_of_heroism_aura.ancestral_surge_level."""
+        bonus = generic_config.ANCESTRAL_SURGE_MAX_SPIRIT_BONUS_L2 if self.is_level_2 else generic_config.ANCESTRAL_SURGE_MAX_SPIRIT_BONUS_L1
         character.max_spirit_points += bonus
         level = 2 if self.is_level_2 else 1
         aura = context.spirit_of_heroism_aura
@@ -209,8 +212,9 @@ class BlessingOfTheProphetSetup(_GenericGemSetupEffectLate):
     """
 
     def apply(self, character: Player, context: SetupContext) -> None:
-        duration_bonus = 18.0 if self.is_level_2 else 6.0
-        cost_reduction = 15.0 if self.is_level_2 else 5.0
+        """Extend SOH duration and reduce spirit_ability_cost on the character."""
+        duration_bonus = generic_config.BLESSING_OF_THE_PROPHET_SOH_DURATION_BONUS_L2 if self.is_level_2 else generic_config.BLESSING_OF_THE_PROPHET_SOH_DURATION_BONUS_L1
+        cost_reduction = generic_config.BLESSING_OF_THE_PROPHET_SPIRIT_COST_REDUCTION_L2 if self.is_level_2 else generic_config.BLESSING_OF_THE_PROPHET_SPIRIT_COST_REDUCTION_L1
         aura = context.spirit_of_heroism_aura
         if aura is None:
             raise RuntimeError(  # noqa: TRY003
@@ -294,7 +298,7 @@ class GemSetupEffect(SetupEffectLate[Player]):
 
     gem_power: dict[GemColorName, int]
 
-    total_gem_power: int = field(default=5256, init=True)
+    total_gem_power: int = field(default=generic_config.GEM_TOTAL_MAX_POWER, init=True)
     gem_trait_level: dict[GemColorName, tuple[int, int]] = field(init=False)
     overcap_power: int = field(init=False)
 

@@ -14,6 +14,7 @@ class Optional:
     condition: RotationCondition
 
     def __call__(self, state: State) -> Ability | None:
+        """Return element if condition is True and castable, else None."""
         if self.condition(state):
             if isinstance(self.element, Ability):
                 if self.element.can_cast():
@@ -31,6 +32,7 @@ class PriorityList:
     element_list: list[Ability | RotationElement]
 
     def __call__(self, state: State) -> Ability | None:
+        """Return the first element that is castable, in priority order."""
         for elem in self.element_list:
             if isinstance(elem, Ability):
                 if elem.can_cast():
@@ -49,6 +51,7 @@ class Sequence:
     _index: int = field(default=0, init=False)
 
     def __call__(self, state: State) -> Ability | None:
+        """Return the next element in round-robin order; advance the internal index."""
         elem = self.element_list[self._index]
         self._index = (self._index + 1) % len(self.element_list)
         if isinstance(elem, Ability):
@@ -67,6 +70,7 @@ class WeightedChoiceList:
     weighted_choice_list: list[WeightedChoice]
 
     def __call__(self, state: State) -> Ability | None:
+        """Return the highest-weighted castable element, or None if all weights are None."""
         choices_with_weights: list[tuple[Ability | RotationElement, float]] = [
             (elem, weight_function(state))
             for elem, weight_function in self.weighted_choice_list

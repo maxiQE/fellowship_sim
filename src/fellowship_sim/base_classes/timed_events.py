@@ -63,6 +63,8 @@ class PlayerAvailableAgain(TimedEvent):
 
 @dataclass(kw_only=True)
 class FightDowntimeStart(TimedEvent):
+    """Marks the start of a between-pack downtime window; blocks the player from acting."""
+
     name: str
     callback: Callable[[], None] | None = field(default=None, init=True, repr=False)
 
@@ -83,6 +85,8 @@ class FightDowntimeStart(TimedEvent):
 
 @dataclass(kw_only=True)
 class FightDowntimeEnd(TimedEvent):
+    """Marks the end of a between-pack downtime window; allows the player to act again."""
+
     name: str
     callback: Callable[[], None] | None = field(default=None, init=True, repr=False)
 

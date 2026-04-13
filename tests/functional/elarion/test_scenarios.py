@@ -9,10 +9,15 @@ from fellowship_sim.elarion.setup import ElarionSetup
 from fellowship_sim.generic_game_logic.gems import (
     AdrenalineRush,
     AdrenalineRushBuff,
+    FirstStrikeBuff,
     HarmoniousSoul,
     HarmoniousSoulBuff,
 )
-from fellowship_sim.simulation.scenarios import BossFightScenario, TrashAOEFightScenario
+from fellowship_sim.simulation.scenarios import (
+    boss_fight_scenario,
+    generate_new_scenario,
+    multiple_identical_packs_scenario,
+)
 from tests.conftest import FixedRNG
 
 # ---------------------------------------------------------------------------
@@ -90,14 +95,15 @@ class TestScenarios:
           - 50%:  SealedFate deactivates (HP ≤ 0.5 guard)
           - <30%: Death's Grasp active (+1.15× damage), Last Lights active (+0.30 crit)
         """
-        scenario = TrashAOEFightScenario(
-            num_enemies=1,
+        scenario = multiple_identical_packs_scenario(
             pack_duration=100,
-            bonus_spirit_point_per_s=0.0,
+            num_big=1,
+            num_packs=1,
+            pack_interval=0.0,
             delay_since_last_fight=None,
             initial_spirit_points=0,
         )
-        state, elarion = scenario.generate_new_scenario(setup=_SETUP, rng_seed=42)
+        state, elarion = generate_new_scenario(scenario=scenario, setup=_SETUP, rng_seed=42)
 
         rng = FixedRNG(value=1.0)
         state.rng = rng
@@ -204,16 +210,17 @@ class TestScenarios:
           - 50%:  SealedFate deactivates (HP ≤ 0.5 guard)
           - <30%: Death's Grasp active (+1.15× damage), Last Lights active (+0.30 crit)
         """
-        scenario = TrashAOEFightScenario(
-            num_enemies=num_enemies,
-            num_enemies_medium=num_enemies_medium,
-            num_enemies_small=num_enemies_small,
+        scenario = multiple_identical_packs_scenario(
             pack_duration=100,
-            bonus_spirit_point_per_s=0.0,
+            num_big=num_enemies - num_enemies_medium - num_enemies_small,
+            num_medium=num_enemies_medium,
+            num_small=num_enemies_small,
+            num_packs=1,
+            pack_interval=0.0,
             delay_since_last_fight=None,
             initial_spirit_points=0,
         )
-        state, elarion = scenario.generate_new_scenario(setup=_SETUP, rng_seed=42)
+        state, elarion = generate_new_scenario(scenario=scenario, setup=_SETUP, rng_seed=42)
 
         rng = FixedRNG(value=1.0)
         state.rng = rng
@@ -307,16 +314,17 @@ class TestScenarios:
 
     def test_adrenaline_rush__mixed_health_scenario(self) -> None:
         """Check that AR correctly goes up on AOE damage in the mixed_health_scenario."""
-        scenario = TrashAOEFightScenario(
-            num_enemies=12,
-            num_enemies_medium=4,
-            num_enemies_small=4,
+        scenario = multiple_identical_packs_scenario(
             pack_duration=100,
-            bonus_spirit_point_per_s=0.0,
+            num_big=4,
+            num_medium=4,
+            num_small=4,
+            num_packs=1,
+            pack_interval=0.0,
             delay_since_last_fight=None,
             initial_spirit_points=0,
         )
-        state, elarion = scenario.generate_new_scenario(setup=_SETUP, rng_seed=42)
+        state, elarion = generate_new_scenario(scenario=scenario, setup=_SETUP, rng_seed=42)
 
         elarion.effects.add(AdrenalineRush(owner=elarion))
 
@@ -346,19 +354,106 @@ class TestScenarios:
 
         assert elarion.effects.has(AdrenalineRushBuff)
 
+    def test_scenarios_with_multiple_packs(self) -> None:
+        """Functional test for scenario with multiple packs.
+
+        NB: use a pack with only big mobs.
+
+        - check that character cannot act during time window between packs.
+        - check that mobs are reset with new IDs.
+        - proc yellow1 during pack 1 execute.
+        - proc white 1 on unit death at pack end.
+        - proc green 1 at the beginning of pack2.
+        """
+        num_enemies = 12
+        pack_duration = 100
+        pack_interval = 19
+        scenario = multiple_identical_packs_scenario(
+            pack_duration=pack_duration,
+            num_big=num_enemies,
+            num_packs=3,
+            pack_interval=pack_interval,
+            delay_since_last_fight=None,
+            initial_spirit_points=0,
+        )
+        setup = ElarionSetup(
+            raw_stats=RawStatsFromPercents(main_stat=1000.0),
+            gem_power={
+                "yellow__topaz": 120,  # yellow 1: when damaging an enemy in execute range, gain a haste bonus AdrenalineRushBuff
+                "green__emerald": 120,  # green 1: when damaging an enemy for the first time, gain an expertise buff FirstStrikeBuff
+                "white__diamond": 120,  # white 1 : on UnitDestroyed, gain HarmoniousSoulBuff
+            },
+        )
+        state, elarion = generate_new_scenario(scenario=scenario, setup=setup, rng_seed=42)
+
+        rng = FixedRNG(value=1.0)
+        state.rng = rng
+
+        # first attack procs FirstStrikeBuff; all enemies are tagged
+        elarion.multishot.charges = 5
+        elarion.multishot.cast(state.main_target)
+
+        assert elarion.effects.has(FirstStrikeBuff)
+        assert not elarion.effects.has(AdrenalineRushBuff)
+
+        # wait for first strike to expire
+        elarion.wait(20)
+
+        assert not elarion.effects.has(FirstStrikeBuff)
+        assert not elarion.effects.has(AdrenalineRushBuff)
+
+        # second attack does not proc FirstStrikeBuff; enemies have already been tagged
+        elarion.multishot.charges = 5
+        elarion.multishot.cast(state.main_target)
+
+        assert not elarion.effects.has(FirstStrikeBuff)
+        assert not elarion.effects.has(AdrenalineRushBuff)
+
+        # Move to execute phase
+        elarion.wait(pack_duration * 0.8 - state.time)
+
+        elarion.multishot.charges = 5
+        elarion.multishot.cast(state.main_target)
+
+        assert elarion.effects.has(AdrenalineRushBuff)
+
+        # Move to just before end of pack
+        elarion.wait(pack_duration - 1 - state.time)
+
+        assert not elarion.effects.has(HarmoniousSoulBuff)
+
+        # Crosses the end-of-pack timing
+        elarion.multishot.charges = 5
+        elarion.multishot.cast(state.main_target)
+
+        assert state.time == pack_duration + pack_interval
+
+        hs = elarion.effects.get(HarmoniousSoulBuff)
+        assert hs is not None
+        assert hs.stacks == min(hs.max_stacks, num_enemies) - pack_interval // HarmoniousSoulBuff.duration
+
+        assert not elarion.effects.has(FirstStrikeBuff)
+        assert not elarion.effects.has(AdrenalineRushBuff)
+
+        # first attack on second pack
+        elarion.multishot.charges = 5
+        elarion.multishot.cast(state.main_target)
+
+        assert elarion.effects.has(FirstStrikeBuff)
+        assert not elarion.effects.has(AdrenalineRushBuff)
+
     def test_boss_fight_scenario(self) -> None:
         """Test the boss fight scenario (duration=100 for simple HP math).
 
         BlessingOfTheConqueror L1 (+5% damage) applies throughout (boss fight flag).
         Combined with Death's Grasp at HP ≤ 30%: 1.05 × 1.15 = 1.2075× damage.
         """
-        scenario = BossFightScenario(
+        scenario = boss_fight_scenario(
             duration=100,
-            bonus_spirit_point_per_s=0.0,
             delay_since_last_fight=None,
             initial_spirit_points=0,
         )
-        state, elarion = scenario.generate_new_scenario(setup=_SETUP, rng_seed=42)
+        state, elarion = generate_new_scenario(scenario=scenario, setup=_SETUP, rng_seed=42)
 
         rng = FixedRNG(value=1.0)
         state.rng = rng

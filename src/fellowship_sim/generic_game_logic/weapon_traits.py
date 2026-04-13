@@ -33,6 +33,7 @@ from fellowship_sim.base_classes.events import (
 from fellowship_sim.base_classes.real_ppm import RealPPM
 from fellowship_sim.base_classes.setup import SetupContext, SetupEffectLate
 from fellowship_sim.base_classes.timed_events import GenericTimedEvent
+from fellowship_sim.generic_game_logic import generic_config
 from fellowship_sim.generic_game_logic.gems import FirstStrike, HarmoniousSoulBuff
 from fellowship_sim.generic_game_logic.weapon_abilities import CurseOfAnzhyr
 
@@ -64,8 +65,8 @@ class AmethystSplintersDoT(Effect):
     """
 
     name: str = field(default="amethyst_splinters_dot", init=False)
-    duration: float = field(default=8.0, init=False)
-    base_tick_time: float = 2.0
+    duration: float = field(default=generic_config.AMETHYST_SPLINTERS_DOT_DURATION, init=False)
+    base_tick_time: float = generic_config.AMETHYST_SPLINTERS_DOT_BASE_TICK_TIME
 
     # From init
     haste_percent: float
@@ -139,7 +140,7 @@ class AmethystSplintersDoT(Effect):
             callback=GenericTimedEvent(name="amethyst_splinters_dot tick", callback=self._do_tick),
         )
 
-    def on_remove(self) -> None:
+    def on_remove(self, *, is_remove_from_expiration: bool = False) -> None:
         if self.stored_damage > 1e-9:
             logger.debug("Amethyst Splinters DoT partial tick: {:.2f}", self.stored_damage)
             self._deal(self.stored_damage)
@@ -174,7 +175,7 @@ class AmethystSplinters(Effect):
     name: str = field(default="amethyst_splinters", init=False)
     trait_level: int = 4
 
-    _ratio_table: ClassVar[list[float]] = [0.07, 0.08, 0.09, 0.10]
+    _ratio_table: ClassVar[list[float]] = generic_config.AMETHYST_SPLINTERS_DAMAGE_RATIO_TABLE
 
     @property
     def damage_ratio(self) -> float:
@@ -218,8 +219,8 @@ class DiamondStrikeEcho(Effect):
     """
 
     name: str = field(default="diamond_strike_echo", init=False)
-    duration: float = field(default=20.0, init=False)
-    max_stacks: int = field(default=5, init=False)
+    duration: float = field(default=generic_config.DIAMOND_STRIKE_ECHO_DURATION, init=False)
+    max_stacks: int = field(default=generic_config.DIAMOND_STRIKE_ECHO_MAX_STACKS, init=False)
 
 
 @dataclass(kw_only=True, repr=False)
@@ -241,8 +242,8 @@ class DiamondStrike(Effect):
     name: str = field(default="diamond_strike", init=False)
     trait_level: int = 4
 
-    _ppm_table: ClassVar[list[float]] = [5.0, 5.5, 6.1, 6.7]
-    _base_dmg_table: ClassVar[list[float]] = [1480.0, 1780.0, 2000.0, 2370.0]
+    _ppm_table: ClassVar[list[float]] = generic_config.DIAMOND_STRIKE_PPM_TABLE
+    _base_dmg_table: ClassVar[list[float]] = generic_config.DIAMOND_STRIKE_BASE_DAMAGE_TABLE
 
     _rppm: RealPPM = field(init=False)
 
@@ -283,7 +284,11 @@ class DiamondStrike(Effect):
         echo = target.effects.get(DiamondStrikeEcho)
         n_echo = echo.stacks if echo is not None else 0
 
-        base_damage = unscaled_base_damage * (1 + n_h_soul * 0.35) * (1 + n_echo * 0.40)
+        base_damage = (
+            unscaled_base_damage
+            * (1 + n_h_soul * generic_config.DIAMOND_STRIKE_BONUS_DAMAGE_PER_HARMONIOUS_SOUL_STACK)
+            * (1 + n_echo * generic_config.DIAMOND_STRIKE_BONUS_DAMAGE_PER_ECHO_STACK)
+        )
 
         logger.debug(
             "Diamond Strike proc: unscaled base={:.0f} harmonious soul count={} diamond strike echo count={} → base damage={:.0f} on {}",
@@ -318,13 +323,13 @@ class EmeraldJudgement(Effect):
     name: str = field(default="emerald_judgement", init=False)
     trait_level: int = 4
 
-    _base_dmg_table: ClassVar[list[float]] = [6000.0, 7000.0, 8000.0, 9000.0]
+    _base_dmg_table: ClassVar[list[float]] = generic_config.EMERALD_JUDGEMENT_BASE_DAMAGE_TABLE
 
     _rppm: RealPPM = field(init=False)
 
     def __post_init__(self) -> None:
         self._rppm = RealPPM(
-            base_ppm=2.0,
+            base_ppm=generic_config.EMERALD_JUDGEMENT_PPM,
             is_haste_scaled=True,
             is_crit_scaled=False,
             owner=self.owner,
@@ -399,12 +404,12 @@ class SapphireAurastonePulse(Effect):
     trait_level: int
     ratio: float = field(init=False)
 
-    pulse_interval: float = field(default=3.0, init=False)
+    pulse_interval: float = field(default=generic_config.SAPPHIRE_AURASTONE_PULSE_INTERVAL, init=False)
 
     accumulated: float = field(default=0.0, init=False)
 
     def __post_init__(self) -> None:
-        self.ratio = [0.07, 0.08, 0.09, 0.10][self.trait_level - 1]
+        self.ratio = generic_config.SAPPHIRE_AURASTONE_RATIO_TABLE[self.trait_level - 1]
 
     def on_add(self) -> None:
         bus = self.owner.state.bus
@@ -448,7 +453,7 @@ class SapphireAurastonePulse(Effect):
             callback=GenericTimedEvent(name="sapphire_aurastone pulse", callback=self._pulse),
         )
 
-    def on_remove(self) -> None:
+    def on_remove(self, *, is_remove_from_expiration: bool = False) -> None:
         if self.accumulated < 1e-9 or self.attached_to is None:
             return
         enemies = self.owner.state.enemies
@@ -491,7 +496,7 @@ class VisionsOfGrandeur(Effect):
     name: str = field(default="visions_of_grandeur", init=False)
     trait_level: int = 4
 
-    _sp_rate_table: ClassVar[list[float]] = [2.0, 2.4, 2.8, 3.2]
+    _sp_rate_table: ClassVar[list[float]] = generic_config.VISIONS_OF_GRANDEUR_SP_RATE_TABLE
 
     def on_add(self) -> None:
         bus = self.owner.state.bus
@@ -504,7 +509,7 @@ class VisionsOfGrandeur(Effect):
         if not isinstance(event.ability, WeaponAbility):
             return
         sp_rate = self._sp_rate_table[self.trait_level - 1]
-        sp = sp_rate * event.ability.base_cooldown / 30.0
+        sp = sp_rate * event.ability.base_cooldown / generic_config.VISIONS_OF_GRANDEUR_SP_CDR_NORMALIZATION
         char = self.owner
         char.spirit_points = min(char.spirit_points + sp, char.max_spirit_points)
 
@@ -540,7 +545,7 @@ class BraveMachinations(Effect):
     name: str = field(default="brave_machinations", init=False)
     trait_level: int = 4
 
-    _crit_bonus_table: ClassVar[list[float]] = [0.20, 0.24, 0.28, 0.32]
+    _crit_bonus_table: ClassVar[list[float]] = generic_config.BRAVE_MACHINATIONS_CRIT_BONUS_TABLE
 
     # Epoch tracking: incremented on each weapon-ability cast; CDR fires once per epoch.
     _cast_epoch: int = field(default=0, init=False)
@@ -569,7 +574,7 @@ class BraveMachinations(Effect):
         if self._cdr_epoch == self._cast_epoch:
             return  # already triggered CDR this cast
         self._cdr_epoch = self._cast_epoch
-        ability._reduce_cooldown_multiplicative(0.30)
+        ability._reduce_cooldown_multiplicative(generic_config.BRAVE_MACHINATIONS_CDR_ON_CRIT)
 
         ability_label = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", type(ability).__name__)
         logger.debug(
@@ -605,7 +610,7 @@ class HeroicBrand(Effect):
     name: str = field(default="heroic_brand", init=False)
     trait_level: int = 4
 
-    _dmg_bonus_table: ClassVar[list[float]] = [0.50, 0.60, 0.70, 0.80]
+    _dmg_bonus_table: ClassVar[list[float]] = generic_config.HEROIC_BRAND_DAMAGE_BONUS_TABLE
 
     @property
     def damage_multiplier(self) -> float:
@@ -648,12 +653,12 @@ class RubyStorm(Effect):
     name: str = field(default="ruby_storm", init=False)
     trait_level: int = 4
 
-    _ratio_table: ClassVar[list[float]] = [0.065, 0.078, 0.091, 0.104]
+    _ratio_table: ClassVar[list[float]] = generic_config.RUBY_STORM_DAMAGE_RATIO_TABLE
     _rppm: RealPPM = field(init=False)
 
     def __post_init__(self) -> None:
         self._rppm = RealPPM(
-            base_ppm=1.3,
+            base_ppm=generic_config.RUBY_STORM_PPM,
             is_haste_scaled=True,
             is_crit_scaled=False,
             owner=self.owner,
@@ -686,7 +691,7 @@ class RubyStorm(Effect):
             char,
             event.target,
             base_damage,
-            num_secondary_targets=7,
+            num_secondary_targets=generic_config.RUBY_STORM_MAX_SECONDARY_TARGETS,
             is_scaled_by_main_stat=False,
         )
 
@@ -704,7 +709,7 @@ class MartialInitiativeBuff(Buff):
     duration: float = field(default=6.0, init=True)  # overridden at application time
 
     def stat_modifiers(self) -> list[StatModifier]:
-        return [MainStatAdditiveMultiplierCharacter(value=0.10)]
+        return [MainStatAdditiveMultiplierCharacter(value=generic_config.MARTIAL_INITIATIVE_MAIN_STAT_BONUS)]
 
 
 @dataclass(kw_only=True, repr=False)
@@ -720,7 +725,7 @@ class MartialInitiative(Effect):
     name: str = field(default="martial_initiative", init=False)
     trait_level: int = 4
 
-    _duration_ratio_table: ClassVar[list[float]] = [0.20, 0.24, 0.28, 0.32]
+    _duration_ratio_table: ClassVar[list[float]] = generic_config.MARTIAL_INITIATIVE_DURATION_RATIO_TABLE
 
     @property
     def duration_ratio(self) -> float:
@@ -752,10 +757,10 @@ class PowerRevealedBuff(Buff):
     """+X% Main Stat for 15s, granted when HiddenPower reaches 5 stacks."""
 
     name: str = field(default="power_revealed", init=False)
-    duration: float = field(default=15.0, init=False)
+    duration: float = field(default=generic_config.HIDDEN_POWER_REVEALED_BUFF_DURATION, init=False)
     trait_level: int = 4
 
-    _main_stat_table: ClassVar[list[float]] = [0.075, 0.09, 0.105, 0.12]
+    _main_stat_table: ClassVar[list[float]] = generic_config.HIDDEN_POWER_MAIN_STAT_TABLE
 
     def stat_modifiers(self) -> list[StatModifier]:
         return [MainStatAdditiveMultiplierCharacter(value=0.0 + self._main_stat_table[self.trait_level - 1])]
@@ -777,8 +782,8 @@ class HiddenPower(Effect):
     name: str = field(default="hidden_power", init=False)
     trait_level: int = 4
 
-    _STACK_DURATION: ClassVar[float] = 60.0
-    _MAX_STACKS: ClassVar[int] = 5
+    _STACK_DURATION: ClassVar[float] = generic_config.HIDDEN_POWER_STACK_DURATION
+    _MAX_STACKS: ClassVar[int] = generic_config.HIDDEN_POWER_MAX_STACKS
 
     _stacks: int = field(default=0, init=False)
     _decay_generation: int = field(default=0, init=False)
@@ -786,7 +791,7 @@ class HiddenPower(Effect):
 
     def __post_init__(self) -> None:
         self._rppm = RealPPM(
-            base_ppm=2.6,
+            base_ppm=generic_config.HIDDEN_POWER_PPM,
             is_haste_scaled=True,
             is_crit_scaled=False,
             owner=self.owner,
@@ -837,12 +842,12 @@ class HuntersFocusBuff(Buff):
     owner: Player
 
     name: str = field(default="hunters_focus_buff", init=False)
-    duration: float = field(default=8.0, init=False)
+    duration: float = field(default=generic_config.HUNTERS_FOCUS_BUFF_DURATION, init=False)
     trait_level: int = 4
 
-    max_stacks: int = field(default=5, init=False)
+    max_stacks: int = field(default=generic_config.HUNTERS_FOCUS_MAX_STACKS, init=False)
 
-    _haste_table: ClassVar[list[int]] = [20, 32, 43, 55]
+    _haste_table: ClassVar[list[int]] = generic_config.HUNTERS_FOCUS_HASTE_PER_STACK_TABLE
 
     @property
     def haste_per_stack(self) -> int:
@@ -897,10 +902,10 @@ class InspiredAllegianceBuff(Buff):
     """Haste Rating buff applied to self by InspiredAllegiance proc."""
 
     name: str = field(default="inspired_allegiance_buff", init=False)
-    duration: float = field(default=8.0, init=False)
+    duration: float = field(default=generic_config.INSPIRED_ALLEGIANCE_BUFF_DURATION, init=False)
     trait_level: int = 4
 
-    _haste_table: ClassVar[list[int]] = [85, 85, 85, 127]
+    _haste_table: ClassVar[list[int]] = generic_config.INSPIRED_ALLEGIANCE_HASTE_SCORE_TABLE
 
     def stat_modifiers(self) -> list[StatModifier]:
         return [HasteScoreAdditive(value=self._haste_table[self.trait_level - 1])]
@@ -922,12 +927,12 @@ class InspiredAllegiance(Effect):
     name: str = field(default="inspired_allegiance", init=False)
     trait_level: int = 4
 
-    _cdr_table: ClassVar[list[float]] = [2.0, 3.0, 4.0, 5.0]
+    _cdr_table: ClassVar[list[float]] = generic_config.INSPIRED_ALLEGIANCE_CDR_TABLE
     _rppm: RealPPM = field(init=False)
 
     def __post_init__(self) -> None:
         self._rppm = RealPPM(
-            base_ppm=1.2,
+            base_ppm=generic_config.INSPIRED_ALLEGIANCE_PPM,
             is_haste_scaled=True,
             is_crit_scaled=False,
             owner=self.owner,
@@ -968,8 +973,8 @@ class KindlingDoT(DoTEffect):
     """Fire DoT applied by the Kindling proc."""
 
     name: str = field(default="kindling_dot", init=False)
-    duration: float = field(default=9.0, init=False)
-    base_tick_duration: float = field(default=3.0, init=False)
+    duration: float = field(default=generic_config.KINDLING_DOT_DURATION, init=False)
+    base_tick_duration: float = field(default=generic_config.KINDLING_DOT_TICK_DURATION, init=False)
     ability: "None" = field(default=None, init=False)
 
 
@@ -989,12 +994,12 @@ class Kindling(Effect):
     name: str = field(default="kindling", init=False)
     trait_level: int = 4
 
-    _ratio_table: ClassVar[list[float]] = [6.44, 7.70, 9.31, 11.20]
+    _ratio_table: ClassVar[list[float]] = generic_config.KINDLING_DAMAGE_RATIO_TABLE
     _rppm: RealPPM = field(init=False)
 
     def __post_init__(self) -> None:
         self._rppm = RealPPM(
-            base_ppm=2.1,
+            base_ppm=generic_config.KINDLING_PPM,
             is_haste_scaled=True,
             is_crit_scaled=False,
             owner=self.owner,
@@ -1002,7 +1007,11 @@ class Kindling(Effect):
 
     @property
     def tick_base_damage(self) -> float:
-        return self._ratio_table[self.trait_level - 1] * 1000 / 3.0
+        return (
+            self._ratio_table[self.trait_level - 1]
+            * generic_config.KINDLING_DAMAGE_RATIO_SCALE
+            / (generic_config.KINDLING_DOT_DURATION / generic_config.KINDLING_DOT_TICK_DURATION)
+        )
 
     def on_add(self) -> None:
         self.owner.state.bus.subscribe(AbilityDamage, self._on_damage, owner=self)
@@ -1035,12 +1044,12 @@ class NavigatorsIntuitionBuff(Buff):
     """Highest secondary stat gains +X rating for 30s."""
 
     name: str = field(default="navigators_intuition_buff", init=False)
-    duration: float = field(default=30.0, init=False)
+    duration: float = field(default=generic_config.NAVIGATORS_INTUITION_BUFF_DURATION, init=False)
     trait_level: int = 4
 
     stat: Literal["crit", "haste", "expertise", "spirit"] = "crit"
 
-    _rating_table: ClassVar[list[int]] = [276, 414, 552, 690]
+    _rating_table: ClassVar[list[int]] = generic_config.NAVIGATORS_INTUITION_RATING_TABLE
 
     @property
     def rating(self) -> int:
@@ -1073,8 +1082,8 @@ class NavigatorsIntuition(Effect):
     name: str = field(default="navigators_intuition", init=False)
     trait_level: int = 4
 
-    _PROC_CHANCE: ClassVar[float] = 0.20
-    _ICD: ClassVar[float] = 90.0
+    _PROC_CHANCE: ClassVar[float] = generic_config.NAVIGATORS_INTUITION_PROC_CHANCE
+    _ICD: ClassVar[float] = generic_config.NAVIGATORS_INTUITION_ICD
 
     _next_available: float = field(default=0.0, init=False)
 
@@ -1104,10 +1113,10 @@ class NavigatorsIntuition(Effect):
         """Return 'crit', 'haste', 'expertise', or 'spirit' — whichever is highest."""
         stats = char.stats
         candidates = {
-            "crit": stats.crit_percent,
-            "haste": stats.haste_percent,
-            "expertise": stats.expertise_percent,
-            "spirit": stats.spirit_percent,
+            "crit": stats.crit_score,
+            "haste": stats.haste_score,
+            "expertise": stats.expertise_score,
+            "spirit": stats.spirit_score,
         }
         return cast("Literal['crit', 'haste', 'expertise', 'spirit']", max(candidates, key=lambda k: candidates[k]))
 
@@ -1120,7 +1129,7 @@ class PatientSoul(Buff):
 
     trait_level: int = 4
 
-    _expertise_score_table: ClassVar[list[int]] = [107, 141, 177, 212]
+    _expertise_score_table: ClassVar[list[int]] = generic_config.PATIENT_SOUL_EXPERTISE_SCORE_TABLE
 
     def stat_modifiers(self) -> list[StatModifier]:
         return [ExpertiseScoreAdditive(value=self._expertise_score_table[self.trait_level - 1])]
@@ -1136,10 +1145,10 @@ class SeizedOpportunityBuff(Buff):
     """+X Critical Strike Rating for 12s."""
 
     name: str = field(default="seized_opportunity_buff", init=False)
-    duration: float = field(default=12.0, init=False)
+    duration: float = field(default=generic_config.SEIZED_OPPORTUNITY_BUFF_DURATION, init=False)
     trait_level: int = 4
 
-    _rating_table: ClassVar[list[int]] = [112, 168, 224, 280]
+    _rating_table: ClassVar[list[int]] = generic_config.SEIZED_OPPORTUNITY_CRIT_SCORE_TABLE
 
     def stat_modifiers(self) -> list[StatModifier]:
         return [CritScoreAdditive(value=self._rating_table[self.trait_level - 1])]
@@ -1158,7 +1167,7 @@ class SeizedOpportunity(Effect):
     name: str = field(default="seized_opportunity", init=False)
     trait_level: int = 4
 
-    _CRITS_REQUIRED: ClassVar[int] = 20
+    _CRITS_REQUIRED: ClassVar[int] = generic_config.SEIZED_OPPORTUNITY_CRITS_REQUIRED
 
     _crit_count: int = field(default=0, init=False)
 
@@ -1195,10 +1204,10 @@ class VengefulSoulBuff(Buff):
     """+X% Main Stat for 6s."""
 
     name: str = field(default="vengeful_soul_buff", init=False)
-    duration: float = field(default=6.0, init=False)
+    duration: float = field(default=generic_config.VENGEFUL_SOUL_BUFF_DURATION, init=False)
     trait_level: int = 4
 
-    _main_stat_table: ClassVar[list[float]] = [0.04, 0.048, 0.056, 0.064]
+    _main_stat_table: ClassVar[list[float]] = generic_config.VENGEFUL_SOUL_MAIN_STAT_TABLE
 
     def stat_modifiers(self) -> list[StatModifier]:
         return [MainStatAdditiveMultiplierCharacter(value=0.0 + self._main_stat_table[self.trait_level - 1])]
@@ -1223,8 +1232,8 @@ class VengefulSoul(Effect):
 
     def __post_init__(self) -> None:
         self._rppm = RealPPM(
-            base_ppm=2.0,
-            is_haste_scaled=False,
+            base_ppm=generic_config.VENGEFUL_SOUL_PPM,
+            is_haste_scaled=True,
             is_crit_scaled=True,
             owner=self.owner,
         )
@@ -1247,6 +1256,7 @@ class VengefulSoul(Effect):
     def _try_proc(self) -> None:
         if not self._rppm.check():
             return
+
         self.owner.effects.add(VengefulSoulBuff(trait_level=self.trait_level, owner=self.owner))
         logger.debug(
             "Vengeful Soul: proc → +{:.1f}% main stat for 6s",
@@ -1264,10 +1274,10 @@ class WillfulMomentumMainStatBuff(Buff):
     """+X% Main Stat for 4s, triggered by WillfulMomentum on SpiritProc."""
 
     name: str = field(default="willful_momentum_main_stat_buff", init=False)
-    duration: float = field(default=4.0, init=False)
+    duration: float = field(default=generic_config.WILLFUL_MOMENTUM_MAIN_STAT_BUFF_DURATION, init=False)
     trait_level: int = 4
 
-    _main_stat_table: ClassVar[list[float]] = [0.03, 0.036, 0.042, 0.048]
+    _main_stat_table: ClassVar[list[float]] = generic_config.WILLFUL_MOMENTUM_MAIN_STAT_TABLE
 
     def stat_modifiers(self) -> list[StatModifier]:
         return [MainStatAdditiveMultiplierCharacter(value=self._main_stat_table[self.trait_level - 1])]
@@ -1287,7 +1297,7 @@ class WillfulMomentum(Buff):
     name: str = field(default="willful_momentum", init=False)
     trait_level: int = 4
 
-    _spirit_rating_table: ClassVar[list[int]] = [59, 89, 118, 148]
+    _spirit_rating_table: ClassVar[list[int]] = generic_config.WILLFUL_MOMENTUM_SPIRIT_RATING_TABLE
 
     def stat_modifiers(self) -> list[StatModifier]:
         return [SpiritScoreAdditive(value=self._spirit_rating_table[self.trait_level - 1])]

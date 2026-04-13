@@ -73,7 +73,7 @@ class Effect:
         """Trigger any code incident on being added."""
         pass
 
-    def on_remove(self) -> None:
+    def on_remove(self, *, is_remove_from_expiration: bool = False) -> None:
         """Trigger any code incident on being removed."""
         pass
 
@@ -135,10 +135,9 @@ class Effect:
     def _expire(self, seq: int) -> None:
         if seq != self._expiry_seq:
             return  # stale — effect was refreshed or removed since this was scheduled
-        logger.trace(f"effect expired: {self}")
-        self.remove()
+        self.remove(is_remove_from_expiration=True)
 
-    def remove(self) -> None:
+    def remove(self, *, is_remove_from_expiration: bool = False) -> None:
         """Remove this effect.
 
         Remove triggers the `on_remove` function for specialized processing by subclasses.
@@ -149,6 +148,8 @@ class Effect:
         if self.attached_to is None:
             raise Exception(f"Effect {self} not attached during remove")  # noqa: TRY002, TRY003
 
+        logger.trace(f"effect removed ({'expired' if is_remove_from_expiration else 'dispelled'}): {self}")
+
         self.owner.state.bus.emit(
             EffectRemoved(
                 effect=self,
@@ -157,7 +158,7 @@ class Effect:
         )
 
         self.owner.state.bus.unsubscribe_all(self)
-        self.on_remove()  # called while attached_to is still valid
+        self.on_remove(is_remove_from_expiration=is_remove_from_expiration)  # called while attached_to is still valid
         self.attached_to.effects.remove(self)  # removes from dict; attached_to cleared after on_remove
         self.attached_to = None
         self._expiry_seq += 1
@@ -169,15 +170,22 @@ class EffectCollection:
         self._entity: Entity | None = None
 
     def get[T: Effect](self, effect_type: type[T]) -> T | None:
+        """Return the first active effect of type effect_type, or None if absent."""
         for effect in self._effects.values():
             if isinstance(effect, effect_type):
                 return effect
         return None
 
     def has[T: Effect](self, effect_type: type[T]) -> bool:
+        """Return True if any active effect is an instance of effect_type."""
         return any(isinstance(e, effect_type) for e in self._effects.values())
 
     def add(self, effect: Effect) -> None:
+        """Add effect to the collection.
+
+        If an effect with the same name is already active, calls fuse() on the
+        existing effect instead of adding a duplicate.
+        """
         existing = self._effects.get(effect.name)
         if existing is not None:
             existing.fuse(effect)
@@ -190,6 +198,7 @@ class EffectCollection:
         effect._schedule_expiry()
 
     def remove(self, effect: Effect) -> None:
+        """Remove effect from the internal dict. Called by Effect.remove() after on_remove()."""
         del self._effects[effect.name]
         # Note: effect.attached_to is cleared by Effect.remove() after on_remove()
 
@@ -238,7 +247,7 @@ class Buff(Effect):
         else:
             self.attached_to._recalculate_stats()
 
-    def on_remove(self) -> None:
+    def on_remove(self, *, is_remove_from_expiration: bool = False) -> None:
         if self.attached_to is None:
             raise Exception("Buff unnattached in on_remove")  # noqa: TRY002, TRY003
         else:
@@ -299,7 +308,7 @@ class DoTEffect(Effect):
             callback=GenericTimedEvent(name=f"{self.name} tick", callback=self._fire_tick),
         )
 
-    def on_remove(self) -> None:
+    def on_remove(self, *, is_remove_from_expiration: bool = False) -> None:
         if self.attached_to is not None and self.does_partial_final_tick and self._partial_ratio > 1e-9:
             partial_snap = self.snapshot.scale_average_damage(self._partial_ratio)
             self._deal_periodic(partial_snap, self.attached_to)

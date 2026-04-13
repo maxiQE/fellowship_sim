@@ -2,7 +2,7 @@
 
 import pytest
 
-from fellowship_sim.base_classes import Enemy, SnapshotStats, State, StateInformation
+from fellowship_sim.base_classes import Enemy, SnapshotStats, State
 from fellowship_sim.base_classes.events import (
     AbilityDamage,
     ComputeCooldownReduction,
@@ -384,8 +384,8 @@ class TestBlessingOfTheConqueror:
     """BlessingOfTheConqueror: +5% damage in boss fights (+15% at level 2); no-op otherwise."""
 
     def test_scales_snapshot_in_boss_fight(self, unit_elarion__zero_stats: Elarion) -> None:
-        state = State(rng=FixedRNG(value=0.0), information=StateInformation(is_boss_fight=True))
-        Enemy(state=state)
+        state = State(rng=FixedRNG(value=0.0))
+        Enemy(state=state, is_boss=True)
         elarion = Elarion(state=state, raw_stats=RawStatsFromPercents(main_stat=1000.0))
         enemy = state.enemies[0]
         elarion.effects.add(BlessingOfTheConqueror(owner=elarion))
@@ -395,8 +395,8 @@ class TestBlessingOfTheConqueror:
         assert event.snapshot.average_damage == pytest.approx(1050.0)
 
     def test_level_2_scales_snapshot_by_1_15_in_boss_fight(self, unit_elarion__zero_stats: Elarion) -> None:
-        state = State(rng=FixedRNG(value=0.0), information=StateInformation(is_boss_fight=True))
-        Enemy(state=state)
+        state = State(rng=FixedRNG(value=0.0))
+        Enemy(state=state, is_boss=True)
         elarion = Elarion(state=state, raw_stats=RawStatsFromPercents(main_stat=1000.0))
         enemy = state.enemies[0]
         elarion.effects.add(BlessingOfTheConqueror(is_level_2=True, owner=elarion))

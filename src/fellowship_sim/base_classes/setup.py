@@ -48,6 +48,12 @@ class SetupEffect(ABC, Generic[TCharacter]):  # noqa: UP046
 
     @abstractmethod
     def apply(self, character: TCharacter, context: SetupContext) -> None:
+        """Apply this setup effect to character.
+
+        Args:
+            character: The character being configured.
+            context: Shared namespace for cross-phase communication.
+        """
         pass
 
 

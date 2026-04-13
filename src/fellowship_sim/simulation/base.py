@@ -15,4 +15,10 @@ class Rotation(ABC):
     description: str = ""
 
     @abstractmethod
-    def __call__(self, elarion: "Elarion") -> Iterator["Ability | None"]: ...
+    def __call__(self, elarion: "Elarion") -> Iterator["Ability | None"]:
+        """Yield the next ability to cast (or None to pass), given the current character state.
+
+        Args:
+            elarion: The character being controlled.
+        """
+        ...

@@ -13,6 +13,7 @@ from fellowship_sim.base_classes.stats import (
     HastePercentAdditive,
     StatModifier,
 )
+from fellowship_sim.elarion import elarion_config
 
 if TYPE_CHECKING:
     from .entity import Elarion
@@ -23,10 +24,10 @@ class SkystriderGraceBuff(Buff):
     """+30% haste for 20 s."""
 
     name: str = field(default="skystrider_grace", init=False)
-    duration: float = field(default=20.0, init=False)
+    duration: float = field(default=elarion_config.SKYSTRIDER_GRACE_BUFF_DURATION, init=False)
 
     def stat_modifiers(self) -> list[StatModifier]:
-        return [HastePercentAdditive(value=0.30)]
+        return [HastePercentAdditive(value=elarion_config.SKYSTRIDER_GRACE_BUFF_HASTE)]
 
 
 @dataclass(kw_only=True, repr=False)
@@ -44,7 +45,7 @@ class EventHorizonBuff(Effect):
     owner: "Elarion" = field(init=True)
 
     name: str = field(default="event_horizon", init=False)
-    duration: float = field(default=20.0, init=False)
+    duration: float = field(default=elarion_config.EVENT_HORIZON_BUFF_DURATION, init=False)
 
     def on_add(self) -> None:
         bus = self.owner.state.bus
@@ -56,13 +57,13 @@ class EventHorizonBuff(Effect):
 
         self.owner._recalculate_cdr_multipliers()
 
-    def on_remove(self) -> None:
+    def on_remove(self, *, is_remove_from_expiration: bool = False) -> None:
         self.owner.event_horizon__reduce_focust_cost = False
 
         self.owner._recalculate_cdr_multipliers()
 
     def _on_pre_damage(self, event: PreDamageSnapshotUpdate) -> None:
-        event.snapshot = event.snapshot.scale_average_damage(1.20)
+        event.snapshot = event.snapshot.scale_average_damage(elarion_config.EVENT_HORIZON_BUFF_DAMAGE_MULTIPLIER)
         logger.trace("Event Horizon: damage x1.20")
 
     def _on_compute_cdr(self, event: ComputeCooldownReduction) -> None:
@@ -75,12 +76,12 @@ class EventHorizonBuff(Effect):
 
         if isinstance(event.damage_source, HighwindArrow):
             barrage = self.owner.heartseeker_barrage
-            barrage._reduce_cooldown(0.5)
+            barrage._reduce_cooldown(elarion_config.EVENT_HORIZON_HWA_CDR_ON_BARRAGE)
             logger.trace("Event Horizon: Highwind Arrow hit → barrage CD -0.5s (now {:.2f}s)", barrage.cooldown)
 
-        elif isinstance(event.damage_source, HeartseekerBarrage):
+        elif isinstance(event.damage_source, HeartseekerBarrage) and not event.is_secondary:
             volley = self.owner.volley
-            volley._reduce_cooldown(1.0)
+            volley._reduce_cooldown(elarion_config.EVENT_HORIZON_BARRAGE_CDR_ON_VOLLEY)
             logger.trace("Event Horizon: barrage hit → volley CD -1.0s (now {:.2f}s)", volley.cooldown)
 
 
@@ -112,11 +113,12 @@ class EmpoweredMultishotProvider(Effect):
         ms = self.owner.multishot
         ms.register_empowered_provider(self)
 
-    def on_remove(self) -> None:
+    def on_remove(self, *, is_remove_from_expiration: bool = False) -> None:
         ms = self.owner.multishot
         ms.unregister_empowered_provider(self)
 
     def consume_charge(self) -> None:
+        """Decrement stacks by 1 and remove self when exhausted."""
         self.stacks -= 1
         logger.debug(f"{self.name.replace('_', ' ')}: charge consumed ({self.stacks} remaining)")
         if self.stacks <= 0:
@@ -130,10 +132,11 @@ class SkystriderSupremacyBuff(EmpoweredMultishotProvider):
     """
 
     name: str = field(default="skystrider_supremacy", init=False)
-    duration: float = field(default=4.0, init=False)
+    duration: float = field(default=elarion_config.SKYSTRIDER_SUPREMACY_BUFF_DURATION, init=False)
     consume_priority: int = field(default=0, init=False)  # highest priority
 
     def consume_charge(self) -> None:
+        """No-op: SkystriderSupremacy has infinite charges and expires by duration."""
         pass  # infinite charges; buff expires by duration
 
 
@@ -142,11 +145,11 @@ class FerventSupremacyBuff(EmpoweredMultishotProvider):
     """Charge buff: up to 4 empowered Multishot casts (+50% damage). Consumed first."""
 
     name: str = field(default="fervent_supremacy", init=False)
-    duration: float = field(default=15.0, init=False)
-    stacks: int = field(default=4, init=False)
-    max_stacks: int = field(default=4, init=False)
+    duration: float = field(default=elarion_config.FERVENT_SUPREMACY_BUFF_DURATION, init=False)
+    stacks: int = field(default=elarion_config.FERVENT_SUPREMACY_BUFF_STACKS, init=False)
+    max_stacks: int = field(default=elarion_config.FERVENT_SUPREMACY_BUFF_STACKS, init=False)
 
-    bonus_damage: float = field(default=0.25, init=False)
+    bonus_damage: float = field(default=elarion_config.FERVENT_SUPREMACY_BUFF_BONUS_DAMAGE, init=False)
     consume_priority: int = field(default=0, init=False)  # highest priority
 
 
@@ -157,8 +160,8 @@ class EmpoweredMultishotChargeBuff(EmpoweredMultishotProvider):
     """
 
     name: str = field(default="empowered_multishot_charge", init=False)
-    duration: float = field(default=15.0, init=False)
-    stacks: int = field(default=1, init=False)
-    max_stacks: int = field(default=2, init=False)
+    duration: float = field(default=elarion_config.EMPOWERED_MULTISHOT_CHARGE_BUFF_DURATION, init=False)
+    stacks: int = field(default=elarion_config.EMPOWERED_MULTISHOT_CHARGE_BUFF_STACKS, init=False)
+    max_stacks: int = field(default=elarion_config.EMPOWERED_MULTISHOT_CHARGE_BUFF_MAX_STACKS, init=False)
 
     consume_priority: int = field(default=1, init=False)  # after the supremacy empowered MS

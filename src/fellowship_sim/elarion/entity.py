@@ -49,6 +49,7 @@ class Elarion(Player):
 
     @property
     def celestial_impetus_stacks(self) -> int:
+        """Active Celestial Impetus proc stacks, or 0 if none."""
         ci_proc_effect = self.effects.get(CelestialImpetusProc)
         return ci_proc_effect.stacks if ci_proc_effect is not None else 0
 
@@ -97,6 +98,7 @@ class Elarion(Player):
         self._recalculate_stats()
 
     def _change_focus(self, change: float) -> None:
+        """Adjust focus by change; raises ValueError if the result would go negative, caps at max_focus."""
         new_focus = self.focus + change
         if new_focus < 0:
             # This indicates that a validation has gone completely wrong

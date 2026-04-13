@@ -56,6 +56,10 @@ class FinalStats:
     """Immutable stats — result of collating RawStats and all active effect modifiers."""
 
     main_stat: float
+    crit_score: float
+    expertise_score: float
+    haste_score: float
+    spirit_score: float
     crit_percent: float
     expertise_percent: float
     haste_percent: float
@@ -70,6 +74,11 @@ class FinalStats:
 
     @property
     def spirit_proc_chance(self) -> float:
+        """Probability [0,1) that a focus-spending ability triggers a spirit proc.
+
+        Derived from spirit_percent via the diminishing-returns formula:
+        proc_chance = spirit_percent / (1 + spirit_percent).
+        """
         return self.spirit_percent / (1 + self.spirit_percent)
 
 
@@ -99,6 +108,7 @@ class MutableStats:
 
     @property
     def main_stat(self) -> float:
+        """Effective main stat after additive bonus and all multipliers."""
         return (
             (self.base_main_stat + self.main_stat_additive_bonus)
             * self.main_stat_additive_multiplier
@@ -106,8 +116,13 @@ class MutableStats:
         )
 
     def finalize(self) -> FinalStats:
+        """Convert scores to percents via the rating curve and produce an immutable FinalStats."""
         return FinalStats(
             main_stat=self.main_stat,
+            crit_score=self.crit_score,
+            expertise_score=self.expertise_score,
+            haste_score=self.haste_score,
+            spirit_score=self.spirit_score,
             crit_percent=self.crit_percent + secondary_stat_percent_from_score(self.crit_score),
             expertise_percent=self.expertise_percent + secondary_stat_percent_from_score(self.expertise_score),
             haste_percent=self.haste_percent + secondary_stat_percent_from_score(self.haste_score),
@@ -117,6 +132,12 @@ class MutableStats:
 
 
 def _require_non_negative(value: float | int, name: str) -> None:
+    """Raise ValueError if value < 0.
+
+    Args:
+        value: The numeric value to validate.
+        name: Field name used in the error message.
+    """
     if value < 0:
         msg = f"{name} must be >= 0, got {value}"
         raise ValueError(msg)
@@ -127,7 +148,15 @@ class StatModifier(ABC):
     """Unified modifier applied to MutableStats — covers both score and percent adjustments."""
 
     @abstractmethod
-    def apply(self, stats: MutableStats) -> None: ...
+    def apply(self, stats: MutableStats) -> None:
+        """Mutate stats in-place to apply this modifier.
+
+        Called once per recalculation; do not cache results.
+
+        Args:
+            stats: The mutable stats accumulator to modify.
+        """
+        ...
 
 
 @dataclass(kw_only=True, frozen=True)
@@ -258,7 +287,13 @@ class RawStats(ABC):
     crit_multiplier: float = 1.0
 
     @abstractmethod
-    def to_mutable_stats(self) -> MutableStats: ...
+    def to_mutable_stats(self) -> MutableStats:
+        """Create a MutableStats accumulator seeded from this RawStats.
+
+        The resulting object is passed to ComputeFinalStats so that
+        StatModifiers from active buffs can be applied before finalization.
+        """
+        ...
 
 
 @dataclass(kw_only=True, frozen=True)
@@ -348,7 +383,14 @@ class SnapshotStats:
 
     @classmethod
     def from_ability_and_character(cls, ability: "Ability", character: "Player") -> Self:
-        """Derive snapshot from ability and character."""
+        """Derive a snapshot from an ability's average_damage and the character's current stats.
+
+        Scales average_damage by main_stat/1000 and (1 + expertise_percent).
+
+        Args:
+            ability: The ability whose average_damage is used as the base.
+            character: The casting player (stats read at call time).
+        """
         return cls(
             average_damage=ability.average_damage
             * character.stats.main_stat
@@ -368,7 +410,14 @@ class SnapshotStats:
         is_scaled_by_expertise: bool = True,
         is_scaled_by_main_stat: bool = True,
     ) -> Self:
-        """Derive snapshot from ability and character."""
+        """Derive snapshot from a raw base damage value and the character's current stats.
+
+        Args:
+            base_damage: Pre-multiplied base damage for this hit.
+            character: The casting player (stats read at call time).
+            is_scaled_by_expertise: Whether expertise scales the damage.
+            is_scaled_by_main_stat: Whether main stat scales the damage.
+        """
         return cls(
             average_damage=base_damage
             * ((character.stats.main_stat / 1000) if is_scaled_by_main_stat else 1)

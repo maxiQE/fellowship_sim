@@ -26,19 +26,25 @@ LOG_LEVEL = "INFO"
 NUM_TARGETS = 5
 SEED = 1234
 
+main_stat = 2444.0
+# 20/20/25/30
+crit_score = 900
+expertise_score = 1100
+haste_score = 1655
+spirit_score = 855
+
 character_setup = ElarionSetup(
     initial_spirit_points=100,
     raw_stats=RawStatsFromScores(
-        main_stat=2444.0,
-        crit_score=1125,
-        expertise_score=1125,
-        haste_score=1125,
-        spirit_score=1125,
+        main_stat=main_stat,
+        crit_score=crit_score,
+        expertise_score=expertise_score,
+        haste_score=haste_score,
+        spirit_score=spirit_score,
     ),
     legendary="Neck",
     weapon_ability="Voidbringer's Touch",
     master_trait="Visions Of Grandeur",
-    # master_trait="Amethyst Splinters",
     heroic_traits=[
         "Willful Momentum",
         "Inspired Allegiance",

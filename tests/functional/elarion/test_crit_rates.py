@@ -1,21 +1,24 @@
-import contextlib
-import random
 from collections import defaultdict
-from dataclasses import dataclass, field
 from typing import cast
 
 import pytest
 
-from fellowship_sim.base_classes import AbilityDamage, Enemy, RawStatsFromPercents, State, StateInformation
+from fellowship_sim.base_classes import AbilityDamage, Enemy, RawStatsFromPercents, State
 from fellowship_sim.base_classes.entity import Entity
-from fellowship_sim.base_classes.state import get_state
 from fellowship_sim.elarion.ability import ElarionAbility
 from fellowship_sim.elarion.entity import Elarion
-from fellowship_sim.elarion.rotations.neck_barrage_priority_list_method import NeckBarragePriorityListMethod
+from fellowship_sim.elarion.rotations.void_barrage_method import VoidBarrageMethod
 from fellowship_sim.elarion.setup import ElarionSetup
 from fellowship_sim.simulation.metrics import DamageSourceProbe
 from fellowship_sim.simulation.runner import run_once
-from fellowship_sim.simulation.scenarios import BossFightScenario, Scenario, TrashAOEFightScenario
+from fellowship_sim.simulation.scenarios import (
+    EnemySpec,
+    PackSpec,
+    Scenario,
+    boss_fight_scenario,
+    generate_new_scenario,
+    multiple_identical_packs_scenario,
+)
 from tests.conftest import FixedRNG
 
 # ---------------------------------------------------------------------------
@@ -64,7 +67,7 @@ _SETUP_WITH_LL = ElarionSetup(
     weapon_ability="Voidbringer's Touch",
 )
 
-_ROTATION = NeckBarragePriorityListMethod()
+_ROTATION = VoidBarrageMethod()
 
 
 # ---------------------------------------------------------------------------
@@ -73,75 +76,43 @@ _ROTATION = NeckBarragePriorityListMethod()
 
 
 @pytest.fixture
-def st_scenario() -> BossFightScenario:
-    return BossFightScenario(
+def st_scenario() -> Scenario:
+    return boss_fight_scenario(
         duration=_DURATION,
-        bonus_spirit_point_per_s=0.5,
         delay_since_last_fight=_DELAY,
         initial_spirit_points=130,
     )
 
 
 @pytest.fixture
-def aoe_scenario() -> TrashAOEFightScenario:
-    return TrashAOEFightScenario(
-        num_enemies=12,
+def aoe_scenario() -> Scenario:
+    return multiple_identical_packs_scenario(
         pack_duration=_DURATION,
-        bonus_spirit_point_per_s=0.5,
+        num_big=12,
+        num_packs=1,
+        pack_interval=0.0,
         delay_since_last_fight=_DELAY,
         initial_spirit_points=130,
     )
 
 
-@dataclass(kw_only=True)
-class OnlyExecuteScenario(Scenario):
-    note: str = field(default="", init=False)
-    duration: float = field(default=120, init=False)
-    num_enemies: int = field(default=1, init=False)
-    bonus_spirit_point_per_s: float = field(default=0.5, init=False)
-    delay_since_last_fight: float = field(default=0.5, init=False)
-    initial_spirit_points: float = field(default=130, init=False)
-
-    is_ult_authorized: bool = field(default=True, init=True, repr=False)
-
-    _description: str = field(default="ST, only execute phase", init=False, repr=False)
-    is_boss_fight: bool = field(default=False, init=False, repr=False)
-
-    def generate_new_scenario(self, setup: ElarionSetup, rng_seed: float | None) -> tuple[State, Elarion]:
-        """Overwritten to set time_to_live to infinity and enemy.percent_hp to 0.2"""
-        with contextlib.suppress(RuntimeError):
-            get_state().deactivate()
-
-        state = State(
-            rng=random.Random(x=rng_seed),
-            information=StateInformation(
-                is_boss_fight=self.is_boss_fight,
-                duration=self.duration,
-                delay_since_last_fight=self.delay_since_last_fight,
-                is_ult_authorized=self.is_ult_authorized,
-            ),
-        )
-        enemies = [Enemy(state=state, time_to_live=float("inf")) for _ in range(self.num_enemies)]
-        for enemy in enemies:
+def _make_execute_scenario() -> Scenario:
+    def _finalize(elarion: Elarion) -> None:
+        for enemy in elarion.state.enemies:
             enemy.percent_hp = 0.2
 
-        elarion = setup.finalize(state)
-
-        # Avoid having spirit go over max
-        elarion.spirit_points = 0
-        elarion._change_spirit_points(self.initial_spirit_points)
-
-        elarion.spirit_point_per_s = self.bonus_spirit_point_per_s
-
-        if self.finalize_character is not None:
-            self.finalize_character(elarion)
-
-        return state, elarion
+    return Scenario(
+        packs=[PackSpec(enemies=[EnemySpec(time_to_live=120.0, is_boss=True)], time_to_next_pack=None)],
+        delay_since_last_fight=0.5,
+        is_ult_authorized=True,
+        initial_spirit_points=130,
+        finalize_character=_finalize,
+    )
 
 
 @pytest.fixture
-def execute_scenario() -> OnlyExecuteScenario:
-    return OnlyExecuteScenario()
+def execute_scenario() -> Scenario:
+    return _make_execute_scenario()
 
 
 # ---------------------------------------------------------------------------
@@ -169,7 +140,7 @@ def _collect_pooled_crit_rates(scenario: Scenario, setup: ElarionSetup) -> dict[
             seed=_SEED + i,
             probe_types={DamageSourceProbe},
         )
-        probe = cast(DamageSourceProbe, probes[DamageSourceProbe])
+        probe = cast(DamageSourceProbe, probes[DamageSourceProbe])  # ty:ignore[invalid-argument-type]
         for source, count in probe.count_by_source.items():
             total_count[source] += count
             # crit_rate_by_source[source] == crits / count — reconstruct exact int
@@ -186,7 +157,7 @@ def _collect_pooled_crit_rates(scenario: Scenario, setup: ElarionSetup) -> dict[
 
 def _base_crit(scenario: Scenario, setup: ElarionSetup) -> float:
     """Return the base crit_percent from a freshly initialised Elarion."""
-    _, elarion = scenario.generate_new_scenario(setup=setup, rng_seed=0)
+    _, elarion = generate_new_scenario(scenario=scenario, setup=setup, rng_seed=0)
     return elarion.stats.crit_percent
 
 

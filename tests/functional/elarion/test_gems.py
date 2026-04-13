@@ -101,9 +101,7 @@ class TestSpiritOfHeroismModifiers:
             setup.setup_effect_list.append(prophet_setup)
 
             elarion = setup.finalize(state)
-            elarion.spirit_point_per_s = 0
 
-            assert elarion.spirit_point_per_s == 0
             assert elarion.spirit_ability_cost == 100 - (15 if is_level_2 else 5)
 
             elarion.spirit_points = 100
@@ -113,6 +111,7 @@ class TestSpiritOfHeroismModifiers:
 
             soh = elarion.effects.get(SpiritOfHeroism)
             assert elarion.effects.has(EventHorizonBuff)
+            assert soh is not None
             assert soh.duration == pytest.approx(20 + (18 if is_level_2 else 6))
 
             elarion.wait(20 + (18 if is_level_2 else 6) - 0.1)

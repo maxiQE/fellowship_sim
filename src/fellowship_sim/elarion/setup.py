@@ -6,6 +6,7 @@ from loguru import logger
 from fellowship_sim.base_classes import RawStatsFromScores, SetupContext, SetupEffect, State
 from fellowship_sim.base_classes.entity import Player
 from fellowship_sim.base_classes.stats import RawStats
+from fellowship_sim.elarion import elarion_config
 from fellowship_sim.generic_game_logic.set_effects import SetEffectName
 from fellowship_sim.generic_game_logic.setup_effect import (
     DefaultEffectSetup,
@@ -57,7 +58,7 @@ class ElarionSetup:
     heroic_trait_level: int = 4
 
     talents: list[ElarionTalentName] | None = None
-    total_talent_points: int = 13
+    total_talent_points: int = elarion_config.ELARION_MAX_TALENT_POINTS
 
     sets: list[SetEffectName] | None = None
 
@@ -186,6 +187,17 @@ class ElarionSetup:
         return "\n".join(info_lines)
 
     def finalize(self, state: State) -> Elarion:
+        """Create and fully configure an Elarion for state.
+
+        Constructs the character, applies all setup effects in order, then
+        triggers a final stat recalculation.
+
+        Args:
+            state: An active State (must be constructed before calling this).
+
+        Returns:
+            A simulation-ready Elarion instance.
+        """
         elarion = Elarion(state=state, raw_stats=self.raw_stats, focus=self.initial_focus)
         elarion.spirit_points = self.initial_spirit_points
 

@@ -3,10 +3,11 @@ import math
 import re
 from collections import defaultdict
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 from loguru import logger
 
+from . import base_config
 from .ability import (
     WEAPON_ABILITY_NOT_INITIALIZED,
     Ability,
@@ -23,6 +24,8 @@ if TYPE_CHECKING:
 
 
 _entity_id_counter = itertools.count(1)
+
+DAMAGE_TRACKER_BIN_SIZE: Final[float] = 10.0
 
 
 @dataclass(kw_only=True)
@@ -43,7 +46,7 @@ class DamageRecord:
 
 @dataclass(kw_only=True)
 class DamageTracker:
-    bin_key_size: float = field(default=10.0, init=True)
+    bin_key_size: float = field(default=DAMAGE_TRACKER_BIN_SIZE, init=True)
 
     _by_source: defaultdict[str, DamageRecord] = field(default_factory=lambda: defaultdict(DamageRecord), init=False)
     _by_time_bin: defaultdict[int, defaultdict[str, DamageRecord]] = field(
@@ -57,18 +60,22 @@ class DamageTracker:
 
     @property
     def total(self) -> float:
+        """Total damage dealt across all sources."""
         return sum(record.total for record in self._by_source.values())
 
     @property
     def by_source(self) -> dict[str, DamageRecord]:
+        """Damage records keyed by ability class name."""
         return dict(self._by_source)
 
     @property
     def by_time_bin(self) -> dict[int, dict[str, DamageRecord]]:
+        """Damage records grouped by time bin (bin_key_size seconds each), then by source."""
         return {k: dict(v) for k, v in self._by_time_bin.items()}
 
     @property
     def total_by_time_bin(self) -> dict[int, float]:
+        """Total damage per time bin, summed across all sources."""
         return {k: sum(r.total for r in v.values()) for k, v in self._by_time_bin.items()}
 
 
@@ -77,7 +84,8 @@ class Entity:
     state: "State"
     effects: EffectCollection = field(default_factory=EffectCollection)
     percent_hp: float = field(default=1.0)
-    is_alive: bool = field(default=True)
+    is_alive: bool = field(default=True, init=False)
+    is_main: bool = field(default=False)
     damage_tracker: DamageTracker = field(default_factory=DamageTracker)
     id: int = field(default_factory=lambda: next(_entity_id_counter), init=False)
 
@@ -85,6 +93,7 @@ class Entity:
         self.effects._entity = self
 
     def kill(self) -> None:
+        """Mark this entity as dead, remove all its effects, and emit UnitDestroyed."""
         from fellowship_sim.base_classes.events import UnitDestroyed
 
         if not self.is_alive:
@@ -118,6 +127,8 @@ class Entity:
 @dataclass(kw_only=True)
 class Enemy(Entity):
     time_to_live: float = field(default=float("inf"), init=True)
+    is_boss: bool = field(default=False, init=True)
+    spirit_score: float = field(default=0, init=True)
 
     def __post_init__(self) -> None:
         from fellowship_sim.base_classes.timed_events import UnitDeathTimedEvent
@@ -145,8 +156,6 @@ class Player(Entity):
     spirit_points: float = field(default=0.0, init=False)
     max_spirit_points: float = field(default=100.0, init=False)
     spirit_ability_cost: float = field(default=100.0, init=False)
-
-    spirit_point_per_s: float = field(default=0.0, init=False)
 
     # Weapon ability slots — one per available weapon ability type.
     # Unequipped slots hold WEAPON_ABILITY_NOT_INITIALIZED (logs a warning on access).
@@ -176,6 +185,11 @@ class Player(Entity):
         self._recalculate_stats()
 
     def wait(self, duration: float) -> None:
+        """Take no action for the specified duration.
+
+        Args:
+            duration: Seconds to wait.
+        """
         from .timed_events import PlayerAvailableAgain, PlayerUnavailable
 
         state = self.state
@@ -187,9 +201,27 @@ class Player(Entity):
 
     def _tick(self, dt: float) -> None:
         super()._tick(dt)
-        self._change_spirit_points(self.spirit_point_per_s * dt)
+        self._spirit_regen(dt)
+
+    @property
+    def spirit_regen_rate(self) -> float:
+        time_based_regen_rate: int | float = (
+            base_config.SPIRIT_PER_SECOND * (1 + self.stats.spirit_percent) * self.max_spirit_points / 100
+        )
+
+        enemy_hp_loss_spirit_regen_rate = 0
+        for enemy in self.state.enemies:
+            enemy_hp_loss_spirit_regen_rate += 1 / enemy.time_to_live * enemy.spirit_score / 4
+
+        total_spirit_rate = time_based_regen_rate + enemy_hp_loss_spirit_regen_rate
+        return total_spirit_rate
+
+    def _spirit_regen(self, dt: float) -> None:
+        total_spirit_increase = self.spirit_regen_rate * dt
+        self._change_spirit_points(total_spirit_increase)
 
     def _change_spirit_points(self, change: float) -> None:
+        """Adjust spirit_points by change, clamped to [0, max_spirit_points]."""
         self.spirit_points = max(0, min(self.max_spirit_points, self.spirit_points + change))
 
     def _recalculate_stats(self) -> "MutableStats":

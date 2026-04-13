@@ -3,15 +3,89 @@
 
 ## Damage formula
 
+For typical effects, damage is scaled directly by crit, expertise and main stat:
+
+- main stat and expertise have a multiplicative effect on damage:
+
+    ```
+    scaled_damage = base_damage / 1000 * main_stat * (1 + expertise_percent)
+    ```
+
+- crit percent changes the chance of a critical hit.
+    Criticals deal double damage, further modified by any modifiers to critical damage (from purple gems or talents such as rime 6a).
+    When crit percent goes above 100%, the hit is guaranteed to be a grievous critical.
+
+    ````
+    normal_hit_damage = scaled_damage
+    crit_damage = 2 * scaled_damage * (1 + bonus_crit_multiplier)
+    grievous_crit_damage = (1 + crit_percent) * scaled_damage * (1 + bonus_crit_multiplier)
+    ````
+
+Averaging out the chance of a crit, we get the overall formula for damage:
+
+````
+average_damage = (1 + crit_percent) * base_damage / 1000 * main_stat * (1 + expertise_percent) * (1 + bonus_crit_multiplier)
+````
+
 
 ## Effects of haste
+
+Haste scales:
+
+- GCD duration, except on Meiko and Mara:
+
+    ```
+    gcd_duration = 1.5 / (1 + haste_percent)
+    ```
+
+- cast times, except for channels
+
+- dot tick rate
+
+- channel tick rate, but not their duration
+
+    - for example:
+        - Elarion's heartseeker barrage will always last 2 seconds (without the talent)
+        - But haste will change the tick rate from `0.2` to `0.2 / (1 + haste_percent)`
+        - This means that the number of ticks changes from 10 to `floor(10 * (1 + haste_percent))`
+        - There are *breakpoints* every 10% of haste:
+            - between 0 and 9.9%: 10 hits
+            - between 10 and 19.9: 11 hits
+            - etc
+
+Overall, for most characters, haste just scales multiplicatively their dps: they do the same thing but faster.
+However:
+
+- haste makes it so that you go faster through your good abilities and have to cast more of your bad ones.
+    This makes haste slightly worse.
+- haste double dips for dots:
+    - you cast them faster.
+    - they tick faster.
+- other mechanics might have good interactions with haste
 
 
 ## Channels and dots: damage
 
 
+
+
 ## Snapshotting
 
+Snapshotting looks to be rare in FS, after reworks.
+
+- haste seems to be snapshot when casting channels
+- haste is snapshot when casting elarion volley
+
+Damage is dynamic
+
+- applying a +20% damage buff changes the damage of ongoing attacks (elarion volley) and dots
+- changing crit rate affects ongoing attacks and dots
+
+Tick rate is dynamic on dots:
+
+- changing haste changes dot tick rate
+- this is easily testable on ardeos, or with kindling or amethyst splinters.
+    Apply debuff then cast ult to get spirit of heroism haste buff.
 
 ## Damage accumulators
 

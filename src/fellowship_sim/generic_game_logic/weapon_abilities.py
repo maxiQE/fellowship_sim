@@ -23,6 +23,7 @@ from fellowship_sim.base_classes.events import (
 )
 from fellowship_sim.base_classes.stats import SnapshotStats
 from fellowship_sim.base_classes.timed_events import DelayedDamage, GenericTimedEvent
+from fellowship_sim.generic_game_logic import generic_config
 
 
 @dataclass(kw_only=True, repr=False)
@@ -37,7 +38,7 @@ class VoidbringersTouchEffect(Effect):
     """
 
     name: str = field(default="voidbringers_touch", init=False)
-    duration: float = field(default=15.0, init=False)
+    duration: float = field(default=generic_config.VOIDBRINGERS_TOUCH_DEBUFF_DURATION, init=False)
     max_stored_damage: float
     ability: "VoidbringersTouch"
 
@@ -62,7 +63,7 @@ class VoidbringersTouchEffect(Effect):
         if event.damage_source is self:
             return
 
-        self.stored_damage += event.damage * 0.10
+        self.stored_damage += event.damage * generic_config.VOIDBRINGERS_TOUCH_DAMAGE_ACCUMULATION_RATIO
         logger.trace(
             "Voidbringer's Touch: +{:.0f} stored ({:.0f}/{:.0f})",
             event.damage * 0.10,
@@ -76,10 +77,10 @@ class VoidbringersTouchEffect(Effect):
                 time_delay=0.0, callback=GenericTimedEvent(name="voidbringers_touch explode", callback=self.remove)
             )
 
-    def on_remove(self) -> None:
-        self._fire_explosion()
+    def on_remove(self, *, is_remove_from_expiration: bool = False) -> None:
+        self._fire_explosion(is_remove_from_expiration=is_remove_from_expiration)
 
-    def _fire_explosion(self) -> None:
+    def _fire_explosion(self, *, is_remove_from_expiration: bool = False) -> None:
         if self.attached_to is None:
             raise Exception(f"{self!s} unattached during _fire_explosion")  # noqa: TRY002, TRY003
 
@@ -91,10 +92,11 @@ class VoidbringersTouchEffect(Effect):
             is_scaled_by_expertise=True,
         )
 
-        snapshot = snapshot.add_crit_percent(1.0)
+        snapshot = snapshot.add_crit_percent(generic_config.VOIDBRINGERS_TOUCH_BONUS_CRIT_PERCENT)
 
+        trigger = "timed out" if is_remove_from_expiration else "threshold reached"
         logger.debug(
-            f"Voidbringer's Touch: explosion on {self.attached_to} — base={base_damage:.0f}, final avg={snapshot.average_damage:.0f}"
+            f"Voidbringer's Touch ({trigger}): explosion on {self.attached_to} — base={base_damage:.0f}, final avg={snapshot.average_damage:.0f}"
         )
         deal_damage(snapshot, self, self.attached_to)
 
@@ -108,14 +110,14 @@ class VoidbringersTouch(WeaponAbility):
     """
 
     base_player_downtime: float = field(default=0.0, init=False)
-    base_cooldown: float = field(default=90.0, init=False)
+    base_cooldown: float = field(default=generic_config.VOIDBRINGERS_TOUCH_COOLDOWN, init=False)
 
     def _do_cast(self, target: Entity) -> None:
         state = self.owner.state
         event = AbilityCastSuccess(ability=self, owner=self.owner, target=target)
         state.bus.emit(event)
 
-        max_stored = 42.5 * self.owner.stats.main_stat
+        max_stored = generic_config.VOIDBRINGERS_TOUCH_MAX_STORED_DAMAGE_RATIO * self.owner.stats.main_stat
         target.effects.add(VoidbringersTouchEffect(ability=self, max_stored_damage=max_stored, owner=self.owner))
         logger.debug(f"Voidbringer's Touch: applied to {target} (max stored={max_stored:.0f})")
 
@@ -143,11 +145,11 @@ class ChronoshiftChannelCDR(Effect):
         self.owner.state.bus.subscribe(ComputeCooldownReduction, self._on_cdr, owner=self)
         self.owner._recalculate_cdr_multipliers()
 
-    def on_remove(self) -> None:
+    def on_remove(self, *, is_remove_from_expiration: bool = False) -> None:
         self.owner._recalculate_cdr_multipliers()
 
     def _on_cdr(self, event: ComputeCooldownReduction) -> None:
-        event.cdr_modifiers.append(8.0)
+        event.cdr_modifiers.append(generic_config.CHRONOSHIFT_CHANNEL_CDR_BONUS)
         logger.trace(f"Chronoshift CDR: 800% CDR on {event.ability}")
 
 
@@ -162,12 +164,14 @@ class Chronoshift(WeaponAbility):
     at 9x their normal rate (+800% CDA).
     """
 
-    base_player_downtime: float = field(default=3.0, init=False)
-    base_cooldown: float = field(default=180.0, init=False)
-    average_damage: float = field(default=(5192 + 6345) / 2, init=False)
+    base_player_downtime: float = field(default=generic_config.CHRONOSHIFT_CHANNEL_DURATION, init=False)
+    base_cooldown: float = field(default=generic_config.CHRONOSHIFT_COOLDOWN, init=False)
+    average_damage: float = field(
+        default=(generic_config.CHRONOSHIFT_DAMAGE_MIN + generic_config.CHRONOSHIFT_DAMAGE_MAX) / 2, init=False
+    )
     is_channel: bool = field(default=True, init=False)
-    tick_time: float = field(default=1.5, init=False)
-    num_secondary_targets: int = field(default=12, init=False)
+    tick_time: float = field(default=generic_config.CHRONOSHIFT_TICK_TIME, init=False)
+    num_secondary_targets: int = field(default=generic_config.CHRONOSHIFT_MAX_SECONDARY_TARGETS, init=False)
 
     def _do_cast(self, target: Entity) -> None:
         state = self.owner.state
@@ -235,23 +239,25 @@ class NaturesFuryAura(Effect):
     def _on_pre_damage(self, event: PreDamageSnapshotUpdate) -> None:
         if event.damage_source is not self.ability:
             return
-        event.snapshot = event.snapshot.add_crit_percent(0.30)
+        event.snapshot = event.snapshot.add_crit_percent(generic_config.NATURES_FURY_CRIT_BONUS)
 
 
 @dataclass(kw_only=True, repr=False)
 class NaturesFury(WeaponAbility):
-    """Weapon ability: 60s cooldown, 1.5s cast, 1 charge.
+    """Weapon ability: 60s cooldown, instant cast, 1 charge.
 
     Hits main target and up to 3 additional enemies (4 total).
     All hits gain +30% crit chance (via NaturesFuryAura).
     Main target takes +100% damage (2x multiplier).
     """
 
-    base_cooldown: float = field(default=60.0, init=False)
-    average_damage: float = field(default=(12_579 + 15_374) / 2, init=False)
+    base_cooldown: float = field(default=generic_config.NATURES_FURY_COOLDOWN, init=False)
+    average_damage: float = field(
+        default=(generic_config.NATURES_FURY_DAMAGE_MIN + generic_config.NATURES_FURY_DAMAGE_MAX) / 2, init=False
+    )
 
-    num_secondary_targets: int = field(default=3, init=False)
-    main_damage_multiplier: float = field(default=2.0, init=False)
+    num_secondary_targets: int = field(default=generic_config.NATURES_FURY_SECONDARY_TARGETS, init=False)
+    main_damage_multiplier: float = field(default=generic_config.NATURES_FURY_MAIN_DAMAGE_MULTIPLIER, init=False)
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -273,7 +279,7 @@ class CurseOfAnzhyr(DoTEffect):
     """
 
     name: str = field(default="curse_of_anzhyr", init=False)
-    base_tick_duration: float = field(default=3.0, init=False)
+    base_tick_duration: float = field(default=generic_config.ICICLES_CURSE_TICK_DURATION, init=False)
 
     def fuse(self, incoming: Effect) -> None:
         """Re-applying has no effect — the curse continues unchanged."""
@@ -290,7 +296,7 @@ class CurseOfAnzhyr(DoTEffect):
             return
         if not isinstance(event.damage_source, IciclesOfAnzhyr):
             return
-        event.snapshot = event.snapshot.scale_average_damage(3.0)
+        event.snapshot = event.snapshot.scale_average_damage(generic_config.ICICLES_CURSE_DAMAGE_MULTIPLIER)
         logger.trace(f"Curse of An'zhyr: +200% direct damage from Icicles of An'zhyr on {event.target}")
 
 
@@ -303,12 +309,16 @@ class IciclesOfAnzhyr(WeaponAbility):
     Enemies bearing CurseOfAnzhyr take +200% direct damage from this ability.
     """
 
-    base_cooldown: float = field(default=30.0, init=False)
-    average_damage: float = field(default=(1296 + 1584) / 2, init=False)
+    base_cooldown: float = field(default=generic_config.ICICLES_COOLDOWN, init=False)
+    average_damage: float = field(
+        default=(generic_config.ICICLES_DAMAGE_MIN + generic_config.ICICLES_DAMAGE_MAX) / 2, init=False
+    )
 
-    dot_average_damage: float = field(default=(345 + 422) / 2, init=False)
+    dot_average_damage: float = field(
+        default=(generic_config.ICICLES_DOT_DAMAGE_MIN + generic_config.ICICLES_DOT_DAMAGE_MAX) / 2, init=False
+    )
 
-    num_secondary_targets: int = field(default=12, init=False)
+    num_secondary_targets: int = field(default=generic_config.ICICLES_MAX_SECONDARY_TARGETS, init=False)
 
     def _do_cast(self, target: Entity) -> None:
         state = self.owner.state
