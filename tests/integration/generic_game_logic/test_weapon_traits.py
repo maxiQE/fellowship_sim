@@ -8,7 +8,7 @@ from fellowship_sim.base_classes import AbilityPeriodicDamage, Enemy, Player, Ra
 from fellowship_sim.base_classes.events import (
     AbilityCastSuccess,
     AbilityDamage,
-    PreDamageSnapshotUpdate,
+    SnapshotCreation,
     SpiritProc,
     UltimateCast,
 )
@@ -46,8 +46,12 @@ class DotScenario:
     advance_to: float
 
     @property
-    def total_stored(self) -> float:
-        return sum(dmg * 0.1 * (1 + h) for _, dmg, h in self.hits)
+    def haste(self) -> float:
+        return self.hits[0][2]
+
+    @property
+    def expected_total(self) -> float:
+        return sum(dmg for _, dmg in self.expected)
 
 
 _D = 10_000.0  # base crit damage used in single-hit scenarios
@@ -87,11 +91,11 @@ SCENARIOS = [
         hits=[(0.0, 10_000.0, 0.2), (2.0, 5_000.0, 0.2)],
         expected=[
             (5 / 3, 250.0),
-            (10 / 3, 310.0),
-            (5.0, 310.0),
-            (20 / 3, 310.0),
-            (25 / 3, 310.0),
-            (10.0, 310.0),
+            (10 / 3, 312.5),
+            (5.0, 312.5),
+            (20 / 3, 312.5),
+            (25 / 3, 312.5),
+            (10.0, 312.5),
         ],
         advance_to=11.0,
     ),
@@ -113,58 +117,18 @@ SCENARIOS = [
         ],
         advance_to=13.0,
     ),
-    # --- Four hits, haste changes ---
-    # hit 1 t=0 h=0.2 → stored=1200, tick_time=5/3, tick_damage=250
-    # tick at 5/3 (250, stored→950)
-    # hit 2 t=2 h=0.2 → fuse: stored=1550, ticks=5, tick_damage=310
-    # tick at 10/3 (310, stored→1240)
-    # hit 3 t=5 h=0.6 (fires before tick at same time via lower seq)
-    #   → fuse: stored=1240+3200=4440, tick_time=1.25, next_tick=5
-    #   → num_ticks=1+(13-5)/1.25=7.4, tick_damage=600
-    # tick at 5 (600, stored→3840), next at 6.25
-    # tick at 6.25 (600, stored→3240), next at 7.5
-    # hit 4 t=7 h=0.2 → fuse: stored=3240+600=3840, tick_time=5/3, next_tick=7.5
-    #   → num_ticks=1+(15-7.5)/(5/3)=5.5, tick_damage=3840/5.5≈698.18, partial≈349.09
-    # ticks at 7.5, 55/6, 65/6, 12.5, 85/6 (all 698.18), partial at 15
 ]
-
-_TD = 3840 / 5.5  # tick_damage for fusion_4hits_haste_change
-
-SCENARIOS.append(
-    DotScenario(
-        id="fusion_4hits_haste_change",
-        hits=[
-            (0.0, 10_000.0, 0.2),
-            (2.0, 5_000.0, 0.2),
-            (5.0, 20_000.0, 0.6),
-            (7.0, 5_000.0, 0.2),
-        ],
-        expected=[
-            (5 / 3, 250.0),
-            (10 / 3, 310.0),
-            (5.0, 600.0),
-            (6.25, 600.0),
-            (7.5, _TD),
-            (55 / 6, _TD),
-            (65 / 6, _TD),
-            (12.5, _TD),
-            (85 / 6, _TD),
-            (15.0, _TD / 2),
-        ],
-        advance_to=16.0,
-    )
-)
 
 
 def _make_dot(player: Player, damage: float, haste: float) -> AmethystSplintersDoT:
-    return AmethystSplintersDoT(owner=player, stored_damage=damage * 0.1 * (1 + haste), haste_percent=haste)
+    return AmethystSplintersDoT(owner=player, average_damage=damage * 0.1 / 4)
 
 
 def _run(scenario: DotScenario) -> list[tuple[float, float]]:
     """Run a scenario and return all (time, damage) DamageDealt events."""
     state = State(rng=FixedRNG(0.0))
     target = Enemy(state=state)
-    elarion = Elarion(state=state, raw_stats=RawStatsFromPercents(main_stat=1000))
+    elarion = Elarion(state=state, raw_stats=RawStatsFromPercents(main_stat=1000, haste_percent=scenario.haste))
 
     collected: list[tuple[float, float]] = []
     state.bus.subscribe(AbilityPeriodicDamage, lambda e: collected.append((state.time, e.damage)))
@@ -193,13 +157,13 @@ class TestAmethystSplintersDoT:
         for i, (exp_time, exp_dmg) in enumerate(scenario.expected):
             assert hits[i][0] == pytest.approx(exp_time, abs=1e-9), f"tick {i} time"
             assert hits[i][1] == pytest.approx(exp_dmg, rel=1e-6), f"tick {i} damage"
-        assert sum(d for _, d in hits) == pytest.approx(scenario.total_stored, rel=1e-6), "total damage"
+        assert sum(d for _, d in hits) == pytest.approx(scenario.expected_total, rel=1e-6), "total damage"
 
     @pytest.mark.parametrize("haste", _HASTE_WITH_PARTIAL)
     def test_final_tick_smaller_than_first(self, haste: float) -> None:
         scenario = DotScenario(id="", hits=[(0.0, 10_000.0, haste)], expected=[], advance_to=8.5)
         hits = _run(scenario)
-        assert len(hits) >= 2
+        assert len(hits) >= 5
         assert hits[-1][1] < hits[0][1]
 
 
@@ -222,7 +186,7 @@ class TestBraveMachinations:
         """PreDamageSnapshotUpdate from a weapon ability source gains +32% crit (trait_level=4)."""
         state, elarion, brave, vbt, enemy = setup
         snap = SnapshotStats(average_damage=1000.0, crit_percent=0.3, crit_multiplier=1.0)
-        event = PreDamageSnapshotUpdate(damage_source=vbt, target=enemy, snapshot=snap)
+        event = SnapshotCreation(damage_source=vbt, snapshot=snap)
         state.bus.emit(event)
         assert event.snapshot.crit_percent == pytest.approx(0.3 + brave.crit_bonus)
 
@@ -232,7 +196,7 @@ class TestBraveMachinations:
         """Non-weapon-ability sources are not affected by the crit bonus."""
         state, elarion, brave, vbt, enemy = setup
         snap = SnapshotStats(average_damage=1000.0, crit_percent=0.3, crit_multiplier=1.0)
-        event = PreDamageSnapshotUpdate(damage_source=elarion.focused_shot, target=enemy, snapshot=snap)
+        event = SnapshotCreation(damage_source=elarion.focused_shot, snapshot=snap)
         state.bus.emit(event)
         assert event.snapshot.crit_percent == pytest.approx(0.3)
 
@@ -290,7 +254,7 @@ class TestHeroicBrand:
         """Weapon ability snapshot average_damage is multiplied by 1.80 (trait_level=4)."""
         state, elarion, brand, vbt, enemy = setup
         snap = SnapshotStats(average_damage=1000.0, crit_percent=0.0, crit_multiplier=1.0)
-        event = PreDamageSnapshotUpdate(damage_source=vbt, target=enemy, snapshot=snap)
+        event = SnapshotCreation(damage_source=vbt, snapshot=snap)
         state.bus.emit(event)
         assert event.snapshot.average_damage == pytest.approx(1000.0 * brand.damage_multiplier)
 
@@ -300,7 +264,7 @@ class TestHeroicBrand:
         """Non-weapon-ability snapshots are not modified."""
         state, elarion, brand, vbt, enemy = setup
         snap = SnapshotStats(average_damage=1000.0, crit_percent=0.0, crit_multiplier=1.0)
-        event = PreDamageSnapshotUpdate(damage_source=elarion.focused_shot, target=enemy, snapshot=snap)
+        event = SnapshotCreation(damage_source=elarion.focused_shot, snapshot=snap)
         state.bus.emit(event)
         assert event.snapshot.average_damage == pytest.approx(1000.0)
 

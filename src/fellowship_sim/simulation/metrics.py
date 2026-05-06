@@ -218,7 +218,7 @@ class BuffUptimeProbe(Probe):
     uptime_intervals_dict: dict[str, list[tuple[float, float]]] = field(
         default_factory=lambda: defaultdict(list), init=False
     )
-    buff_count_dict: dict[str, int] = field(default_factory=lambda: defaultdict(lambda: 0), init=False)
+    buff_count_dict: dict[str, int] = field(default_factory=lambda: defaultdict(int), init=False)
 
     def attach(self, bus: EventBus, enemies: Sequence[Entity]) -> None:
         bus.subscribe(EffectApplied, self._on_apply, owner=self)

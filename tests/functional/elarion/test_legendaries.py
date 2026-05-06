@@ -2,7 +2,7 @@ from dataclasses import replace
 
 import pytest
 
-from fellowship_sim.base_classes import AbilityDamage, Enemy, State
+from fellowship_sim.base_classes import AbilityDamage, Enemy, Legendary, State
 from fellowship_sim.base_classes.events import SpiritProc
 from fellowship_sim.base_classes.stats import RawStatsFromPercents
 from fellowship_sim.elarion.ability import HeartseekerBarrage
@@ -49,7 +49,7 @@ class TestBootsLegendary:
                 haste_percent=haste_percent,
                 spirit_percent=0.0,
             ),
-            legendary="Boots",
+            legendary=Legendary.BOOTS,
         ).finalize(state)
 
     def test_volley_base_duration_increased_by_2s(self, state: State, elarion: Elarion) -> None:
@@ -65,7 +65,7 @@ class TestBootsLegendary:
         elarion.skystrider_supremacy.cast(target)  # instant; empowers multishot
         elarion.volley.cast(target)
 
-        volley_effect = VolleyEffect.get_volley(target)[0]
+        volley_effect = target.effects.filter(VolleyEffect)[0]
         duration_before = volley_effect.duration
 
         elarion.multishot.cast(target)
@@ -112,7 +112,7 @@ class TestBootsLegendary:
             assert not elarion.multishot.is_empowered()
             elarion.multishot.cast(target)
 
-        volleys = VolleyEffect.get_volley(target)
+        volleys = target.effects.filter(VolleyEffect)
 
         # Duration = base_time (8) + boots extension (2) + 9 multishot casts * extension (0.5)
         assert state.time + volleys[0].duration == pytest.approx(t1 + 8 + 2 + 9 * 0.5)
@@ -124,24 +124,25 @@ class TestNeckLegendary:
 
     @pytest.fixture
     def elarion(self, state_always_procs__st: State) -> Elarion:
-        return ElarionSetup(raw_stats=_ZERO_STATS, legendary="Neck").finalize(state_always_procs__st)
+        return ElarionSetup(raw_stats=_ZERO_STATS, legendary=Legendary.NECK).finalize(state_always_procs__st)
 
     def test_spirit_proc_applies_impending_heartseeker(self, state_always_procs__st: State, elarion: Elarion) -> None:
         """RNG(0.0) < 0.5 proc_chance → ImpendingHeartseeker is granted on spirit proc."""
         state_always_procs__st.bus.emit(SpiritProc(ability=elarion.celestial_shot, owner=elarion, resource_amount=15.0))
+        elarion.wait(0.2)
         assert isinstance(elarion.effects.get(ImpendingHeartseeker), ImpendingHeartseeker)
 
     def test_spirit_proc_no_buff_when_rng_fails(self) -> None:
         """RNG(1.0) >= 0.5 proc_chance → ImpendingHeartseeker is not granted."""
         state = State(rng=FixedRNG(value=1.0))
         Enemy(state=state)
-        elarion = ElarionSetup(raw_stats=_ZERO_STATS, legendary="Neck").finalize(state)
+        elarion = ElarionSetup(raw_stats=_ZERO_STATS, legendary=Legendary.NECK).finalize(state)
         state.bus.emit(SpiritProc(ability=elarion.celestial_shot, owner=elarion, resource_amount=15.0))
         assert elarion.effects.get(ImpendingHeartseeker) is None
 
     def test_chained_neck_procs_on_barrage(self, state_always_procs__st: State) -> None:
         """Getting both a spirit proc and a neck proc enables elarion to chain IHB."""
-        elarion = ElarionSetup(raw_stats=replace(_ZERO_STATS, spirit_percent=0.25), legendary="Neck").finalize(
+        elarion = ElarionSetup(raw_stats=replace(_ZERO_STATS, spirit_percent=0.25), legendary=Legendary.NECK).finalize(
             state_always_procs__st
         )
 
@@ -194,7 +195,7 @@ class TestNeckLegendary:
         """Check that IBH is correctly applied, correctly removed, etc."""
         state = State(rng=FixedRNG(value=1.0))
         Enemy(state=state)
-        elarion = ElarionSetup(raw_stats=replace(_ZERO_STATS, spirit_percent=0.25), legendary="Neck").finalize(state)
+        elarion = ElarionSetup(raw_stats=replace(_ZERO_STATS, spirit_percent=0.25), legendary=Legendary.NECK).finalize(state)
 
         target = state.enemies[0]
 
@@ -265,7 +266,7 @@ class TestCloakLegendary:
 
     @pytest.fixture
     def elarion(self, state: State) -> Elarion:
-        return ElarionSetup(raw_stats=_ZERO_STATS, legendary="Cloak").finalize(state)
+        return ElarionSetup(raw_stats=_ZERO_STATS, legendary=Legendary.CLOAK).finalize(state)
 
     def test_highwind_arrow_applies_shimmer(self, state: State, elarion: Elarion) -> None:
         """Casting HighwindArrow applies Shimmer to the target."""

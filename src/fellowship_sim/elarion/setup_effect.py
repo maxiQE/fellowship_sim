@@ -1,14 +1,16 @@
 """Setup effects for Elarion — applied once after character initialisation."""
 
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Literal
+from enum import StrEnum
+from typing import TYPE_CHECKING
 
 from loguru import logger
 
 import fellowship_sim.base_classes.base_config
 import fellowship_sim.base_classes.config
-from fellowship_sim.base_classes import SetupEffectEarly
+from fellowship_sim.base_classes import Legendary, SetupEffectEarly
 from fellowship_sim.base_classes.setup import SetupContext, SetupEffectLate
 from fellowship_sim.elarion.effect import (
     CelestialImpetusAura,
@@ -176,24 +178,21 @@ class TheWeightOfGravitySetup(SetupEffectLate["Elarion"]):
 # Legendary selection
 # ---------------------------------------------------------------------------
 
-ElarionLegendaryName = Literal["Boots", "Cloak", "Neck"]
-
-
 @dataclass(kw_only=True)
 class ElarionLegendarySelection(SetupEffectLate["Elarion"]):
     """Apply one of the three Elarion legendary item effects."""
 
-    selected_legendary: ElarionLegendaryName
+    selected_legendary: Legendary
 
     def __str__(self) -> str:
         return f"Legendary: {self.selected_legendary}"
 
     def apply(self, character: "Elarion", context: SetupContext) -> None:
-        if self.selected_legendary == "Neck":
+        if self.selected_legendary == Legendary.NECK:
             self._apply_neck(character)
-        elif self.selected_legendary == "Boots":
+        elif self.selected_legendary == Legendary.BOOTS:
             self._apply_boots(character)
-        elif self.selected_legendary == "Cloak":
+        elif self.selected_legendary == Legendary.CLOAK:
             self._apply_cloak(character)
 
     def _apply_neck(self, character: "Elarion") -> None:
@@ -218,32 +217,31 @@ class ElarionLegendarySelection(SetupEffectLate["Elarion"]):
 # Talent selection
 # ---------------------------------------------------------------------------
 
-ElarionTalentName = Literal[
+class ElarionTalent(StrEnum):
     # cost 2
-    "Focused Expanse",
-    "Piercing Seekers",
-    "Final Crescendo",
+    FOCUSED_EXPANSE = "Focused Expanse"
+    PIERCING_SEEKERS = "Piercing Seekers"
+    FINAL_CRESCENDO = "Final Crescendo"
     # cost 1
-    "Skylit Grace",
-    "Fusillade",
-    "Skyward Munitions",
+    SKYLIT_GRACE = "Skylit Grace"
+    FUSILLADE = "Fusillade"
+    SKYWARD_MUNITIONS = "Skyward Munitions"
     # cost 2
-    "Repeating Stars",
-    "Lunar Fury",
-    "Lethal Shots",
+    REPEATING_STARS = "Repeating Stars"
+    LUNAR_FURY = "Lunar Fury"
+    LETHAL_SHOTS = "Lethal Shots"
     # cost 1
-    "Path Of Twilight",
-    "Lunarlight Affinity",
-    "Magic Ward",
+    PATH_OF_TWILIGHT = "Path Of Twilight"
+    LUNARLIGHT_AFFINITY = "Lunarlight Affinity"
+    MAGIC_WARD = "Magic Ward"
     # cost 3
-    "Fervent Supremacy",
-    "Impending Heartseeker",
-    "Resurgent Winds",
+    FERVENT_SUPREMACY = "Fervent Supremacy"
+    IMPENDING_HEARTSEEKER = "Impending Heartseeker"
+    RESURGENT_WINDS = "Resurgent Winds"
     # cost 1
-    "Last Lights",
-    "Spirited Fortitude",
-    "The Weight Of Gravity",
-]
+    LAST_LIGHTS = "Last Lights"
+    SPIRITED_FORTITUDE = "Spirited Fortitude"
+    THE_WEIGHT_OF_GRAVITY = "The Weight Of Gravity"
 
 _TALENT_COSTS: dict[str, int] = {
     "Focused Expanse": 2,
@@ -288,7 +286,7 @@ class PiercingSeekerSetup(SetupEffectLate["Elarion"]):
         logger.debug("setup: Piercing Seekers added")
 
 
-_TALENT_SETUP: dict[ElarionTalentName, type[SetupEffectLate["Elarion"]]] = {
+_TALENT_SETUP: dict[str, type[SetupEffectLate["Elarion"]]] = {
     "Focused Expanse": FocusedExpanseSetup,
     "Piercing Seekers": PiercingSeekerSetup,
     "Final Crescendo": FinalCrescendoSetup,
@@ -317,7 +315,7 @@ class ElarionTalentSelection(SetupEffectLate["Elarion"]):
     Raises ValueError if the selected talents exceed total_talent_points.
     """
 
-    talents: list[ElarionTalentName] = field(default_factory=list)
+    talents: Sequence[ElarionTalent] = field(default_factory=list)
     total_talent_points: int = fellowship_sim.base_classes.base_config.MAX_TALENT_POINTS
 
     def __post_init__(self) -> None:

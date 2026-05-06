@@ -247,6 +247,7 @@ PIERCING_SEEKERS_SECONDARY_DAMAGE_MULTIPLIER = 0.7
 # Legendary: Neck; Starstriker's Ascent
 # ---------------------------------------------------------------------------
 STARSTRIKERS_ASCENT_PROC_CHANCE = 0.50
+STARSTRIKERS_ASCENT_IHB_GRANT_DELAY = 0.1
 
 # ---------------------------------------------------------------------------
 # Legendary: Boots

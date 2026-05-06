@@ -1,6 +1,6 @@
 """Functional tests — entity kill interactions with real game mechanics."""
 
-from fellowship_sim.base_classes import AbilityDamage, State
+from fellowship_sim.base_classes import AbilityDamage, State, Weapon
 from fellowship_sim.base_classes.stats import RawStatsFromPercents
 from fellowship_sim.elarion.effect import LunarlightMarkEffect
 from fellowship_sim.elarion.setup import ElarionSetup
@@ -16,7 +16,7 @@ class TestVoidbringersTouchOnKill:
         state = state_no_procs__st
         elarion = ElarionSetup(
             raw_stats=RawStatsFromPercents(main_stat=1000.0),
-            weapon_ability="Voidbringer's Touch",
+            weapon_ability=Weapon.VOIDBRINGERS_TOUCH,
         ).finalize(state)
         target = state.enemies[0]
 

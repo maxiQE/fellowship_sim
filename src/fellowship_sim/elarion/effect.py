@@ -1,6 +1,6 @@
 import re
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING
 
 from loguru import logger
 
@@ -16,10 +16,11 @@ from fellowship_sim.base_classes import (
 from fellowship_sim.base_classes.events import (
     AbilityCastSuccess,
     AbilityDamage,
-    ComputeCooldownReduction,
+    ComputeCooldownAcceleration,
     PreDamageSnapshotUpdate,
     Resource,
     ResourceSpent,
+    SnapshotCreation,
     SpiritProc,
 )
 from fellowship_sim.base_classes.timed_events import GenericTimedEvent
@@ -243,15 +244,12 @@ class ElarionSpiritProcAura(Effect):
         if proc_chance == 0.0 or roll >= proc_chance:
             return
 
+        if event.target is None:
+            raise Exception(f"ResourceSpent event has no target: {event}")  # noqa: TRY002, TRY003
         ability: Ability[Elarion] = event.ability  # ty:ignore[invalid-assignment]
         target = event.target
         resource_amount = event.resource_amount
-        state.schedule(
-            time_delay=0.0,
-            callback=GenericTimedEvent(
-                name="spirit_effect proc", callback=lambda: self._resolve_proc(ability, target, resource_amount)
-            ),
-        )
+        self._resolve_proc(ability, target, resource_amount)
 
         logger.debug(f"spirit proc triggered by {ability}")
 
@@ -306,10 +304,14 @@ class FinalCrescendo(Effect):
         if self.stacks == elarion_config.FINAL_CRESCENDO_MAX_STACKS:
             self.stacks = 0
             highwind_arrow = self.owner.highwind_arrow
-            highwind_arrow.has_final_crescendo_buff = False
             logger.trace(
                 f"Final crescendo applied to HWA: stacks reset {self.stacks}/{elarion_config.FINAL_CRESCENDO_MAX_STACKS}; buff removed from HWA"
             )
+
+            def _clear_buff() -> None:
+                highwind_arrow.has_final_crescendo_buff = False
+
+            self.owner.state.schedule(time_delay=0, callback=GenericTimedEvent(name="Clear Final Crescendo buff", callback=_clear_buff))
             return
 
         # else, add a stack
@@ -317,10 +319,14 @@ class FinalCrescendo(Effect):
             self.stacks += 1
             if self.stacks == elarion_config.FINAL_CRESCENDO_MAX_STACKS:
                 highwind_arrow = self.owner.highwind_arrow
-                highwind_arrow.has_final_crescendo_buff = True
                 logger.debug(
                     f"Final_crescendo: stacks {self.stacks}/{elarion_config.FINAL_CRESCENDO_MAX_STACKS}; buff added to HWA"
                 )
+
+                def _set_buff() -> None:
+                    highwind_arrow.has_final_crescendo_buff = True
+
+                self.owner.state.schedule(time_delay=0, callback=GenericTimedEvent(name="Set Final Crescendo buff", callback=_set_buff))
             else:
                 logger.trace(f"Final_crescendo: stacks {self.stacks}/{elarion_config.FINAL_CRESCENDO_MAX_STACKS}")
 
@@ -382,7 +388,11 @@ class ImpendingHeartseeker(Effect):
 
     def on_remove(self, *, is_remove_from_expiration: bool = False) -> None:
         barrage = self.owner.heartseeker_barrage
-        barrage.has_impending_barrage = False
+
+        def _clear_buff() -> None:
+            barrage.has_impending_barrage = False
+
+        self.owner.state.schedule(time_delay=0, callback=GenericTimedEvent(name="Clear Impending Heartseeker buff", callback=_clear_buff))
 
     def _on_ability_cast(self, event: AbilityCastSuccess) -> None:
         if not isinstance(event.ability, HeartseekerBarrage):
@@ -402,9 +412,9 @@ class Fusillade(Effect):
     crit_bonus: float = field(default=elarion_config.FUSILLADE_CRIT_BONUS, init=False)
 
     def on_add(self) -> None:
-        self.owner.state.bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
+        self.owner.state.bus.subscribe(SnapshotCreation, self._on_pre_damage, owner=self)
 
-    def _on_pre_damage(self, event: PreDamageSnapshotUpdate) -> None:
+    def _on_pre_damage(self, event: SnapshotCreation) -> None:
         if not isinstance(event.damage_source, HeartseekerBarrage):
             return
         event.snapshot = event.snapshot.add_crit_percent(self.crit_bonus)
@@ -473,6 +483,9 @@ class VolleyEffect(Effect):
 
     owner: "Elarion" = field(init=True)
 
+    name: str = field(default="Volley (ongoing effect)", init=False)
+    is_independently_stackable: bool = field(default=True, init=False)
+
     tick_interval: float = field(init=True)
     duration: float = field(init=True)
 
@@ -481,26 +494,13 @@ class VolleyEffect(Effect):
     multishot_extends_duration_by: float = field(init=True)
     has_skylit_grace: bool = field(init=True)
 
-    name: str = field(default="", init=False)
-
-    _counter: ClassVar[int] = 0
-
-    def __post_init__(self) -> None:
-        VolleyEffect._counter += 1
-        self.name = f"Volley (ongoing effect) [{VolleyEffect._counter}]"
-
-    @staticmethod
-    def get_volley(enemy: Entity) -> "list[VolleyEffect]":
-        """Return all active VolleyEffect instances on enemy."""
-        return [e for e in enemy.effects if isinstance(e, VolleyEffect)]
-
     def on_add(self) -> None:
         state = self.owner.state
 
         logger.debug(f"volley effect created with: duration={self.duration}s; tick interval={self.tick_interval}s")
 
         if self.has_skylit_grace:
-            state.bus.subscribe(ComputeCooldownReduction, self._on_compute_cdr, owner=self)
+            state.bus.subscribe(ComputeCooldownAcceleration, self._on_compute_cdr, owner=self)
             self.owner._recalculate_cdr_multipliers()
             logger.debug("volley effect: Skylit Grace CDR active")
 
@@ -524,10 +524,10 @@ class VolleyEffect(Effect):
         self._schedule_expiry()
         logger.debug(f"volley effect: multishot cast extending duration to {self.duration}s)")
 
-    def _on_compute_cdr(self, event: ComputeCooldownReduction) -> None:
+    def _on_compute_cdr(self, event: ComputeCooldownAcceleration) -> None:
         if not isinstance(event.ability, SkystriderGrace):
             return
-        event.cdrecovery_modifiers.append(elarion_config.SKYLIT_GRACE_CDR_MODIFIER)
+        event.cda_independent.append(elarion_config.SKYLIT_GRACE_CDR_MODIFIER)
         logger.trace("Volley (Skylit Grace): Skystrider Grace CDA +1.0")
 
     def _do_tick(self) -> None:
@@ -567,9 +567,9 @@ class SkywardMunitions(Effect):
             return
 
         hwa = self.owner.highwind_arrow
-        hwa._reduce_cooldown(elarion_config.SKYWARD_MUNITIONS_CDR)
+        hwa._remove_cooldown(elarion_config.SKYWARD_MUNITIONS_CDR)
         barrage = self.owner.heartseeker_barrage
-        barrage._reduce_cooldown(elarion_config.SKYWARD_MUNITIONS_CDR)
+        barrage._remove_cooldown(elarion_config.SKYWARD_MUNITIONS_CDR)
 
         ability_label = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", type(event.ability).__name__)
         logger.trace(f"Skyward Munitions: {ability_label} → Highwind Arrow/Heartseeker Barrage CD -1s")
@@ -593,7 +593,7 @@ class RepeatingStars(Effect):
             return
 
         volley = self.owner.volley
-        volley._reduce_cooldown(elarion_config.REPEATING_STARS_VOLLEY_CDR)
+        volley._remove_cooldown(elarion_config.REPEATING_STARS_VOLLEY_CDR)
         logger.trace("Repeating Stars: Multishot hit → Volley CD -0.3s")
 
 
@@ -635,9 +635,9 @@ class LunarFury(Effect):
     bonus_damage_percent: float = field(default=elarion_config.LUNAR_FURY_DAMAGE_BONUS, init=False)
 
     def on_add(self) -> None:
-        self.owner.state.bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
+        self.owner.state.bus.subscribe(SnapshotCreation, self._on_pre_damage, owner=self)
 
-    def _on_pre_damage(self, event: PreDamageSnapshotUpdate) -> None:
+    def _on_pre_damage(self, event: SnapshotCreation) -> None:
         if not isinstance(event.damage_source, (LunarlightSalvo, LunarlightExplosion)):
             return
 
@@ -658,9 +658,9 @@ class LunarlightAffinity(Effect):
     bonus_crit_percent: float = field(default=elarion_config.LUNARLIGHT_AFFINITY_CRIT_BONUS, init=False)
 
     def on_add(self) -> None:
-        self.owner.state.bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
+        self.owner.state.bus.subscribe(SnapshotCreation, self._on_pre_damage, owner=self)
 
-    def _on_pre_damage(self, event: PreDamageSnapshotUpdate) -> None:
+    def _on_pre_damage(self, event: SnapshotCreation) -> None:
         if not isinstance(event.damage_source, (LunarlightSalvo, LunarlightExplosion)):
             return
         event.snapshot = event.snapshot.add_crit_percent(self.bonus_crit_percent)
@@ -733,9 +733,13 @@ class ElarionNeck(Effect):
     def _on_spirit_proc(self, event: SpiritProc) -> None:
         roll = self.owner.state.rng.random()
         if roll < self.proc_chance:
-            self.owner.effects.add(ImpendingHeartseeker(owner=self.owner))
-            logger.debug(
-                "Starstriker's Ascent: proc ({:.3f} < {:.2f}) → Impending Heartseeker applied", roll, self.proc_chance
-            )
+
+            def _grant() -> None:
+                self.owner.effects.add(ImpendingHeartseeker(owner=self.owner))
+                logger.debug(
+                    "Starstriker's Ascent: proc ({:.3f} < {:.2f}) → Impending Heartseeker applied", roll, self.proc_chance
+                )
+
+            self.owner.state.schedule(time_delay=elarion_config.STARSTRIKERS_ASCENT_IHB_GRANT_DELAY, callback=GenericTimedEvent(name="Grant Impending Heartseeker", callback=_grant))
         else:
             logger.trace("Starstriker's Ascent: no proc ({:.3f} >= {:.2f})", roll, self.proc_chance)

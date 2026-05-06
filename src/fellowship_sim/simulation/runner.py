@@ -1,6 +1,9 @@
 import contextlib
+import multiprocessing as mp
 import time
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
+from functools import partial
 
 from fellowship_sim.base_classes.entity import Player
 from fellowship_sim.generic_game_logic.setup_effect import PlayerSetup
@@ -78,6 +81,17 @@ def run_once[P: Player](
     return probes, state.time
 
 
+def _run_once_timed[P: Player](
+    seed: int | None,
+    *,
+    scenario: Scenario,
+    rotation: Rotation[P],
+    setup: PlayerSetup[P],
+    probe_types: set[type[Probe]],
+) -> tuple[dict[type[Probe], Probe], float]:
+    return run_once(scenario=scenario, rotation=rotation, setup=setup, seed=seed, probe_types=probe_types)
+
+
 def run_k[P: Player](
     k: int,
     scenario: Scenario,
@@ -85,6 +99,7 @@ def run_k[P: Player](
     setup: PlayerSetup[P],
     base_seed: int | None = None,
     metrics: list[Metric] = DEFAULT_METRICS,
+    workers: int | None = None,
 ) -> RepetitionResult:
     """Run k independent simulations and aggregate results into a RepetitionResult.
 
@@ -100,19 +115,20 @@ def run_k[P: Player](
         RepetitionResult with aggregated scalars, texts, and wall-time stats.
     """
     probe_types: set[type[Probe]] = {m.probe_type for m in metrics}
-    seeds = [None if base_seed is None else base_seed + i for i in range(k)]
-    rep_times: list[float] = []
-    all_run_probes: list[dict[type[Probe], Probe]] = []
-    duration_list: list[float] = []
+    seeds: list[int | None] = [None if base_seed is None else base_seed + i for i in range(k)]
 
-    for s in seeds:
-        t0 = time.perf_counter()
-        probes, duration = run_once(scenario=scenario, rotation=rotation, setup=setup, seed=s, probe_types=probe_types)
-        all_run_probes.append(probes)
-        duration_list.append(duration)
-        rep_times.append(time.perf_counter() - t0)
+    worker = partial(_run_once_timed, scenario=scenario, rotation=rotation, setup=setup, probe_types=probe_types)
 
-    total_wall = sum(rep_times)
+    t0 = time.perf_counter()
+    if workers == 1:
+        results = [worker(s) for s in seeds]
+    else:
+        with ProcessPoolExecutor(mp_context=mp.get_context("fork"), max_workers=workers) as executor:
+            results = list(executor.map(worker, seeds))
+    total_wall = time.perf_counter() - t0
+
+    all_run_probes: list[dict[type[Probe], Probe]] = [r[0] for r in results]
+    duration_list: list[float] = [r[1] for r in results]
 
     scalars: dict[str, MeanStd] = {}
     texts: dict[str, str] = {}

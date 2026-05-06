@@ -1,9 +1,10 @@
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Literal
+from enum import StrEnum
+from typing import TYPE_CHECKING
 
 from loguru import logger
 
-from fellowship_sim.base_classes import SetupEffectEarly, SetupEffectLate, base_config
+from fellowship_sim.base_classes import Legendary, SetupEffectEarly, SetupEffectLate, base_config
 from fellowship_sim.base_classes.setup import SetupContext
 from fellowship_sim.rime import rime_config
 
@@ -20,6 +21,7 @@ from .effect import (
     RimeSpiritProcAura,
     SoulfrostTorrentAura,
     UndulatingSpiritAura,
+    WintersEmbrace,
     WisdomOfTheNorth,
 )
 
@@ -53,8 +55,8 @@ class ChillingFinesseSetup(SetupEffectLate["Rime"]):
 @dataclass(kw_only=True)
 class WintersEmbraceEffectSetup(SetupEffectLate["Rime"]):
     def apply(self, character: "Rime", context: SetupContext) -> None:
-        character.bursting_ice.has_winters_embrace = True
-        logger.debug("setup: Winter's Embrace → bursting_ice flag set")
+        character.effects.add(WintersEmbrace(owner=character))
+        logger.debug("setup: Winter's Embrace added")
 
 
 @dataclass(kw_only=True)
@@ -179,22 +181,19 @@ class WisdomOfTheNorthSetup(SetupEffectLate["Rime"]):
 # Legendary selection
 # ---------------------------------------------------------------------------
 
-RimeLegendaryName = Literal["Neck", "Boots", "Cloak"]
-
-
 @dataclass(kw_only=True)
 class RimeLegendarySelection(SetupEffectLate["Rime"]):
-    selected_legendary: RimeLegendaryName
+    selected_legendary: Legendary
 
     def __str__(self) -> str:
         return f"Legendary: {self.selected_legendary}"
 
     def apply(self, character: "Rime", context: SetupContext) -> None:
-        if self.selected_legendary == "Neck":
+        if self.selected_legendary == Legendary.NECK:
             self._apply_neck(character)
-        elif self.selected_legendary == "Boots":
+        elif self.selected_legendary == Legendary.BOOTS:
             self._apply_boots(character)
-        elif self.selected_legendary == "Cloak":
+        elif self.selected_legendary == Legendary.CLOAK:
             self._apply_cloak(character)
 
     def _apply_neck(self, character: "Rime") -> None:
@@ -215,32 +214,31 @@ class RimeLegendarySelection(SetupEffectLate["Rime"]):
 # Talent selection
 # ---------------------------------------------------------------------------
 
-RimeTalentName = Literal[
+class RimeTalent(StrEnum):
     # cost 2
-    "Chilling Finesse",
-    "Winter's Embrace",
-    "Glacial Assault",
+    CHILLING_FINESSE = "Chilling Finesse"
+    WINTERS_EMBRACE = "Winter's Embrace"
+    GLACIAL_ASSAULT = "Glacial Assault"
     # cost 1
-    "Burstbolter",
-    "Supreme Torrent",
-    "Navir's Keeper",
+    BURSTBOLTER = "Burstbolter"
+    SUPREME_TORRENT = "Supreme Torrent"
+    NAVIRS_KEEPER = "Navir's Keeper"
     # cost 2
-    "Icy Flow",
-    "Avalanche",
-    "Coalescing Frost",
+    ICY_FLOW = "Icy Flow"
+    AVALANCHE = "Avalanche"
+    COALESCING_FROST = "Coalescing Frost"
     # cost 1
-    "Tundra Guard",
-    "Greater Glacial Blast",
-    "Magic Ward",
+    TUNDRA_GUARD = "Tundra Guard"
+    GREATER_GLACIAL_BLAST = "Greater Glacial Blast"
+    MAGIC_WARD = "Magic Ward"
     # cost 3
-    "Cascading Blitz",
-    "Frostweaver's Wrath",
-    "Soulfrost Torrent",
+    CASCADING_BLITZ = "Cascading Blitz"
+    FROSTWEAVERS_WRATH = "Frostweaver's Wrath"
+    SOULFROST_TORRENT = "Soulfrost Torrent"
     # cost 1
-    "Biting Cold",
-    "Spirited Fortitude",
-    "Wisdom of the North",
-]
+    BITING_COLD = "Biting Cold"
+    SPIRITED_FORTITUDE = "Spirited Fortitude"
+    WISDOM_OF_THE_NORTH = "Wisdom of the North"
 
 _TALENT_COSTS: dict[str, int] = {
     "Chilling Finesse": 2,
@@ -263,7 +261,7 @@ _TALENT_COSTS: dict[str, int] = {
     "Wisdom of the North": 1,
 }
 
-_TALENT_SETUP: dict[RimeTalentName, type[SetupEffectLate["Rime"]]] = {  # type: ignore[valid-type]
+_TALENT_SETUP: dict[str, type[SetupEffectLate["Rime"]]] = {
     "Chilling Finesse": ChillingFinesseSetup,
     "Winter's Embrace": WintersEmbraceEffectSetup,
     "Glacial Assault": GlacialAssaultSetup,
@@ -292,7 +290,7 @@ class RimeTalentSelection(SetupEffectLate["Rime"]):
     Raises ValueError if the selected talents exceed total_talent_points.
     """
 
-    talents: list[RimeTalentName] = field(default_factory=list)
+    talents: list[RimeTalent] = field(default_factory=list)
     total_talent_points: int = base_config.MAX_TALENT_POINTS
 
     def __post_init__(self) -> None:

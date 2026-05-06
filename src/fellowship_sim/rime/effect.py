@@ -9,10 +9,10 @@ from fellowship_sim.base_classes.effect import Buff, Effect
 from fellowship_sim.base_classes.events import (
     AbilityCastSuccess,
     AbilityDamage,
-    PreDamageSnapshotUpdate,
     Resource,
     ResourceChanged,
     ResourceSpent,
+    SnapshotCreation,
     SpiritProc,
 )
 from fellowship_sim.base_classes.stats import (
@@ -36,9 +36,10 @@ class WintersBlessingBuff(Buff):
 
     name: str = field(default="winters_blessing", init=False)
     duration: float = field(default=rime_config.WINTERS_BLESSING_BUFF_DURATION, init=False)
+    spirit: float = field(default=rime_config.WINTERS_BLESSING_BUFF_SPIRIT, init=False)
 
     def stat_modifiers(self) -> list[StatModifier]:
-        return [SpiritPercentAdditive(value=rime_config.WINTERS_BLESSING_BUFF_SPIRIT)]
+        return [SpiritPercentAdditive(value=self.spirit)]
 
 
 @dataclass(kw_only=True, repr=False)
@@ -49,12 +50,13 @@ class IceBlitzBuff(Effect):
 
     name: str = field(default="ice_blitz", init=False)
     duration: float = field(default=rime_config.ICE_BLITZ_BUFF_DURATION, init=False)
+    damage_multiplier: float = field(default=rime_config.ICE_BLITZ_BUFF_DAMAGE_MULTIPLIER, init=False)
 
     def on_add(self) -> None:
-        self.owner.state.bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
+        self.owner.state.bus.subscribe(SnapshotCreation, self._on_pre_damage, owner=self)
 
-    def _on_pre_damage(self, event: PreDamageSnapshotUpdate) -> None:
-        event.snapshot = event.snapshot.scale_average_damage(rime_config.ICE_BLITZ_BUFF_DAMAGE_MULTIPLIER)
+    def _on_pre_damage(self, event: SnapshotCreation) -> None:
+        event.snapshot = event.snapshot.scale_average_damage(self.damage_multiplier)
         logger.trace("Ice Blitz: damage x1.20")
 
 
@@ -69,9 +71,10 @@ class WrathOfWinterEffect(Effect):
 
     orb_generation_interval: float = field(default=rime_config.WRATH_OF_WINTER_ORB_GENERATION_INTERVAL, init=False)
     orb_generation_count: int = field(default=rime_config.WRATH_OF_WINTER_ORB_GENERATION_COUNT, init=False)
+    damage_multiplier: float = field(default=rime_config.WRATH_OF_WINTER_EFFECT_DAMAGE_MULTIPLIER, init=False)
 
     def on_add(self) -> None:
-        self.owner.state.bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
+        self.owner.state.bus.subscribe(SnapshotCreation, self._on_pre_damage, owner=self)
 
         for idx in range(0, math.floor(self.duration / self.orb_generation_interval) + 1):
             self.owner.state.schedule(
@@ -79,8 +82,8 @@ class WrathOfWinterEffect(Effect):
                 GenericTimedEvent(name="Wrath of Winter orb generation", callback=self._add_orb),
             )
 
-    def _on_pre_damage(self, event: PreDamageSnapshotUpdate) -> None:
-        event.snapshot = event.snapshot.scale_average_damage(rime_config.WRATH_OF_WINTER_EFFECT_DAMAGE_MULTIPLIER)
+    def _on_pre_damage(self, event: SnapshotCreation) -> None:
+        event.snapshot = event.snapshot.scale_average_damage(self.damage_multiplier)
         logger.trace("Wrath of Winter: damage x1.20")
 
     def _add_orb(self) -> None:
@@ -117,8 +120,6 @@ class BurstingIceEffect(Effect):
     tick_interval: float = field(init=True)
     duration: float = field(init=True)
 
-    has_winters_embrace: bool = field(init=True)
-
     def on_add(self) -> None:
         state = self.owner.state
 
@@ -126,19 +127,9 @@ class BurstingIceEffect(Effect):
             f"bursting ice effect created with: duration={self.duration}s; tick interval={self.tick_interval}s"
         )
 
-        if self.has_winters_embrace:
-            self.owner.state.bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
-
         state.schedule(
             time_delay=self.tick_interval, callback=GenericTimedEvent(name="bursting ice tick", callback=self._do_tick)
         )
-
-    def _on_pre_damage(self, event: PreDamageSnapshotUpdate) -> None:
-        from .ability import BurstingIce
-
-        if not isinstance(event.damage_source, BurstingIce):
-            event.snapshot = event.snapshot.scale_average_damage(rime_config.WINTERS_EMBRACE_DAMAGE_MULTIPLIER)
-            logger.trace("Winter's Embrace: damage x1.20")
 
     def _do_tick(self) -> None:
         if self.attached_to is None:
@@ -151,6 +142,29 @@ class BurstingIceEffect(Effect):
         state.schedule(
             time_delay=self.tick_interval, callback=GenericTimedEvent(name="bursting ice tick", callback=self._do_tick)
         )
+
+
+@dataclass(kw_only=True, repr=False)
+class WintersEmbrace(Effect):
+    owner: "Rime" = field(init=True)
+
+    name: str = field(default="winters_embrace", init=False)
+    damage_multiplier: float = field(default=rime_config.WINTERS_EMBRACE_DAMAGE_MULTIPLIER, init=False)
+
+    def on_add(self) -> None:
+        self.owner.state.bus.subscribe(SnapshotCreation, self._on_pre_damage, owner=self)
+
+    def _on_pre_damage(self, event: SnapshotCreation) -> None:
+        from .ability import BurstingIce
+
+        if isinstance(event.damage_source, BurstingIce):
+            return
+
+        if not any(enemy.effects.has(BurstingIceEffect) for enemy in self.owner.state.enemies):
+            return
+
+        event.snapshot = event.snapshot.scale_average_damage(self.damage_multiplier)
+        logger.trace("Winter's Embrace: damage x1.20")
 
 
 # Sprit effect
@@ -182,7 +196,7 @@ class RimeSpiritProcAura(Effect):
 
         proc_chance = self.owner.stats.spirit_proc_chance
 
-        undulating_spirit = self.owner.effects.get(UndulatingSpritEffect)
+        undulating_spirit = self.owner.effects.get(UndulatingSpiritEffect)
 
         if undulating_spirit is not None:
             proc_chance = 1
@@ -195,27 +209,22 @@ class RimeSpiritProcAura(Effect):
 
         ability = event.ability
         resource_amount = event.resource_amount
-        state.schedule(
-            time_delay=0.0,
-            callback=GenericTimedEvent(
-                name="spirit_effect proc", callback=lambda: self._resolve_proc(ability, resource_amount)
-            ),
-        )
+        self._resolve_proc(ability, resource_amount)
 
         logger.debug(f"spirit proc triggered by {event.ability}")
 
     def _resolve_proc(self, ability: Ability, resource_amount: int) -> None:
-        logger.debug(f"spirit proc resolving: refund {resource_amount} focus")
+        logger.debug(f"spirit proc resolving: refund {resource_amount} winter orbs")
         state = self.owner.state
 
         state.bus.emit(SpiritProc(ability=ability, owner=self.owner, resource_amount=resource_amount))
 
-        # Gain 1 spirit point
+        # Gain spirit point(s)
         self.owner.spirit_points = min(
             self.owner.spirit_points + self.owner.spirit_point_gain_on_proc, self.owner.max_spirit_points
         )
 
-        # Refund focus
+        # Refund resources
         self.owner._change_orbs(resource_amount)
 
 
@@ -229,6 +238,8 @@ class ChillingFinesse(Effect):
     owner: "Rime" = field(init=True)
 
     name: str = field(default="chilling_finesse", init=False)
+    bursting_ice_cdr: float = field(default=rime_config.CHILLING_FINESSE_BURSTING_ICE_CDR, init=False)
+    freezing_torrent_cdr: float = field(default=rime_config.CHILLING_FINESSE_FREEZING_TORRENT_CDR, init=False)
 
     def on_add(self) -> None:
         bus = self.owner.state.bus
@@ -240,20 +251,16 @@ class ChillingFinesse(Effect):
 
         if not isinstance(event.damage_source, FreezingTorrent) or event.is_secondary:
             return
-        self.owner.bursting_ice._reduce_cooldown(rime_config.CHILLING_FINESSE_BURSTING_ICE_CDR)
-        logger.trace(
-            f"Chilling Finesse: FT tick → Bursting Ice CD -{rime_config.CHILLING_FINESSE_BURSTING_ICE_CDR:.1f}s"
-        )
+        self.owner.bursting_ice._remove_cooldown(self.bursting_ice_cdr)
+        logger.trace(f"Chilling Finesse: FT tick → Bursting Ice CD -{self.bursting_ice_cdr:.1f}s")
 
     def _on_cast_success(self, event: AbilityCastSuccess) -> None:
         from .ability import ColdSnap
 
         if not isinstance(event.ability, ColdSnap):
             return
-        self.owner.freezing_torrent._reduce_cooldown(rime_config.CHILLING_FINESSE_FREEZING_TORRENT_CDR)
-        logger.trace(
-            f"Chilling Finesse: Cold Snap → Freezing Torrent CD -{rime_config.CHILLING_FINESSE_FREEZING_TORRENT_CDR:.1f}s"
-        )
+        self.owner.freezing_torrent._remove_cooldown(self.freezing_torrent_cdr)
+        logger.trace(f"Chilling Finesse: Cold Snap → Freezing Torrent CD -{self.freezing_torrent_cdr:.1f}s")
 
 
 @dataclass(kw_only=True, repr=False)
@@ -261,6 +268,7 @@ class Burstbolter(Effect):
     owner: "Rime" = field(init=True)
 
     name: str = field(default="burstbolter", init=False)
+    anima_gain: int = field(default=rime_config.BURSTBOLTER_ANIMA_GAIN, init=False)
 
     def on_add(self) -> None:
         self.owner.state.bus.subscribe(AbilityDamage, self._on_damage, owner=self)
@@ -270,7 +278,7 @@ class Burstbolter(Effect):
 
         if not isinstance(event.damage_source, FrostBolt) or event.is_secondary:
             return
-        self.owner._change_anima(rime_config.BURSTBOLTER_ANIMA_GAIN)
+        self.owner._change_anima(self.anima_gain)
         self.owner.bursting_ice._do_pulse(event.target)
         logger.trace("Burstbolter: Frost Bolt → +2 anima + Bursting Ice pulse")
 
@@ -301,20 +309,22 @@ class IcyFlowEffect(Effect):
     duration: float = field(default=rime_config.ICY_FLOW_EFFECT_DURATION, init=False)
     stacks: int = field(default=rime_config.ICY_FLOW_EFFECT_MAX_STACKS, init=False)
     max_stacks: int = field(default=rime_config.ICY_FLOW_EFFECT_MAX_STACKS, init=False)
+    crit_bonus: float = field(default=rime_config.ICY_FLOW_EFFECT_CRIT_BONUS, init=False)
 
     def on_add(self) -> None:
-        self.owner.state.bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
+        self.owner.state.bus.subscribe(SnapshotCreation, self._on_pre_damage, owner=self)
 
-    def _on_pre_damage(self, event: PreDamageSnapshotUpdate) -> None:
+    def _on_pre_damage(self, event: SnapshotCreation) -> None:
         from .ability import GlacialBlast, IceComet
 
-        if not isinstance(event.damage_source, (GlacialBlast, IceComet)) or event.is_secondary:
+        if not isinstance(event.damage_source, (GlacialBlast, IceComet)):
             return
-        event.snapshot = event.snapshot.add_crit_percent(rime_config.ICY_FLOW_EFFECT_CRIT_BONUS)
+
+        event.snapshot = event.snapshot.add_crit_percent(self.crit_bonus)
         self.stacks -= 1
         logger.trace(
             "Icy Flow: +{:.0%} crit on {} ({} charges left)",
-            rime_config.ICY_FLOW_EFFECT_CRIT_BONUS,
+            self.crit_bonus,
             type(event.damage_source).__name__,
             self.stacks,
         )
@@ -328,9 +338,10 @@ class BitingColdBuff(Buff):
     owner: "Rime" = field(init=True)
 
     name: str = field(default="biting_cold", init=False)
+    crit_multiplier: float = field(default=rime_config.BITING_COLD_BUFF_CRIT_MULTIPLIER, init=False)
 
     def stat_modifiers(self) -> list[StatModifier]:
-        return [CritMultiplierMultiplicativeCharacter(multiplier=rime_config.BITING_COLD_BUFF_CRIT_MULTIPLIER)]
+        return [CritMultiplierMultiplicativeCharacter(multiplier=self.crit_multiplier)]
 
 
 @dataclass(kw_only=True, repr=False)
@@ -338,6 +349,7 @@ class WisdomOfTheNorth(Effect):
     owner: "Rime" = field(init=True)
 
     name: str = field(default="wisdom_of_the_north", init=False)
+    cdr_per_orb: float = field(default=rime_config.WISDOM_OF_THE_NORTH_CDR_PER_ORB, init=False)
 
     def on_add(self) -> None:
         self.owner.state.bus.subscribe(ResourceSpent, self._on_resource_spent, owner=self)
@@ -345,10 +357,10 @@ class WisdomOfTheNorth(Effect):
     def _on_resource_spent(self, event: ResourceSpent) -> None:
         if event.resource_type != Resource.WINTER_ORBS:
             return
-        cdr = rime_config.WISDOM_OF_THE_NORTH_CDR_PER_ORB * event.resource_amount
-        self.owner.ice_blitz._reduce_cooldown(cdr)
-        self.owner.flight_of_the_navir._reduce_cooldown(cdr)
-        self.owner.winters_blessing._reduce_cooldown(cdr)
+        cdr = self.cdr_per_orb * event.resource_amount
+        self.owner.ice_blitz._remove_cooldown(cdr)
+        self.owner.flight_of_the_navir._remove_cooldown(cdr)
+        self.owner.winters_blessing._remove_cooldown(cdr)
         logger.trace(f"Wisdom of the North: {event.resource_amount} orb(s) spent → -{cdr:.1f}s on Ice Blitz/FotN/WB")
 
 
@@ -361,13 +373,13 @@ class GlacialAssaultAura(Effect):
     max_stacks: int = field(default=rime_config.GLACIAL_ASSAULT_MAX_STACKS, init=False)
 
     damage_echo_fraction: float = field(default=rime_config.GLACIAL_ASSAULT_DAMAGE_ECHO_FRACTION, init=False)
-
     num_secondary_targets: int = field(default=rime_config.GLACIAL_ASSAULT_NUM_SECONDARY_TARGETS, init=False)
+    damage_multiplier: float = field(default=rime_config.GLACIAL_ASSAULT_DAMAGE_MULTIPLIER, init=False)
 
     def on_add(self) -> None:
         bus = self.owner.state.bus
         bus.subscribe(AbilityCastSuccess, self._on_cast_success, owner=self)
-        bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
+        bus.subscribe(SnapshotCreation, self._on_pre_damage, owner=self)
         bus.subscribe(AbilityDamage, self._on_damage, owner=self)
 
     @property
@@ -388,17 +400,15 @@ class GlacialAssaultAura(Effect):
         else:
             logger.trace(f"Glacial Assault: {self.stacks}/{self.max_stacks} stacks")
 
-    def _on_pre_damage(self, event: PreDamageSnapshotUpdate) -> None:
+    def _on_pre_damage(self, event: SnapshotCreation) -> None:
         from .ability import GlacialBlast
 
         if not isinstance(event.damage_source, GlacialBlast):
             return
 
         if self.is_ready:
-            event.snapshot = event.snapshot.scale_average_damage(rime_config.GLACIAL_ASSAULT_DAMAGE_MULTIPLIER)
-            logger.trace(
-                f"Glacial Assault: +{rime_config.GLACIAL_ASSAULT_DAMAGE_MULTIPLIER - 1:.0%} damage → stacks reset"
-            )
+            event.snapshot = event.snapshot.scale_average_damage(self.damage_multiplier)
+            logger.trace(f"Glacial Assault: +{self.damage_multiplier - 1:.0%} damage → stacks reset")
 
     def _on_damage(self, event: AbilityDamage) -> None:
         from .ability import GlacialBlast
@@ -442,19 +452,19 @@ class FrostweaversWrathEffect(Effect):
 
     name: str = field(default="frostweavers_wrath", init=False)
     duration: float = field(default=rime_config.FROSTWEAVERS_WRATH_EFFECT_DURATION, init=False)
+    crit_bonus: float = field(default=rime_config.FROSTWEAVERS_WRATH_CRIT_BONUS, init=False)
 
     def on_add(self) -> None:
-        self.owner.state.bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
+        self.owner.state.bus.subscribe(SnapshotCreation, self._on_pre_damage, owner=self)
 
-    def _on_pre_damage(self, event: PreDamageSnapshotUpdate) -> None:
+    def _on_pre_damage(self, event: SnapshotCreation) -> None:
         from .ability import GlacialBlast, IceComet
 
-        if not isinstance(event.damage_source, (GlacialBlast, IceComet)) or event.is_secondary:
+        if not isinstance(event.damage_source, (GlacialBlast, IceComet)):
             return
-        event.snapshot = event.snapshot.add_crit_percent(rime_config.FROSTWEAVERS_WRATH_CRIT_BONUS)
-        logger.trace(
-            f"Frostweaver's Wrath: +{rime_config.FROSTWEAVERS_WRATH_CRIT_BONUS:.0%} crit on {type(event.damage_source).__name__}"
-        )
+
+        event.snapshot = event.snapshot.add_crit_percent(self.crit_bonus)
+        logger.trace(f"Frostweaver's Wrath: +{self.crit_bonus:.0%} crit on {type(event.damage_source).__name__}")
         self.remove()
 
 
@@ -484,6 +494,7 @@ class CascadingBliz(Effect):
     owner: "Rime" = field(init=True)
 
     name: str = field(default="cascading_bliz", init=False)
+    ice_blitz_extension: float = field(default=rime_config.CASCADING_BLIZ_ICE_BLITZ_EXTENSION, init=False)
 
     def on_add(self) -> None:
         bus = self.owner.state.bus
@@ -506,13 +517,13 @@ class CascadingBliz(Effect):
         ice_blitz_buff = self.owner.effects.get(IceBlitzBuff)
         if ice_blitz_buff is None:
             return
-        ice_blitz_buff.duration += rime_config.CASCADING_BLIZ_ICE_BLITZ_EXTENSION
+        ice_blitz_buff.duration += self.ice_blitz_extension
         ice_blitz_buff._schedule_expiry()
-        logger.trace(f"Cascading Bliz: FotN hit → Ice Blitz +{rime_config.CASCADING_BLIZ_ICE_BLITZ_EXTENSION:.1f}s")
+        logger.trace(f"Cascading Bliz: FotN hit → Ice Blitz +{self.ice_blitz_extension:.1f}s")
 
 
 @dataclass(kw_only=True, repr=False)
-class UndulatingSpritEffect(Effect):
+class UndulatingSpiritEffect(Effect):
     owner: "Rime" = field(init=True)
 
     name: str = field(default="undulating_spirit", init=False)
@@ -532,7 +543,7 @@ class UndulatingSpiritAura(Effect):
     def _on_cast_success(self, event: AbilityCastSuccess) -> None:
         roll = self.owner.state.rng.random()
         if roll < self.proc_chance:
-            self.owner.effects.add(UndulatingSpritEffect(owner=self.owner))
+            self.owner.effects.add(UndulatingSpiritEffect(owner=self.owner))
             logger.debug(f"Undulating Spirit: proc ({roll:.3f} < {self.proc_chance:.2f}) → effect granted")
 
 
@@ -542,16 +553,18 @@ class SoulfrostTorrentEffect(Effect):
 
     name: str = field(default="soulfrost_torrent", init=False)
     duration: float = field(default=rime_config.SOULFROST_TORRENT_EFFECT_DURATION, init=False)
+    crit_bonus: float = field(default=rime_config.SOULFROST_TORRENT_CRIT_BONUS, init=False)
 
     def on_add(self) -> None:
-        self.owner.state.bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
+        self.owner.state.bus.subscribe(SnapshotCreation, self._on_pre_damage, owner=self)
 
-    def _on_pre_damage(self, event: PreDamageSnapshotUpdate) -> None:
+    def _on_pre_damage(self, event: SnapshotCreation) -> None:
+        """NB: removal is handled by the FreezingTorrent ability."""
         from .ability import FreezingTorrent
 
         if not isinstance(event.damage_source, FreezingTorrent):
             return
-        event.snapshot = event.snapshot.add_crit_percent(rime_config.SOULFROST_TORRENT_CRIT_BONUS)
+        event.snapshot = event.snapshot.add_crit_percent(self.crit_bonus)
         logger.trace("Soulfrost Torrent: FT hit → +100% crit chance")
 
 
@@ -560,11 +573,12 @@ class SoulfrostTorrentAura(Effect):
     owner: "Rime" = field(init=True)
 
     name: str = field(default="soulfrost_torrent_aura", init=False)
+    ppm: float = field(default=rime_config.SOULFROST_TORRENT_AURA_PPM, init=False)
     real_ppm: RealPPM = field(init=False)
 
     def __post_init__(self) -> None:
         self.real_ppm = RealPPM(
-            base_ppm=rime_config.SOULFROST_TORRENT_AURA_PPM,
+            base_ppm=self.ppm,
             is_haste_scaled=True,
             is_crit_scaled=False,
             owner=self.owner,

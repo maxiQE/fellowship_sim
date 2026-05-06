@@ -1,19 +1,16 @@
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import get_args
 
-from fellowship_sim.base_classes import State
+from fellowship_sim.base_classes import HeroicTrait, Legendary, MasterTrait, State, Weapon
 from fellowship_sim.base_classes.entity import Player
 from fellowship_sim.base_classes.stats import RawStats
 from fellowship_sim.generic_game_logic.setup_effect import PlayerSetup, SetupEffect
-from fellowship_sim.generic_game_logic.weapon_abilities import WeaponName
-from fellowship_sim.generic_game_logic.weapon_traits import WeaponHeroicTraitName, WeaponMasterTraitName
 
 from .entity import Elarion
 from .setup_effect import (
     ElarionDefaultEffectSetup,
-    ElarionLegendaryName,
     ElarionLegendarySelection,
-    ElarionTalentName,
+    ElarionTalent,
     ElarionTalentSelection,
 )
 
@@ -23,25 +20,15 @@ class ElarionSetup(PlayerSetup["Elarion"]):
     """Builds a fully wired Elarion character ready for simulation."""
 
     initial_focus: float = 100
-    legendary: ElarionLegendaryName | None = None
-    talents: list[ElarionTalentName] | None = None
+    legendary: Legendary | None = None
+    talents: Sequence[ElarionTalent] | None = None
 
-    valid_weapon_abilities: frozenset[WeaponName] = field(
-        default_factory=lambda: frozenset(get_args(WeaponName)), init=False
+    valid_weapon_abilities: frozenset[Weapon] = field(
+        default_factory=lambda: frozenset(Weapon), init=False
     )
 
     def _validate_inputs(self) -> None:
         super()._validate_inputs()
-        if self.legendary is not None and self.legendary not in get_args(ElarionLegendaryName):
-            raise ValueError(  # noqa: TRY003
-                f"invalid legendary {self.legendary!r}; must be one of {get_args(ElarionLegendaryName)}"
-            )
-        if self.talents is not None:
-            invalid = [t for t in self.talents if t not in get_args(ElarionTalentName)]
-            if invalid:
-                raise ValueError(  # noqa: TRY003
-                    f"invalid talents {invalid!r}; must be one of {get_args(ElarionTalentName)}"
-                )
 
     def _character_default_setup_effects(self) -> list[SetupEffect[Player]]:
         return [ElarionDefaultEffectSetup()]
@@ -63,12 +50,12 @@ def create_elarion(
     raw_stats: RawStats,
     initial_focus: float = 100,
     initial_spirit_points: float = 100,
-    weapon_ability: WeaponName | None = None,
-    legendary: ElarionLegendaryName | None = None,
-    master_trait: WeaponMasterTraitName | None = None,
+    weapon_ability: Weapon | None = None,
+    legendary: Legendary | None = None,
+    master_trait: MasterTrait | None = None,
     master_trait_level: int = 4,
-    heroic_traits: list[WeaponHeroicTraitName] | None = None,
-    talents: list[ElarionTalentName] | None = None,
+    heroic_traits: list[HeroicTrait] | None = None,
+    talents: Sequence[ElarionTalent] | None = None,
 ) -> Elarion:
     """One-shot factory: build a simulation-ready Elarion from stats."""
     return ElarionSetup(

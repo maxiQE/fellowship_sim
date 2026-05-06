@@ -3,8 +3,9 @@ from typing import cast
 
 import pytest
 
-from fellowship_sim.base_classes import AbilityDamage, Enemy, RawStatsFromPercents, State
+from fellowship_sim.base_classes import AbilityDamage, Enemy, Gem, RawStatsFromPercents, State, Weapon
 from fellowship_sim.base_classes.entity import Entity, Player
+from fellowship_sim.elarion import Talent
 from fellowship_sim.elarion.ability import ElarionAbility
 from fellowship_sim.elarion.entity import Elarion
 from fellowship_sim.elarion.rotations.void_barrage_method import VoidBarrageMethod
@@ -41,30 +42,30 @@ _STATS = RawStatsFromPercents(
 _SETUP_NO_LL = ElarionSetup(
     raw_stats=_STATS,
     talents=[
-        "Piercing Seekers",
-        "Fusillade",
-        "Lunar Fury",
-        "Lunarlight Affinity",
-        "Fervent Supremacy",
-        "Impending Heartseeker",
-        # "Last Lights",
+        Talent.PIERCING_SEEKERS,
+        Talent.FUSILLADE,
+        Talent.LUNAR_FURY,
+        Talent.LUNARLIGHT_AFFINITY,
+        Talent.FERVENT_SUPREMACY,
+        Talent.IMPENDING_HEARTSEEKER,
+        # Talent.LAST_LIGHTS,
     ],
-    weapon_ability="Voidbringer's Touch",
+    weapon_ability=Weapon.VOIDBRINGERS_TOUCH,
 )
 
 
 _SETUP_WITH_LL = ElarionSetup(
     raw_stats=_STATS,
     talents=[
-        "Piercing Seekers",
-        "Fusillade",
-        "Lunar Fury",
-        "Lunarlight Affinity",
-        "Fervent Supremacy",
-        "Impending Heartseeker",
-        "Last Lights",
+        Talent.PIERCING_SEEKERS,
+        Talent.FUSILLADE,
+        Talent.LUNAR_FURY,
+        Talent.LUNARLIGHT_AFFINITY,
+        Talent.FERVENT_SUPREMACY,
+        Talent.IMPENDING_HEARTSEEKER,
+        Talent.LAST_LIGHTS,
     ],
-    weapon_ability="Voidbringer's Touch",
+    weapon_ability=Weapon.VOIDBRINGERS_TOUCH,
 )
 
 _ROTATION = VoidBarrageMethod()
@@ -361,17 +362,17 @@ class TestCritRatesBarrageBuild:
                 crit_percent=crit_percent,
             ),
             talents=[
-                # "Piercing Seekers",
-                "Fusillade",
-                "Lunar Fury",
-                "Lunarlight Affinity",
-                "Fervent Supremacy",
-                "Impending Heartseeker",
-                "Last Lights",
+                # Talent.PIERCING_SEEKERS,
+                Talent.FUSILLADE,
+                Talent.LUNAR_FURY,
+                Talent.LUNARLIGHT_AFFINITY,
+                Talent.FERVENT_SUPREMACY,
+                Talent.IMPENDING_HEARTSEEKER,
+                Talent.LAST_LIGHTS,
             ],
             sets=["Death's Grasp"],
             gem_power={
-                "purple__amethyst": 1458,  # purple 6
+                Gem.PURPLE: 1458,  # purple 6
             },
         )
         elarion = setup.finalize(state)

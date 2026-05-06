@@ -12,13 +12,13 @@ from fellowship_sim.elarion.builds import (
     ElarionSetupAngryThreeSet,
     ElarionShimmer,
 )
-from fellowship_sim.elarion.setup_effect import ElarionTalentName
+from fellowship_sim.base_classes import Gem, HeroicTrait, MasterTrait, RawStatsFromScores, Weapon
+from fellowship_sim.elarion import Talent
 from fellowship_sim.elarion.effect import CelestialImpetusProc, CelestialImpetusAura
 from fellowship_sim.elarion.entity import Elarion
 from fellowship_sim.elarion.rotations.void_barrage_method import VoidBarrageMethod
 from fellowship_sim.simulation import RepetitionResult, Rotation, run_k
 from fellowship_sim.simulation.plots import show_comparison, show_grouped_comparison
-from fellowship_sim.base_classes import RawStatsFromScores
 from fellowship_sim.elarion.setup import ElarionSetup
 from fellowship_sim.simulation.scenarios import (
     Scenario,
@@ -83,51 +83,51 @@ scenarios: dict[str, Scenario] = {
     ),
 }
 
-BASIC_BARRAGE_BUILD: list[ElarionTalentName] = [
-    "Piercing Seekers",
-    "Fusillade",
-    "Lunar Fury",
-    "Lunarlight Affinity",
-    "Fervent Supremacy",
-    "Impending Heartseeker",
-    "Last Lights",
+BASIC_BARRAGE_BUILD: list[Talent] = [
+    Talent.PIERCING_SEEKERS,
+    Talent.FUSILLADE,
+    Talent.LUNAR_FURY,
+    Talent.LUNARLIGHT_AFFINITY,
+    Talent.FERVENT_SUPREMACY,
+    Talent.IMPENDING_HEARTSEEKER,
+    Talent.LAST_LIGHTS,
 ]
 
 
-SKYWARD_EXPANSE_BARRAGE: list[ElarionTalentName] = [
-    "Piercing Seekers",
-    "Fusillade",
-    "Lunar Fury",
-    "Lunarlight Affinity",
-    "Fervent Supremacy",
-    # "Impending Heartseeker",
-    "Last Lights",
-    "Skyward Munitions",  #
-    "Focused Expanse",  #
+SKYWARD_EXPANSE_BARRAGE: list[Talent] = [
+    Talent.PIERCING_SEEKERS,
+    Talent.FUSILLADE,
+    Talent.LUNAR_FURY,
+    Talent.LUNARLIGHT_AFFINITY,
+    Talent.FERVENT_SUPREMACY,
+    # Talent.IMPENDING_HEARTSEEKER,
+    Talent.LAST_LIGHTS,
+    Talent.SKYWARD_MUNITIONS,  #
+    Talent.FOCUSED_EXPANSE,  #
 ]
 
-SKYWARD_STARS_BARRAGE: list[ElarionTalentName] = [
-    "Piercing Seekers",
-    "Fusillade",
-    "Lunar Fury",
-    "Lunarlight Affinity",
-    "Fervent Supremacy",
-    # "Impending Heartseeker",
-    "Last Lights",
-    "Skyward Munitions",  #
-    "Repeating Stars",  #
+SKYWARD_STARS_BARRAGE: list[Talent] = [
+    Talent.PIERCING_SEEKERS,
+    Talent.FUSILLADE,
+    Talent.LUNAR_FURY,
+    Talent.LUNARLIGHT_AFFINITY,
+    Talent.FERVENT_SUPREMACY,
+    # Talent.IMPENDING_HEARTSEEKER,
+    Talent.LAST_LIGHTS,
+    Talent.SKYWARD_MUNITIONS,  #
+    Talent.REPEATING_STARS,  #
 ]
 
-SKYWARD_SKYLIT_BARRAGE: list[ElarionTalentName] = [
-    "Piercing Seekers",
-    "Fusillade",
-    "Lunar Fury",
-    "Lunarlight Affinity",
-    "Fervent Supremacy",
-    # "Impending Heartseeker",
-    "Last Lights",
-    "Skyward Munitions",  #
-    "Skylit Grace",  #
+SKYWARD_SKYLIT_BARRAGE: list[Talent] = [
+    Talent.PIERCING_SEEKERS,
+    Talent.FUSILLADE,
+    Talent.LUNAR_FURY,
+    Talent.LUNARLIGHT_AFFINITY,
+    Talent.FERVENT_SUPREMACY,
+    # Talent.IMPENDING_HEARTSEEKER,
+    Talent.LAST_LIGHTS,
+    Talent.SKYWARD_MUNITIONS,  #
+    Talent.SKYLIT_GRACE,  #
 ]
 
 
@@ -157,47 +157,47 @@ angry__drak_execute__void = ElarionSetupAngryMultiplierStack(
     ],
 )
 
-angry__drak_execute__chrono = replace(angry__drak_execute__void, weapon_ability="Chronoshift")
+angry__drak_execute__chrono = replace(angry__drak_execute__void, weapon_ability=Weapon.CHRONOSHIFT)
 
 
 setups = {
     "chrono": {
         "ihb__angry__drak_execute__splinters_seized": replace(
             angry__drak_execute__chrono,
-            master_trait="Amethyst Splinters",
+            master_trait=MasterTrait.AMETHYST_SPLINTERS,
             heroic_traits=[
-                "Willful Momentum",
-                "Seized Opportunity",
+                HeroicTrait.WILLFUL_MOMENTUM,
+                HeroicTrait.SEIZED_OPPORTUNITY,
             ],
         ),
         "ihb__angry__drak_execute__seized": replace(
             angry__drak_execute__chrono,
             heroic_traits=[
-                "Willful Momentum",
-                "Seized Opportunity",
+                HeroicTrait.WILLFUL_MOMENTUM,
+                HeroicTrait.SEIZED_OPPORTUNITY,
             ],
         ),
         "ihb__angry__drak_execute__kindling": replace(
             angry__drak_execute__chrono,
             heroic_traits=[
-                "Willful Momentum",
-                "Kindling",
+                HeroicTrait.WILLFUL_MOMENTUM,
+                HeroicTrait.KINDLING,
             ],
         ),
         "sm_fe__angry__drak_execute__seized": replace(
             angry__drak_execute__chrono,
             talents=SKYWARD_EXPANSE_BARRAGE,
             heroic_traits=[
-                "Willful Momentum",
-                "Seized Opportunity",
+                HeroicTrait.WILLFUL_MOMENTUM,
+                HeroicTrait.SEIZED_OPPORTUNITY,
             ],
         ),
         "sm_sg__angry__drak_execute__seized": replace(
             angry__drak_execute__chrono,
             talents=SKYWARD_SKYLIT_BARRAGE,
             heroic_traits=[
-                "Willful Momentum",
-                "Seized Opportunity",
+                HeroicTrait.WILLFUL_MOMENTUM,
+                HeroicTrait.SEIZED_OPPORTUNITY,
             ],
         ),
     },
@@ -206,8 +206,8 @@ setups = {
             angry__drak_execute__chrono,
             talents=SKYWARD_SKYLIT_BARRAGE,
             heroic_traits=[
-                "Willful Momentum",
-                "Seized Opportunity",
+                HeroicTrait.WILLFUL_MOMENTUM,
+                HeroicTrait.SEIZED_OPPORTUNITY,
             ],
         ),
     },
@@ -218,41 +218,41 @@ setups = {
         "ihb__angry__drak_execute__kindling": replace(
             angry__drak_execute__void,
             heroic_traits=[
-                "Willful Momentum",
-                "Kindling",
+                HeroicTrait.WILLFUL_MOMENTUM,
+                HeroicTrait.KINDLING,
             ],
         ),
     },
     "void_sync_all": {
         "ihb__angry_drak_execute__splinters_kindling": replace(
             angry__drak_execute__void,
-            master_trait="Amethyst Splinters",
+            master_trait=MasterTrait.AMETHYST_SPLINTERS,
             heroic_traits=[
-                "Willful Momentum",
-                "Kindling",
+                HeroicTrait.WILLFUL_MOMENTUM,
+                HeroicTrait.KINDLING,
             ],
         ),
         "ihb__no_set_10b6r6p__splinters_kindling": replace(
             angry__drak_execute__void,
-            master_trait="Amethyst Splinters",
+            master_trait=MasterTrait.AMETHYST_SPLINTERS,
             heroic_traits=[
-                "Willful Momentum",
-                "Kindling",
+                HeroicTrait.WILLFUL_MOMENTUM,
+                HeroicTrait.KINDLING,
             ],
             num_sets=0,
             sets=[],
             gem_power={
-                "blue__saphire": 2754,
-                "red__ruby": 1296,
-                "purple__amethyst": 1206,
+                Gem.BLUE: 2754,
+                Gem.RED: 1296,
+                Gem.PURPLE: 1206,
             },
         ),
         "ihb__angry__drak_execute__inspired": angry__drak_execute__void,
         "ihb__angry__drak_execute__kindling": replace(
             angry__drak_execute__void,
             heroic_traits=[
-                "Willful Momentum",
-                "Kindling",
+                HeroicTrait.WILLFUL_MOMENTUM,
+                HeroicTrait.KINDLING,
             ],
         ),
         "sm_sg__angry__drak_execute__inspired": replace(

@@ -3,6 +3,7 @@ import math
 import re
 from collections import defaultdict
 from dataclasses import dataclass, field
+from functools import partial
 from typing import TYPE_CHECKING, Final
 
 from loguru import logger
@@ -18,6 +19,7 @@ from .effect import EffectCollection
 from .stats import FinalStats, RawStats
 
 if TYPE_CHECKING:
+    from .effect import DoTEffect
     from .events import AbilityDamage, AbilityPeriodicDamage
     from .state import State
     from .stats import MutableStats
@@ -50,7 +52,7 @@ class DamageTracker:
 
     _by_source: defaultdict[str, DamageRecord] = field(default_factory=lambda: defaultdict(DamageRecord), init=False)
     _by_time_bin: defaultdict[int, defaultdict[str, DamageRecord]] = field(
-        default_factory=lambda: defaultdict(lambda: defaultdict(DamageRecord)), init=False
+        default_factory=lambda: defaultdict(partial(defaultdict, DamageRecord)), init=False
     )
 
     def _register_damage(self, event: "AbilityDamage | AbilityPeriodicDamage") -> None:
@@ -92,6 +94,18 @@ class Entity:
     def __post_init__(self) -> None:
         self.effects._entity = self
 
+    def __getstate__(self) -> dict[str, object]:
+        return {
+            "percent_hp": self.percent_hp,
+            "is_alive": self.is_alive,
+            "is_main": self.is_main,
+            "damage_tracker": self.damage_tracker,
+            "id": self.id,
+        }
+
+    def __setstate__(self, d: dict[str, object]) -> None:
+        self.__dict__.update(d)
+
     def kill(self) -> None:
         """Mark this entity as dead, remove all its effects, and emit UnitDestroyed."""
         from fellowship_sim.base_classes.events import UnitDestroyed
@@ -129,6 +143,10 @@ class Enemy(Entity):
     time_to_live: float = field(default=float("inf"), init=True)
     is_boss: bool = field(default=False, init=True)
     spirit_score: float = field(default=0, init=True)
+    execute_damage_increase: float = field(default=0.0, init=True)
+
+    _normal_hp_rate: float = field(default=0.0, init=False)
+    _execute_hp_rate: float = field(default=0.0, init=False)
 
     def __post_init__(self) -> None:
         from fellowship_sim.base_classes.timed_events import UnitDeathTimedEvent
@@ -139,9 +157,16 @@ class Enemy(Entity):
 
         if math.isfinite(self.time_to_live):
             self.state.schedule(self.time_to_live, UnitDeathTimedEvent(entity=self, callback=self.kill))
+            e = self.execute_damage_increase
+            threshold = base_config.LOW_HEALTH_THRESHOLD
+            self._normal_hp_rate = ((1 - threshold) + threshold / (1 + e)) / self.time_to_live
+            self._execute_hp_rate = self._normal_hp_rate * (1 + e)
 
     def _tick(self, dt: float) -> None:
-        self.percent_hp -= dt / self.time_to_live
+        if self.percent_hp > base_config.LOW_HEALTH_THRESHOLD:
+            self.percent_hp -= dt * self._normal_hp_rate
+        else:
+            self.percent_hp -= dt * self._execute_hp_rate
 
 
 @dataclass(kw_only=True, repr=False)
@@ -156,6 +181,12 @@ class Player(Entity):
     spirit_points: float = field(default=0.0, init=False)
     max_spirit_points: float = field(default=100.0, init=False)
     spirit_ability_cost: float = field(default=100.0, init=False)
+    spirit_point_gain_on_proc: float = field(default=1.0, init=False)
+
+    cooldown_reduction: float = field(default=1.0, init=False)
+    dot_tick_rate: float = field(default=1.0, init=False)
+
+    owned_dots: list["DoTEffect"] = field(default_factory=list, init=False)
 
     # Weapon ability slots — one per available weapon ability type.
     # Unequipped slots hold WEAPON_ABILITY_NOT_INITIALIZED (logs a warning on access).
@@ -182,7 +213,11 @@ class Player(Entity):
         self.state.add_character(self)
 
         # Initialize self.stats from init field self.raw_stats
+        self.stats = self.raw_stats.to_mutable_stats().finalize()
+
         self._recalculate_stats()
+        self._recalculate_cdr_multipliers()
+        self._recompute_dot_tick_time()
 
     def wait(self, duration: float) -> None:
         """Take no action for the specified duration.
@@ -228,14 +263,20 @@ class Player(Entity):
         """Recompute stats by firing ComputeFinalStats and applying collected modifiers."""
         from .events import ComputeFinalStats
 
+        previous_haste = self.stats.haste_percent
+
         event = ComputeFinalStats(owner=self, raw_stats=self.raw_stats)
         self.state.bus.emit(event)
         mutable = self.raw_stats.to_mutable_stats()
         for modifier in event.modifiers:
             modifier.apply(mutable)
         self.stats = mutable.finalize()
+
         logger.debug(f"stats recalculated for {self}: {self.stats}")
-        self._recalculate_cdr_multipliers()
+
+        if self.stats.haste_percent != previous_haste:
+            self._recalculate_cdr_multipliers()
+            self._recompute_dot_tick_time()
 
         return mutable
 
@@ -246,4 +287,14 @@ class Player(Entity):
         that subscribes to ComputeCooldownReduction is added or removed.
         """
         for ability in self.abilities:
-            ability._recalculate_cdr_multiplier()
+            ability._recalculate_cda_multiplier()
+
+    def register_dot(self, dot_effect: "DoTEffect") -> None:
+        self.owned_dots.append(dot_effect)
+
+    def unregister_dot(self, dot_effect: "DoTEffect") -> None:
+        self.owned_dots.remove(dot_effect)
+
+    def _recompute_dot_tick_time(self) -> None:
+        for dot in self.owned_dots:
+            dot.recompute_tick_time()

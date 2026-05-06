@@ -53,10 +53,10 @@ class Ability(Generic[TCharacter]):  # noqa: UP046
     base_cooldown: float = field(default=0.0, init=False)
     initial_charges: int = field(default=1, init=False)
     max_charges: int = field(default=1, init=False)
+    has_hasted_cda: bool = field(default=False, init=False)
     has_hasted_cdr: bool = field(default=False, init=False)
-    # channel abilities parameters
-    is_channel: bool = field(default=False, init=False)
-    tick_time: float = field(default=0.0, init=False)
+    has_unhasted_cast_time: bool = field(default=False, init=False)
+
     # ultimate
     is_ultimate_ability: bool = field(default=False, init=False)
 
@@ -65,7 +65,7 @@ class Ability(Generic[TCharacter]):  # noqa: UP046
     # Dynamic info (runtime state)
     cooldown: float = field(default=0.0, init=False)
     charges: int = field(init=False)
-    _cdr_multiplier: float = field(default=1.0, init=False)
+    _cda_multiplier: float = field(default=1.0, init=False)
 
     # AOE settings: number of targets, damage multipliers
     num_secondary_targets: int = field(default=0, init=False)
@@ -122,6 +122,7 @@ class Ability(Generic[TCharacter]):  # noqa: UP046
 
     def _finish_cast(self, target: "Entity") -> None:
         """Ability has finished casting: resolve effects."""
+        from .events import AbilityCastSuccess
 
         logger.trace(f"Cast finished: {self}")
 
@@ -130,20 +131,26 @@ class Ability(Generic[TCharacter]):  # noqa: UP046
             logger.warning(f"Cast blocked DURING FINISH CAST — {self} ({result.value.replace('_', ' ')})")
             return
 
-        self._do_cast(target)
+        state = self.owner.state
+        event = AbilityCastSuccess(ability=self, owner=self.owner, target=target)
+        state.bus.emit(event)
+
         self._pay_cost_for_cast(target)
+
+        self._do_cast(target)
 
         logger.trace(f"Cast fully resolved: {self}")
 
     @property
     def is_available(self) -> bool:
-        """True if the ability has a charge available or is off cooldown."""
-        return self.cooldown <= 0.0 or self.charges > 0
+        """False if the ability is on cooldown or has no charge available."""
+        # NB: abilities with no charges in game are represented as having a single charge in sim.
+        return self.charges > 0
 
     @property
     def cast_time(self) -> float:
         """Effective cast time, reduced by haste (channels are not haste-reduced)."""
-        if self.is_channel:
+        if self.has_unhasted_cast_time:
             return self.base_cast_time
         else:
             return self.base_cast_time / (1 + self.owner.stats.haste_percent)
@@ -151,7 +158,7 @@ class Ability(Generic[TCharacter]):  # noqa: UP046
     @property
     def player_downtime(self) -> float:
         """Time during which player cannot take another action."""
-        if self.is_channel:
+        if self.has_unhasted_cast_time:
             return self.base_player_downtime
         else:
             return self.base_player_downtime / (1 + self.owner.stats.haste_percent)
@@ -214,12 +221,10 @@ class Ability(Generic[TCharacter]):  # noqa: UP046
         Abilities with complex damage, enemy debuffs or other complexity need to overwrite this.
         """
 
-        from .combat import create_standard_damage  # lazy — combat.py may import ability.py
-        from .events import AbilityCastSuccess, UltimateCast  # lazy — events.py imports ability.py
+        from .combat import create_standard_damage
+        from .events import UltimateCast
 
         state = self.owner.state
-        event = AbilityCastSuccess(ability=self, owner=self.owner, target=target)
-        state.bus.emit(event)
 
         if self.is_ultimate_ability:
             state.bus.emit(UltimateCast(ability=self, owner=self.owner, target=target))
@@ -246,6 +251,10 @@ class Ability(Generic[TCharacter]):  # noqa: UP046
         if self.is_ultimate_ability:
             self.owner.spirit_points -= self.spirit_cost
 
+        self._spend_one_charge()
+
+    def _spend_one_charge(self) -> None:
+        """Pay the cooldown and charge cost associated to casting."""
         if self.base_cooldown > 0:
             if self.charges > 0:
                 self.charges -= 1
@@ -254,8 +263,14 @@ class Ability(Generic[TCharacter]):  # noqa: UP046
                 raise Exception(f"Ability cast despite no charges being availabe; {self.charges = }")  # noqa: TRY002, TRY003
 
         if self.charges < self.max_charges and self.cooldown <= 0.0:
-            self.cooldown = self.base_cooldown
-            logger.debug(f"{self} cooldown started ({self.base_cooldown:.1f}s)")
+            self.cooldown = self.base_cooldown / self._cooldown_reduction()
+            logger.debug(f"{self} cooldown started ({self.cooldown:.1f}s)")
+
+    def _cooldown_reduction(self) -> float:
+        """Cooldown reduction is applied to the base cooldown when dynamic cooldown starts."""
+        reduction = 1 + self.owner.stats.haste_percent if self.has_hasted_cdr else 1
+        reduction *= self.owner.cooldown_reduction
+        return reduction
 
     def _reset_cooldown(self) -> None:
         """Reset this ability to its fully charged, off-cooldown state."""
@@ -280,7 +295,7 @@ class Ability(Generic[TCharacter]):  # noqa: UP046
             else:
                 self.cooldown = 0.0
 
-    def _reduce_cooldown(self, flat_cdr: float) -> None:
+    def _remove_cooldown(self, flat_cdr: float) -> None:
         """Reduce remaining cooldown by flat_cdr seconds, granting charges when ready."""
         if self.cooldown <= 0.0:
             return
@@ -288,46 +303,47 @@ class Ability(Generic[TCharacter]):  # noqa: UP046
         logger.debug(f"{self} flat CDR -{flat_cdr:.1f}s (remaining {max(self.cooldown, 0.0):.2f}s)")
         self._finalize_cooldown_and_grant_charges()
 
-    def _reduce_cooldown_multiplicative(self, multiplier: float) -> None:
+    def _remove_cooldown_multiplicative(self, multiplier: float) -> None:
         """Reduce remaining cooldown by multiplier * base_cooldown."""
-        self._reduce_cooldown(multiplier * self.base_cooldown)
+        self._remove_cooldown(multiplier * self.base_cooldown)
 
     def _compute_cooldown_reduction_and_acceleration(self) -> float:
         """Emit ComputeCooldownReduction and return the effective dt to drain from cooldown.
 
-        Builds the event, appends haste CDA when has_hasted_cdr is True, emits it so
+        Builds the event, appends haste CDA when has_hasted_cda is True, emits it so
         subscribers (e.g. ChronoshiftChannelCDR, VolleyEffect) can inject modifiers,
         then resolves to an effective dt.  Override in subclasses to bypass this logic.
         """
-        from .events import ComputeCooldownReduction  # lazy — events.py imports ability.py
+        from .events import ComputeCooldownAcceleration
         from .state import get_bus
 
-        event = ComputeCooldownReduction(ability=self, owner=self.owner)
-        if self.has_hasted_cdr:
-            event.cda_modifiers.append(self.owner.stats.haste_percent)
+        event = ComputeCooldownAcceleration(ability=self, owner=self.owner)
+        if self.has_hasted_cda:
+            event.cda_additive.append(self.owner.stats.haste_percent)
+
         get_bus().emit(event)
         return event.resolve()
 
-    def _recalculate_cdr_multiplier(self) -> None:
+    def _recalculate_cda_multiplier(self) -> None:
         """Recompute and cache the CDR multiplier for this ability.
 
         Fires ComputeCooldownReduction to let subscribers inject modifiers,
         then stores the resulting multiplier.  Called by Player.recalculate_cdr_multipliers()
         whenever haste or an effect that modifies CDR changes.
         """
-        self._cdr_multiplier = self._compute_cooldown_reduction_and_acceleration()
+        self._cda_multiplier = self._compute_cooldown_reduction_and_acceleration()
 
     def _tick(self, dt: float) -> None:
         """Advance this ability's cooldown by dt seconds.
 
-        When has_hasted_cdr is True the cooldown drains at (1+haste) per real second,
+        When has_hasted_cda is True the cooldown drains at (1+haste) per real second,
         so a base_cooldown=15s ability is ready in 15/(1+haste) real seconds.
         When the cooldown reaches 0 and the ability has unfilled charge slots,
         a charge is granted and the cooldown restarts for the next one.
         """
         if self.cooldown <= 0.0:
             return
-        self.cooldown -= dt * self._cdr_multiplier
+        self.cooldown -= dt * self._cda_multiplier
         logger.trace(f"{self} cooldown: {max(self.cooldown, 0.0):.3f}s remaining")
         self._finalize_cooldown_and_grant_charges()
 

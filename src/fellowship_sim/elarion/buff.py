@@ -6,8 +6,8 @@ from loguru import logger
 from fellowship_sim.base_classes.effect import Buff, Effect
 from fellowship_sim.base_classes.events import (
     AbilityDamage,
-    ComputeCooldownReduction,
-    PreDamageSnapshotUpdate,
+    ComputeCooldownAcceleration,
+    SnapshotCreation,
 )
 from fellowship_sim.base_classes.stats import (
     HastePercentAdditive,
@@ -36,7 +36,7 @@ class EventHorizonBuff(Effect):
 
     While active:
     - Scales all ability damage by x1.20 via PreDamageSnapshotUpdate.
-    - Adds character haste to CDA for all abilities (stacks with has_hasted_cdr).
+    - Adds character haste to CDA for all abilities (stacks with has_hasted_cda).
     - Halves the focus cost of all abilities.
     - Each HighwindArrow hit reduces HeartseekerBarrage cooldown by 0.5s.
     - Each HeartseekerBarrage hit reduces Volley cooldown by 1s.
@@ -49,9 +49,9 @@ class EventHorizonBuff(Effect):
 
     def on_add(self) -> None:
         bus = self.owner.state.bus
-        bus.subscribe(ComputeCooldownReduction, self._on_compute_cdr, owner=self)
+        bus.subscribe(ComputeCooldownAcceleration, self._on_compute_cdr, owner=self)
         bus.subscribe(AbilityDamage, self._on_any_ability_damage, owner=self)
-        bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
+        bus.subscribe(SnapshotCreation, self._on_pre_damage, owner=self)
 
         self.owner.event_horizon__reduce_focust_cost = True
 
@@ -62,13 +62,13 @@ class EventHorizonBuff(Effect):
 
         self.owner._recalculate_cdr_multipliers()
 
-    def _on_pre_damage(self, event: PreDamageSnapshotUpdate) -> None:
+    def _on_pre_damage(self, event: SnapshotCreation) -> None:
         event.snapshot = event.snapshot.scale_average_damage(elarion_config.EVENT_HORIZON_BUFF_DAMAGE_MULTIPLIER)
         logger.trace("Event Horizon: damage x1.20")
 
-    def _on_compute_cdr(self, event: ComputeCooldownReduction) -> None:
+    def _on_compute_cdr(self, event: ComputeCooldownAcceleration) -> None:
         haste = self.owner.stats.haste_percent
-        event.cda_modifiers.append(haste)
+        event.cda_additive.append(haste)
         logger.trace("Event Horizon: CDA += {:.2f}", haste)
 
     def _on_any_ability_damage(self, event: AbilityDamage) -> None:
@@ -76,12 +76,12 @@ class EventHorizonBuff(Effect):
 
         if isinstance(event.damage_source, HighwindArrow):
             barrage = self.owner.heartseeker_barrage
-            barrage._reduce_cooldown(elarion_config.EVENT_HORIZON_HWA_CDR_ON_BARRAGE)
+            barrage._remove_cooldown(elarion_config.EVENT_HORIZON_HWA_CDR_ON_BARRAGE)
             logger.trace("Event Horizon: Highwind Arrow hit → barrage CD -0.5s (now {:.2f}s)", barrage.cooldown)
 
         elif isinstance(event.damage_source, HeartseekerBarrage) and not event.is_secondary:
             volley = self.owner.volley
-            volley._reduce_cooldown(elarion_config.EVENT_HORIZON_BARRAGE_CDR_ON_VOLLEY)
+            volley._remove_cooldown(elarion_config.EVENT_HORIZON_BARRAGE_CDR_ON_VOLLEY)
             logger.trace("Event Horizon: barrage hit → volley CD -1.0s (now {:.2f}s)", volley.cooldown)
 
 

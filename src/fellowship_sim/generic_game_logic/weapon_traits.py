@@ -13,20 +13,21 @@ from fellowship_sim.base_classes import (
     Entity,
     ExpertiseScoreAdditive,
     HasteScoreAdditive,
+    HeroicTrait,
     MainStatAdditiveMultiplierCharacter,
+    MasterTrait,
     Player,
-    PreDamageSnapshotUpdate,
-    SnapshotStats,
     SpiritScoreAdditive,
     StatModifier,
     WeaponAbility,
     create_standard_damage,
 )
-from fellowship_sim.base_classes.effect import Effect
+from fellowship_sim.base_classes.effect import AccumulatorEffect, Effect
 from fellowship_sim.base_classes.events import (
     AbilityCastSuccess,
     AbilityDamage,
     AbilityPeriodicDamage,
+    SnapshotCreation,
     SpiritProc,
     UltimateCast,
 )
@@ -43,127 +44,15 @@ from fellowship_sim.generic_game_logic.weapon_abilities import CurseOfAnzhyr
 
 
 @dataclass(kw_only=True, repr=False)
-class AmethystSplintersDoT(Effect):
-    """DoT applied to a target when Amethyst Splinters procs on a crit.
-
-    On creation, 10% of the crit damage (scaled by caster haste) is stored.
-    Fixed-size ticks drain stored damage over the duration; any remainder is
-    dealt as a partial tick when the effect expires.
-
-    tick_time      = 2s / (1 + haste)
-    stored         = damage x 0.1 x (1 + haste)
-    num_ticks      = duration / tick_time  = 4 x (1 + haste)   [may be fractional]
-    tick_damage    = stored / num_ticks                          [= 250 per 10 000 crit]
-    partial        = (num_ticks % 1) x tick_damage              [dealt on expiry]
-
-    Fusion (new crit while DoT is active):
-    - stored_damage accumulates
-    - haste and tick_time update to the new values
-    - the already-scheduled next tick fires at its original time
-    - tick_damage is recomputed: stored / (1 + (new_expiry - next_tick) / new_tick_time)
-    - all subsequent ticks use the new tick_time
-    """
-
+class AmethystSplintersDoT(AccumulatorEffect):
     name: str = field(default="amethyst_splinters_dot", init=False)
     duration: float = field(default=generic_config.AMETHYST_SPLINTERS_DOT_DURATION, init=False)
-    base_tick_time: float = generic_config.AMETHYST_SPLINTERS_DOT_BASE_TICK_TIME
-
-    # From init
-    haste_percent: float
-    stored_damage: float
-
-    # Computed in on_add
-    tick_damage: float = field(default=0.0, init=False)
-    tick_time: float = field(default=0.0, init=False)
-    _next_tick_time: float = field(default=0.0, init=False)
-
-    # Placeholder for future renewal logic (not yet implemented)
-    tick_staleness_counter: int = field(default=0, init=False)
-
-    def on_add(self) -> None:
-        state = self.owner.state
-        t0 = state.time
-
-        self.tick_time = self.base_tick_time / (1 + self.haste_percent)
-        num_ticks_float = self.duration / self.tick_time
-        self.tick_damage = self.stored_damage / num_ticks_float
-
-        self._next_tick_time = t0 + self.tick_time
-        state.schedule(
-            time_delay=self.tick_time,
-            callback=GenericTimedEvent(name="amethyst_splinters_dot tick", callback=self._do_tick),
-        )
-
-        logger.debug(
-            f"Amethyst Splinters DoT added: tick={self.tick_damage:.2f} dmg every {self.tick_time:.3f}s (stored={self.stored_damage:.0f}) on {self.attached_to}",
-        )
-
-    def fuse(self, incoming: "Effect") -> None:
-        if not isinstance(incoming, AmethystSplintersDoT):
-            raise Exception(  # noqa: TRY002, TRY003, TRY004
-                f"AmethystSplintersDot trying to fuse with non dot effect: {incoming} (class: {incoming.__class__})"
-            )
-
-        state = self.owner.state
-
-        self.stored_damage += incoming.stored_damage
-        self.haste_percent = incoming.haste_percent
-        self.tick_time = self.base_tick_time / (1 + self.haste_percent)
-
-        new_expiry = state.time + incoming.duration
-        num_ticks_float = 1.0 + (new_expiry - self._next_tick_time) / self.tick_time
-        self.tick_damage = self.stored_damage / num_ticks_float
-
-        self.duration = incoming.duration
-        self._schedule_expiry()
-
-        logger.debug(
-            "Amethyst Splinters DoT fused: tick={:.2f} dmg every {:.3f}s (stored={:.0f}, next tick={:.3f})",
-            self.tick_damage,
-            self.tick_time,
-            self.stored_damage,
-            self._next_tick_time,
-        )
-
-    def _do_tick(self) -> None:
-        if self.attached_to is None:
-            return
-        state = self.owner.state
-        damage = min(self.tick_damage, self.stored_damage)
-        self.stored_damage = max(0.0, self.stored_damage - damage)
-        logger.debug("Amethyst Splinters DoT tick: {:.2f} dmg ({:.2f} stored)", damage, self.stored_damage)
-        self._deal(damage)
-
-        self._next_tick_time = state.time + self.tick_time
-        state.schedule(
-            time_delay=self.tick_time,
-            callback=GenericTimedEvent(name="amethyst_splinters_dot tick", callback=self._do_tick),
-        )
-
-    def on_remove(self, *, is_remove_from_expiration: bool = False) -> None:
-        if self.stored_damage > 1e-9:
-            logger.debug("Amethyst Splinters DoT partial tick: {:.2f}", self.stored_damage)
-            self._deal(self.stored_damage)
-            self.stored_damage = 0.0
-
-    def _deal(self, damage: float) -> None:
-        target = self.attached_to
-        if target is None or damage <= 0.0:
-            return
-        self.owner.state.bus.emit(
-            AbilityPeriodicDamage(
-                damage_source=self,
-                owner=self.owner,
-                target=target,
-                is_crit=False,
-                is_grievous_crit=False,
-                damage=damage,
-            )
-        )
+    base_tick_interval: float = field(default=generic_config.AMETHYST_SPLINTERS_DOT_BASE_TICK_TIME, init=False)
+    does_partial_final_tick: bool = field(default=True, init=False)
 
 
 @dataclass(kw_only=True, repr=False)
-class AmethystSplinters(Effect):
+class AmethystSplintersAura(Effect):
     """Permanent weapon trait aura applied to the caster.
 
     On any crit: applies AmethystSplintersDoT to the target.
@@ -177,6 +66,8 @@ class AmethystSplinters(Effect):
 
     _ratio_table: ClassVar[list[float]] = generic_config.AMETHYST_SPLINTERS_DAMAGE_RATIO_TABLE
 
+    base_num_ticks: int = field(default=4, init=False)
+
     @property
     def damage_ratio(self) -> float:
         return self._ratio_table[self.trait_level - 1]
@@ -189,20 +80,9 @@ class AmethystSplinters(Effect):
         if not event.is_crit:
             return
 
-        haste_percent = self.owner.stats.haste_percent
-        stored = event.damage * self.damage_ratio * (1 + haste_percent)
-        event.target.effects.add(
-            AmethystSplintersDoT(
-                stored_damage=stored,
-                haste_percent=haste_percent,
-                owner=self.owner,
-            )
-        )
-        logger.debug(
-            "Amethyst Splinters proc: DoT → {} (stored={:.0f})",
-            event.target,
-            stored,
-        )
+        average_damage = event.damage * self.damage_ratio / self.base_num_ticks
+        event.target.effects.add(AmethystSplintersDoT(average_damage=average_damage, owner=self.owner))
+        logger.debug("Amethyst Splinters proc: DoT → {} (average_damage={:.0f})", event.target, average_damage)
 
 
 # ---------------------------------------------------------------------------
@@ -246,6 +126,12 @@ class DiamondStrike(Effect):
     _base_dmg_table: ClassVar[list[float]] = generic_config.DIAMOND_STRIKE_BASE_DAMAGE_TABLE
 
     _rppm: RealPPM = field(init=False)
+    hs_damage_bonus: float = field(
+        default=generic_config.DIAMOND_STRIKE_BONUS_DAMAGE_PER_HARMONIOUS_SOUL_STACK, init=False
+    )
+    echo_damage_bonus: float = field(
+        default=generic_config.DIAMOND_STRIKE_BONUS_DAMAGE_PER_ECHO_STACK, init=False
+    )
 
     def __post_init__(self) -> None:
         self._rppm = RealPPM(
@@ -286,8 +172,8 @@ class DiamondStrike(Effect):
 
         base_damage = (
             unscaled_base_damage
-            * (1 + n_h_soul * generic_config.DIAMOND_STRIKE_BONUS_DAMAGE_PER_HARMONIOUS_SOUL_STACK)
-            * (1 + n_echo * generic_config.DIAMOND_STRIKE_BONUS_DAMAGE_PER_ECHO_STACK)
+            * (1 + n_h_soul * self.hs_damage_bonus)
+            * (1 + n_echo * self.echo_damage_bonus)
         )
 
         logger.debug(
@@ -497,6 +383,9 @@ class VisionsOfGrandeur(Effect):
     trait_level: int = 4
 
     _sp_rate_table: ClassVar[list[float]] = generic_config.VISIONS_OF_GRANDEUR_SP_RATE_TABLE
+    sp_cdr_normalization: float = field(
+        default=generic_config.VISIONS_OF_GRANDEUR_SP_CDR_NORMALIZATION, init=False
+    )
 
     def on_add(self) -> None:
         bus = self.owner.state.bus
@@ -509,7 +398,7 @@ class VisionsOfGrandeur(Effect):
         if not isinstance(event.ability, WeaponAbility):
             return
         sp_rate = self._sp_rate_table[self.trait_level - 1]
-        sp = sp_rate * event.ability.base_cooldown / generic_config.VISIONS_OF_GRANDEUR_SP_CDR_NORMALIZATION
+        sp = sp_rate * event.ability.base_cooldown / self.sp_cdr_normalization
         char = self.owner
         char.spirit_points = min(char.spirit_points + sp, char.max_spirit_points)
 
@@ -550,6 +439,7 @@ class BraveMachinations(Effect):
     # Epoch tracking: incremented on each weapon-ability cast; CDR fires once per epoch.
     _cast_epoch: int = field(default=0, init=False)
     _cdr_epoch: int = field(default=-1, init=False)
+    cdr_on_crit: float = field(default=generic_config.BRAVE_MACHINATIONS_CDR_ON_CRIT, init=False)
 
     @property
     def crit_bonus(self) -> float:
@@ -558,7 +448,7 @@ class BraveMachinations(Effect):
     def on_add(self) -> None:
         bus = self.owner.state.bus
         bus.subscribe(AbilityCastSuccess, self._on_cast, owner=self)
-        bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
+        bus.subscribe(SnapshotCreation, self._on_pre_damage, owner=self)
         bus.subscribe(AbilityDamage, self._on_damage, owner=self)
         bus.subscribe(AbilityPeriodicDamage, self._on_periodic_damage, owner=self)
 
@@ -566,7 +456,7 @@ class BraveMachinations(Effect):
         if isinstance(event.ability, WeaponAbility):
             self._cast_epoch += 1
 
-    def _on_pre_damage(self, event: PreDamageSnapshotUpdate) -> None:
+    def _on_pre_damage(self, event: SnapshotCreation) -> None:
         if isinstance(event.damage_source, (WeaponAbility, CurseOfAnzhyr)):
             event.snapshot = event.snapshot.add_crit_percent(self.crit_bonus)
 
@@ -574,7 +464,7 @@ class BraveMachinations(Effect):
         if self._cdr_epoch == self._cast_epoch:
             return  # already triggered CDR this cast
         self._cdr_epoch = self._cast_epoch
-        ability._reduce_cooldown_multiplicative(generic_config.BRAVE_MACHINATIONS_CDR_ON_CRIT)
+        ability._remove_cooldown_multiplicative(self.cdr_on_crit)
 
         ability_label = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", type(ability).__name__)
         logger.debug(
@@ -617,9 +507,9 @@ class HeroicBrand(Effect):
         return 1.0 + self._dmg_bonus_table[self.trait_level - 1]
 
     def on_add(self) -> None:
-        self.owner.state.bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
+        self.owner.state.bus.subscribe(SnapshotCreation, self._on_snapshot_create, owner=self)
 
-    def _on_pre_damage(self, event: PreDamageSnapshotUpdate) -> None:
+    def _on_snapshot_create(self, event: SnapshotCreation) -> None:
         if not isinstance(event.damage_source, WeaponAbility):
             return
         event.snapshot = event.snapshot.scale_average_damage(self.damage_multiplier)
@@ -629,7 +519,6 @@ class HeroicBrand(Effect):
             "Heroic Brand: {} x{:.2f} on {}",
             source_label,
             self.damage_multiplier,
-            event.target,
         )
 
 
@@ -958,7 +847,7 @@ class InspiredAllegiance(Effect):
             return
         for ability in self.owner.abilities:
             if isinstance(ability, WeaponAbility):
-                ability._reduce_cooldown(self.cdr_seconds)
+                ability._remove_cooldown(self.cdr_seconds)
         self.owner.effects.add(InspiredAllegianceBuff(trait_level=self.trait_level, owner=self.owner))
         logger.debug("Inspired Allegiance: proc → -{:.0f}s CDR, +haste buff", self.cdr_seconds)
 
@@ -973,9 +862,11 @@ class KindlingDoT(DoTEffect):
     """Fire DoT applied by the Kindling proc."""
 
     name: str = field(default="kindling_dot", init=False)
+
+    average_damage: float = field(init=True)
+
     duration: float = field(default=generic_config.KINDLING_DOT_DURATION, init=False)
-    base_tick_duration: float = field(default=generic_config.KINDLING_DOT_TICK_DURATION, init=False)
-    ability: "None" = field(default=None, init=False)
+    base_tick_interval: float = field(default=generic_config.KINDLING_DOT_TICK_DURATION, init=False)
 
 
 @dataclass(kw_only=True, repr=False)
@@ -1005,14 +896,6 @@ class Kindling(Effect):
             owner=self.owner,
         )
 
-    @property
-    def tick_base_damage(self) -> float:
-        return (
-            self._ratio_table[self.trait_level - 1]
-            * generic_config.KINDLING_DAMAGE_RATIO_SCALE
-            / (generic_config.KINDLING_DOT_DURATION / generic_config.KINDLING_DOT_TICK_DURATION)
-        )
-
     def on_add(self) -> None:
         self.owner.state.bus.subscribe(AbilityDamage, self._on_damage, owner=self)
         self.owner.state.bus.subscribe(AbilityPeriodicDamage, self._on_damage, owner=self)
@@ -1024,14 +907,9 @@ class Kindling(Effect):
         if self._rppm is None or not self._rppm.check():
             return
 
-        snap = SnapshotStats.from_base_damage_and_character(
-            base_damage=self.tick_base_damage,
-            character=self.owner,
-            is_scaled_by_expertise=True,
-            is_scaled_by_main_stat=True,
-        )
-        event.target.effects.add(KindlingDoT(snapshot=snap, owner=self.owner))
-        logger.debug(f"Kindling: proc on {event.target} tick={snap.average_damage:.0f}")
+        average_damage = self._ratio_table[self.trait_level - 1] * 1000
+        event.target.effects.add(KindlingDoT(owner=self.owner, average_damage=average_damage))
+        logger.debug(f"Kindling: proc on {event.target} average damage={average_damage:.0f}")
 
 
 # ---------------------------------------------------------------------------
@@ -1315,28 +1193,6 @@ class WillfulMomentum(Buff):
 # Trait name types and registries
 # ---------------------------------------------------------------------------
 
-WeaponMasterTraitName = Literal[
-    "Amethyst Splinters",
-    "Brave Machinations",
-    "Diamond Strike",
-    "Emerald Judgement",
-    "Heroic Brand",
-    "Martial Initiative",
-    "Ruby Storm",
-    "Sapphire Aurastone",
-    "Visions Of Grandeur",
-]
-WeaponHeroicTraitName = Literal[
-    "Hidden Power",
-    "Hunters Focus",
-    "Inspired Allegiance",
-    "Kindling",
-    "Navigators Intuition",
-    "Seized Opportunity",
-    "Vengeful Soul",
-    "Willful Momentum",
-    "Patient Soul",
-]
 
 
 def _wrap(cls: type) -> Callable[[int], SetupEffectLate[Player]]:
@@ -1352,26 +1208,26 @@ def _wrap(cls: type) -> Callable[[int], SetupEffectLate[Player]]:
     return factory
 
 
-_MASTER_TRAITS: dict[WeaponMasterTraitName, Callable[..., SetupEffectLate[Player]]] = {
-    "Amethyst Splinters": _wrap(AmethystSplinters),
-    "Brave Machinations": _wrap(BraveMachinations),
-    "Diamond Strike": _wrap(DiamondStrike),
-    "Emerald Judgement": _wrap(EmeraldJudgement),
-    "Heroic Brand": _wrap(HeroicBrand),
-    "Martial Initiative": _wrap(MartialInitiative),
-    "Ruby Storm": _wrap(RubyStorm),
-    "Sapphire Aurastone": SapphireAurastoneSetup,
-    "Visions Of Grandeur": _wrap(VisionsOfGrandeur),
+_MASTER_TRAITS: dict[MasterTrait, Callable[..., SetupEffectLate[Player]]] = {
+    MasterTrait.AMETHYST_SPLINTERS: _wrap(AmethystSplintersAura),
+    MasterTrait.BRAVE_MACHINATIONS: _wrap(BraveMachinations),
+    MasterTrait.DIAMOND_STRIKE: _wrap(DiamondStrike),
+    MasterTrait.EMERALD_JUDGEMENT: _wrap(EmeraldJudgement),
+    MasterTrait.HEROIC_BRAND: _wrap(HeroicBrand),
+    MasterTrait.MARTIAL_INITIATIVE: _wrap(MartialInitiative),
+    MasterTrait.RUBY_STORM: _wrap(RubyStorm),
+    MasterTrait.SAPPHIRE_AURASTONE: SapphireAurastoneSetup,
+    MasterTrait.VISIONS_OF_GRANDEUR: _wrap(VisionsOfGrandeur),
 }
 
-_HEROIC_TRAITS: dict[WeaponHeroicTraitName, Callable[..., SetupEffectLate[Player]]] = {
-    "Hidden Power": _wrap(HiddenPower),
-    "Hunters Focus": _wrap(HuntersFocus),
-    "Inspired Allegiance": _wrap(InspiredAllegiance),
-    "Kindling": _wrap(Kindling),
-    "Navigators Intuition": _wrap(NavigatorsIntuition),
-    "Patient Soul": _wrap(PatientSoul),
-    "Seized Opportunity": _wrap(SeizedOpportunity),
-    "Vengeful Soul": _wrap(VengefulSoul),
-    "Willful Momentum": _wrap(WillfulMomentum),
+_HEROIC_TRAITS: dict[HeroicTrait, Callable[..., SetupEffectLate[Player]]] = {
+    HeroicTrait.HIDDEN_POWER: _wrap(HiddenPower),
+    HeroicTrait.HUNTERS_FOCUS: _wrap(HuntersFocus),
+    HeroicTrait.INSPIRED_ALLEGIANCE: _wrap(InspiredAllegiance),
+    HeroicTrait.KINDLING: _wrap(Kindling),
+    HeroicTrait.NAVIGATORS_INTUITION: _wrap(NavigatorsIntuition),
+    HeroicTrait.PATIENT_SOUL: _wrap(PatientSoul),
+    HeroicTrait.SEIZED_OPPORTUNITY: _wrap(SeizedOpportunity),
+    HeroicTrait.VENGEFUL_SOUL: _wrap(VengefulSoul),
+    HeroicTrait.WILLFUL_MOMENTUM: _wrap(WillfulMomentum),
 }

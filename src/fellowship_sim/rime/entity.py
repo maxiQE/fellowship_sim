@@ -77,9 +77,9 @@ class Rime(Player):
 
     @property
     def winters_embrace_duration(self) -> float:
-        from .effect import BurstingIceEffect
+        from .effect import BurstingIceEffect, WintersEmbrace
 
-        if not self.bursting_ice.has_winters_embrace:
+        if not self.effects.has(WintersEmbrace):
             return 0
 
         bursting_ice_debuffs = [enemy.effects.get(BurstingIceEffect) for enemy in self.state.enemies]
@@ -120,7 +120,7 @@ class Rime(Player):
             )
 
         logger.trace(
-            f"Rime anima change: change={change}, old_anima={self.anima}, new_anima={new_anima}", new_orbs={new_orbs}
+            f"Rime anima change: change={change}, old_anima={self.anima}, new_anima={new_anima}, new_orbs={new_orbs}"
         )
 
         if new_orbs > 0:

@@ -26,7 +26,9 @@ from .ability import (
 class Elarion(Player):
     focus: float = field(default=elarion_config.ELARION_MAX_FOCUS, init=True)
     max_focus: float = field(default=elarion_config.ELARION_MAX_FOCUS, init=False)
-    focus_regen_rate: float = field(default=elarion_config.ELARION_FOCUS_REGEN_RATE, init=False)  # focus per second at zero haste
+    focus_regen_rate: float = field(
+        default=elarion_config.ELARION_FOCUS_REGEN_RATE, init=False
+    )  # focus per second at zero haste
 
     has_increased_proc_chance_barrage: bool = field(default=False, init=False)
     has_increased_proc_chance_volley: bool = field(default=False, init=False)
@@ -94,7 +96,10 @@ class Elarion(Player):
             self.skystrider_supremacy,
         ]
 
+        # Needs to be repeated after ability initialization so that cda for abilities like elarion HWA is correct
         self._recalculate_stats()
+        self._recalculate_cdr_multipliers()
+        self._recompute_dot_tick_time()
 
     def _change_focus(self, change: float) -> None:
         """Adjust focus by change; raises ValueError if the result would go negative, caps at max_focus."""

@@ -2,7 +2,15 @@ import random
 
 import pytest
 
-from fellowship_sim.base_classes import AbilityDamage, AbilityPeriodicDamage, Enemy, State, StateInformation
+from fellowship_sim.base_classes import (
+    AbilityDamage,
+    AbilityPeriodicDamage,
+    Enemy,
+    HeroicTrait,
+    MasterTrait,
+    State,
+    StateInformation,
+)
 from fellowship_sim.base_classes.events import SpiritProc
 from fellowship_sim.base_classes.stats import RawStatsFromPercents
 from fellowship_sim.elarion.ability import (
@@ -25,7 +33,9 @@ class TestDoTsCanClearMarks:
     def test_amethyst_splinters_procs_marks(self) -> None:
         """Amethyst splinters DOT triggers marks."""
         state = State(
-            rng=SequenceRNG(values=[0.0, 1.0]),  # proc mark -> not a crit -> proc mark -> not a crit
+            rng=SequenceRNG(
+                values=[1.0, 0.0, 1.0]
+            ),  # splinters uselss crit roll -> proc mark -> not a crit -> proc mark -> not a crit
         )
         Enemy(state=state)
         target = state.enemies[0]
@@ -37,7 +47,7 @@ class TestDoTsCanClearMarks:
                 haste_percent=0.0,
                 spirit_percent=0.0,
             ),
-            master_trait="Amethyst Splinters",
+            master_trait=MasterTrait.AMETHYST_SPLINTERS,
         )
         elarion = setup.finalize(state)
 
@@ -72,6 +82,7 @@ class TestDoTsCanClearMarks:
 
         # all ticks cleared a mark
         assert len(periodic_damage) == 4
+        assert not any(event.is_crit for event in periodic_damage)
         assert mark.stacks == start_stack_count - 4
 
     def test_kindle_procs_marks(self) -> None:
@@ -91,7 +102,7 @@ class TestDoTsCanClearMarks:
                 haste_percent=0.0,
                 spirit_percent=0.0,
             ),
-            heroic_traits=["Kindling"],
+            heroic_traits=[HeroicTrait.KINDLING],
         )
         elarion = setup.finalize(state)
 

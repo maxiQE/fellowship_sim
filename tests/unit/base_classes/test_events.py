@@ -7,7 +7,7 @@ from fellowship_sim.base_classes import Effect, Enemy, Entity, State
 from fellowship_sim.base_classes.events import (
     AbilityCastSuccess,
     AbilityDamage,
-    ComputeCooldownReduction,
+    ComputeCooldownAcceleration,
     ComputeFinalStats,
     EffectApplied,
     EventBus,
@@ -25,35 +25,35 @@ from tests.integration.fixtures import FixedRNG
 
 class TestComputeCooldownReductionResolve:
     @staticmethod
-    def _cdr(**kwargs: list[float]) -> ComputeCooldownReduction:
+    def _cdr(**kwargs: list[float]) -> ComputeCooldownAcceleration:
         state = State(rng=FixedRNG(0.0))
         target = Enemy(state=state)
         elarion = Elarion(state=state, raw_stats=RawStatsFromPercents(main_stat=1000))
 
-        return ComputeCooldownReduction(ability=None, owner=elarion, **kwargs)  # ty:ignore[invalid-argument-type]
+        return ComputeCooldownAcceleration(ability=None, owner=elarion, **kwargs)  # ty:ignore[invalid-argument-type]
 
     def test_no_modifiers_returns_one(self) -> None:
         assert self._cdr().resolve() == pytest.approx(1.0)
 
-    def test_cda_only(self) -> None:
+    def test_cda_additive_only(self) -> None:
         # (1 + 0.3) = 1.3
-        assert self._cdr(cda_modifiers=[0.3]).resolve() == pytest.approx(1.3)
+        assert self._cdr(cda_additive=[0.3]).resolve() == pytest.approx(1.3)
 
-    def test_cdr_only(self) -> None:
+    def test_cda_multiplicative_only(self) -> None:
         # 1 * 1.5 = 1.5
-        assert self._cdr(cdr_modifiers=[1.5]).resolve() == pytest.approx(1.5)
+        assert self._cdr(cda_multiplicative=[1.5]).resolve() == pytest.approx(1.5)
 
-    def test_cda_and_cdr_multiply(self) -> None:
+    def test_cda_additive_and_multiplicative_combine(self) -> None:
         # (1 + 0.3) * 2.0 = 2.6
-        assert self._cdr(cda_modifiers=[0.3], cdr_modifiers=[2.0]).resolve() == pytest.approx(2.6)
+        assert self._cdr(cda_additive=[0.3], cda_multiplicative=[2.0]).resolve() == pytest.approx(2.6)
 
-    def test_multiple_cda_stack_additively(self) -> None:
+    def test_multiple_cda_additive_stack_additively(self) -> None:
         # (1 + 0.1 + 0.2) = 1.3
-        assert self._cdr(cda_modifiers=[0.1, 0.2]).resolve() == pytest.approx(1.3)
+        assert self._cdr(cda_additive=[0.1, 0.2]).resolve() == pytest.approx(1.3)
 
-    def test_multiple_cdr_stack_multiplicatively(self) -> None:
+    def test_multiple_cda_multiplicative_stack_multiplicatively(self) -> None:
         # 2.0 * 1.5 = 3.0
-        assert self._cdr(cdr_modifiers=[2.0, 1.5]).resolve() == pytest.approx(3.0)
+        assert self._cdr(cda_multiplicative=[2.0, 1.5]).resolve() == pytest.approx(3.0)
 
 
 class TestEventBusOwnerUnsubscribe:

@@ -71,21 +71,17 @@ However:
 
 ## Snapshotting
 
-Snapshotting looks to be rare in FS, after reworks.
+- When the game creates a missile (for example, elarion arrow, rime spell object, etc.), it snapshots the stats of the character.
+    - For example, for rime, when under the effects of the Winter's Embrace buff (+20% damage):
+        - using comet creates the missile straight away, getting the +20% damage buff;
+        - casting blast or bolt only benefits *if the cast finishes while the buff is still on*;
+        - casting torrent: only the ticks which complete while the buff is still on benefit.
 
-- haste seems to be snapshot when casting channels
-- haste is snapshot when casting elarion volley
+- For channels, tick rate appears to be static and computed when the spell is cast.
 
-Damage is dynamic
+- For some effects which do an attack on schedule (elarion volley, rime bursting ice), these snapshot haste on cast. Damage is dynamic: they snapshot character stat on each attack.
 
-- applying a +20% damage buff changes the damage of ongoing attacks (elarion volley) and dots
-- changing crit rate affects ongoing attacks and dots
-
-Tick rate is dynamic on dots:
-
-- changing haste changes dot tick rate
-- this is easily testable on ardeos, or with kindling or amethyst splinters.
-    Apply debuff then cast ult to get spirit of heroism haste buff.
+- For DoTs, tick rate is dynamic. If haste changes, the tick rate is updated instantaneously. Damage is also dynamic: they snapshot character stat on each attack.
 
 ## Damage accumulators
 
@@ -184,4 +180,5 @@ In game, various effects have various time-of-flight mechanics:
 - fixed speed,
 - etc.
 
-The simulation currently ignores all time-of-flight and 
+The simulation currently applies flat time-of-flight to each ability.
+Everything is very ad-hoc and unrealistic.

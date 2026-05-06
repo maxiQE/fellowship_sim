@@ -7,8 +7,9 @@ Tweak the globals below to change log verbosity and encounter size, then run:
 import random
 
 from fellowship_sim import configure_logging
-from fellowship_sim.base_classes import Enemy, State
+from fellowship_sim.base_classes import Enemy, Gem, HeroicTrait, Legendary, MasterTrait, State, Weapon
 from fellowship_sim.base_classes.stats import RawStatsFromScores
+from fellowship_sim.elarion import Talent
 from fellowship_sim.elarion.entity import Elarion
 from fellowship_sim.elarion.setup import ElarionSetup
 
@@ -20,7 +21,7 @@ from fellowship_sim.elarion.setup import ElarionSetup
 # TRACE | DEBUG : for debugging
 # INFO: show damage
 # SUCCESS: show important effects
-# WARNING | ERROR: show problems
+# WARNING | ERROR: show problems
 
 LOG_LEVEL = "INFO"
 NUM_TARGETS = 5
@@ -42,27 +43,27 @@ character_setup = ElarionSetup(
         haste_score=haste_score,
         spirit_score=spirit_score,
     ),
-    legendary="Neck",
-    weapon_ability="Voidbringer's Touch",
-    master_trait="Visions Of Grandeur",
+    legendary=Legendary.NECK,
+    weapon_ability=Weapon.VOIDBRINGERS_TOUCH,
+    master_trait=MasterTrait.VISIONS_OF_GRANDEUR,
     heroic_traits=[
-        "Willful Momentum",
-        "Inspired Allegiance",
+        HeroicTrait.WILLFUL_MOMENTUM,
+        HeroicTrait.INSPIRED_ALLEGIANCE,
     ],
     talents=[
-        "Piercing Seekers",
-        "Fusillade",
-        "Lunar Fury",
-        "Lunarlight Affinity",
-        "Fervent Supremacy",
-        "Impending Heartseeker",
-        "Last Lights",
+        Talent.PIERCING_SEEKERS,
+        Talent.FUSILLADE,
+        Talent.LUNAR_FURY,
+        Talent.LUNARLIGHT_AFFINITY,
+        Talent.FERVENT_SUPREMACY,
+        Talent.IMPENDING_HEARTSEEKER,
+        Talent.LAST_LIGHTS,
     ],
     gem_power={
         # 10b, 6r, 6p
-        "blue__saphire": 2664,
-        "red__ruby": 1212,
-        "purple__amethyst": 1212,
+        Gem.BLUE: 2664,
+        Gem.RED: 1212,
+        Gem.PURPLE: 1212,
     },
     sets=[
         # "Drakheim's Absolution",

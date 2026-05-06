@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Self
 
 from loguru import logger
 
@@ -16,10 +16,10 @@ from fellowship_sim.base_classes import (
 from fellowship_sim.base_classes.ability import WeaponAbility
 from fellowship_sim.base_classes.entity import Player
 from fellowship_sim.base_classes.events import (
-    AbilityCastSuccess,
     AbilityDamage,
-    ComputeCooldownReduction,
+    ComputeCooldownAcceleration,
     PreDamageSnapshotUpdate,
+    SnapshotCreation,
 )
 from fellowship_sim.base_classes.stats import SnapshotStats
 from fellowship_sim.base_classes.timed_events import DelayedDamage, GenericTimedEvent
@@ -44,26 +44,33 @@ class VoidbringersTouchEffect(Effect):
 
     stored_damage: float = field(default=0.0, init=False)
     _exploded: bool = field(default=False, init=False)
+    damage_accumulation_ratio: float = field(
+        default=generic_config.VOIDBRINGERS_TOUCH_DAMAGE_ACCUMULATION_RATIO, init=False
+    )
+    bonus_crit_percent: float = field(default=generic_config.VOIDBRINGERS_TOUCH_BONUS_CRIT_PERCENT, init=False)
 
     def on_add(self) -> None:
         self._target = self.attached_to
         self.owner.state.bus.subscribe(AbilityDamage, self._on_damage, owner=self)
         self.owner.state.bus.subscribe(AbilityPeriodicDamage, self._on_damage, owner=self)
 
-    def fuse(self, incoming: Effect) -> None:
+    def fuse(self, existing: list[Self]) -> bool:  # ty:ignore[invalid-method-override]
         """Keep existing stored_damage; renew duration only."""
-        self.duration = incoming.duration
-        self._schedule_expiry()
+        current = existing[0]
+        current.duration = self.duration
+        current._schedule_expiry()
         logger.warning("Voidbringer's Touch: double apply to same target wastes damage!")
         logger.debug(
             "Voidbringer's Touch: renewed duration (stored={:.0f}/{:.0f})", self.stored_damage, self.max_stored_damage
         )
 
+        return False
+
     def _on_damage(self, event: AbilityDamage | AbilityPeriodicDamage) -> None:
         if event.damage_source is self:
             return
 
-        self.stored_damage += event.damage * generic_config.VOIDBRINGERS_TOUCH_DAMAGE_ACCUMULATION_RATIO
+        self.stored_damage += event.damage * self.damage_accumulation_ratio
         logger.trace(
             "Voidbringer's Touch: +{:.0f} stored ({:.0f}/{:.0f})",
             event.damage * 0.10,
@@ -88,11 +95,12 @@ class VoidbringersTouchEffect(Effect):
         snapshot = SnapshotStats.from_base_damage_and_character(
             base_damage=base_damage,
             character=self.ability.owner,
+            damage_source=self,
             is_scaled_by_main_stat=False,
             is_scaled_by_expertise=True,
         )
 
-        snapshot = snapshot.add_crit_percent(generic_config.VOIDBRINGERS_TOUCH_BONUS_CRIT_PERCENT)
+        snapshot = snapshot.add_crit_percent(self.bonus_crit_percent)
 
         trigger = "timed out" if is_remove_from_expiration else "threshold reached"
         logger.debug(
@@ -111,13 +119,12 @@ class VoidbringersTouch(WeaponAbility):
 
     base_player_downtime: float = field(default=0.0, init=False)
     base_cooldown: float = field(default=generic_config.VOIDBRINGERS_TOUCH_COOLDOWN, init=False)
+    max_stored_damage_ratio: float = field(
+        default=generic_config.VOIDBRINGERS_TOUCH_MAX_STORED_DAMAGE_RATIO, init=False
+    )
 
     def _do_cast(self, target: Entity) -> None:
-        state = self.owner.state
-        event = AbilityCastSuccess(ability=self, owner=self.owner, target=target)
-        state.bus.emit(event)
-
-        max_stored = generic_config.VOIDBRINGERS_TOUCH_MAX_STORED_DAMAGE_RATIO * self.owner.stats.main_stat
+        max_stored = self.max_stored_damage_ratio * self.owner.stats.main_stat
         target.effects.add(VoidbringersTouchEffect(ability=self, max_stored_damage=max_stored, owner=self.owner))
         logger.debug(f"Voidbringer's Touch: applied to {target} (max stored={max_stored:.0f})")
 
@@ -140,16 +147,17 @@ class ChronoshiftChannelCDR(Effect):
 
     name: str = field(default="chronoshift_cdr", init=False)
     duration: float = field(default=3.0, init=True)  # overridden to match channel duration at construction
+    cdr_bonus: float = field(default=generic_config.CHRONOSHIFT_CHANNEL_CDR_BONUS, init=False)
 
     def on_add(self) -> None:
-        self.owner.state.bus.subscribe(ComputeCooldownReduction, self._on_cdr, owner=self)
+        self.owner.state.bus.subscribe(ComputeCooldownAcceleration, self._on_cdr, owner=self)
         self.owner._recalculate_cdr_multipliers()
 
     def on_remove(self, *, is_remove_from_expiration: bool = False) -> None:
         self.owner._recalculate_cdr_multipliers()
 
-    def _on_cdr(self, event: ComputeCooldownReduction) -> None:
-        event.cdr_modifiers.append(generic_config.CHRONOSHIFT_CHANNEL_CDR_BONUS)
+    def _on_cdr(self, event: ComputeCooldownAcceleration) -> None:
+        event.cda_multiplicative.append(self.cdr_bonus)
         logger.trace(f"Chronoshift CDR: 800% CDR on {event.ability}")
 
 
@@ -169,14 +177,12 @@ class Chronoshift(WeaponAbility):
     average_damage: float = field(
         default=(generic_config.CHRONOSHIFT_DAMAGE_MIN + generic_config.CHRONOSHIFT_DAMAGE_MAX) / 2, init=False
     )
-    is_channel: bool = field(default=True, init=False)
+    has_unhasted_cast_time: bool = field(default=True, init=False)
     tick_time: float = field(default=generic_config.CHRONOSHIFT_TICK_TIME, init=False)
     num_secondary_targets: int = field(default=generic_config.CHRONOSHIFT_MAX_SECONDARY_TARGETS, init=False)
 
     def _do_cast(self, target: Entity) -> None:
         state = self.owner.state
-        event = AbilityCastSuccess(ability=self, owner=self.owner, target=target)
-        state.bus.emit(event)
 
         haste = self.owner.stats.haste_percent
         tick_interval = self.tick_time / (1 + haste)
@@ -232,14 +238,15 @@ class NaturesFuryAura(Effect):
 
     name: str = field(default="natures_fury_aura", init=False)
     ability: "NaturesFury | None" = None
+    crit_bonus: float = field(default=generic_config.NATURES_FURY_CRIT_BONUS, init=False)
 
     def on_add(self) -> None:
-        self.owner.state.bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
+        self.owner.state.bus.subscribe(SnapshotCreation, self._on_pre_damage, owner=self)
 
-    def _on_pre_damage(self, event: PreDamageSnapshotUpdate) -> None:
+    def _on_pre_damage(self, event: SnapshotCreation) -> None:
         if event.damage_source is not self.ability:
             return
-        event.snapshot = event.snapshot.add_crit_percent(generic_config.NATURES_FURY_CRIT_BONUS)
+        event.snapshot = event.snapshot.add_crit_percent(self.crit_bonus)
 
 
 @dataclass(kw_only=True, repr=False)
@@ -273,17 +280,25 @@ class NaturesFury(WeaponAbility):
 class CurseOfAnzhyr(DoTEffect):
     """Infinite-duration DoT applied by the final wave of IciclesOfAnzhyr.
 
-    Ticks every 3s (scaled by snapshot haste) dealing periodic damage.
+    Ticks every 3s (scaled by current haste) dealing periodic damage.
     Enemies afflicted take +200% direct damage from IciclesOfAnzhyr (+200% = 3x total).
     Re-applying is a no-op: the existing curse continues unchanged.
     """
 
     name: str = field(default="curse_of_anzhyr", init=False)
-    base_tick_duration: float = field(default=generic_config.ICICLES_CURSE_TICK_DURATION, init=False)
+    average_damage: float = field(
+        default=(generic_config.ICICLES_DOT_DAMAGE_MIN + generic_config.ICICLES_DOT_DAMAGE_MAX) / 2, init=False
+    )
+    base_tick_interval: float = field(default=generic_config.ICICLES_CURSE_TICK_DURATION, init=False)
+    damage_multiplier: float = field(default=generic_config.ICICLES_CURSE_DAMAGE_MULTIPLIER, init=False)
 
-    def fuse(self, incoming: Effect) -> None:
-        """Re-applying has no effect — the curse continues unchanged."""
+    def fuse(self, existing: list[Self]) -> bool:  # ty:ignore[invalid-method-override]
+        """Re-applying has no effect — the curse continues unchanged.
+
+        NB: needs to be overwritten since this is infinite duration."""
         logger.debug("Curse of An'zhyr: fuse ignored — curse continues unchanged")
+
+        return False
 
     def on_add(self) -> None:
         super().on_add()
@@ -296,7 +311,7 @@ class CurseOfAnzhyr(DoTEffect):
             return
         if not isinstance(event.damage_source, IciclesOfAnzhyr):
             return
-        event.snapshot = event.snapshot.scale_average_damage(generic_config.ICICLES_CURSE_DAMAGE_MULTIPLIER)
+        event.snapshot = event.snapshot.scale_average_damage(self.damage_multiplier)
         logger.trace(f"Curse of An'zhyr: +200% direct damage from Icicles of An'zhyr on {event.target}")
 
 
@@ -314,16 +329,10 @@ class IciclesOfAnzhyr(WeaponAbility):
         default=(generic_config.ICICLES_DAMAGE_MIN + generic_config.ICICLES_DAMAGE_MAX) / 2, init=False
     )
 
-    dot_average_damage: float = field(
-        default=(generic_config.ICICLES_DOT_DAMAGE_MIN + generic_config.ICICLES_DOT_DAMAGE_MAX) / 2, init=False
-    )
-
     num_secondary_targets: int = field(default=generic_config.ICICLES_MAX_SECONDARY_TARGETS, init=False)
 
     def _do_cast(self, target: Entity) -> None:
         state = self.owner.state
-        event = AbilityCastSuccess(ability=self, owner=self.owner, target=target)
-        state.bus.emit(event)
 
         for wave_num in range(1, 4):
             is_final = wave_num == 3
@@ -342,10 +351,7 @@ class IciclesOfAnzhyr(WeaponAbility):
         for enemy in state.enemies[: self.num_secondary_targets]:
             deal_damage(SnapshotStats.from_ability_and_character(ability=self, character=self.owner), self, enemy)
             if is_final:
-                dot_snapshot = SnapshotStats.from_base_damage_and_character(
-                    base_damage=self.dot_average_damage, character=self.owner
-                )
-                enemy.effects.add(CurseOfAnzhyr(snapshot=dot_snapshot, owner=self.owner))
+                enemy.effects.add(CurseOfAnzhyr(owner=self.owner))
 
 
 class EquipVoidbringersTouch(SetupEffectLate[Player]):
@@ -392,14 +398,7 @@ class EquipIcicles(SetupEffectLate[Player]):
         character.abilities.append(ability)
 
 
-WeaponName = Literal[
-    "Voidbringer's Touch",
-    "Chronoshift",
-    "Nature's Fury",
-    "Icicles of Anzhyr",
-]
-
-WeaponAbilitySetupEffectDict: dict[WeaponName, type[SetupEffectLate[Player]]] = {
+WeaponAbilitySetupEffectDict: dict[str, type[SetupEffectLate[Player]]] = {
     "Voidbringer's Touch": EquipVoidbringersTouch,
     "Chronoshift": EquipChronoshift,
     "Nature's Fury": EquipNaturesFury,

@@ -2,47 +2,34 @@
 
 ## Known issues
 
-- DOTs mechanics are not game accurate:
-    - tick rate is dynamic in-game; fixed in sim
-    - accumulation mechanic is not correct (splinters)
-
 - diamond strike: coded as multiplicative between number of echo stacks and number of harmonious souls stacks
 
-- brave machinations: coding as triggering on the DOT
+- brave machinations: coding as triggering on the icicle DOT
+
+## Functional tests
+
+### Rime
+
+- check that spirit double-proc is impossible
+- check that neck proc on comet is not immediately consummed and is not auto spirit proc (also check in-game lmao)
+
+### Ardeos
+
+- check that spamming searing blaze dot before tick prevents cinder gain and damage
+
+### generic
+
+- splinters and aurastone are unaffected by execute set, and other boosts
 
 ## Todo
 
-- rename and correct implementation for cda, cdr, flat cd remove
-    - cda: acceleration, change tick rate
-    - cdr: change base cooldown
-    - flat cd remove: remove N seconds at a specific point
-
-- DOT mechanics:
-    - dynamic tick rate
-    - accumulator mechanics
-
-- shorted duration in execute:
-    - linear decrease in HP balanced to give the appropriate execute duration
-    - set hp decrease by default to be 15% faster during execute
-
-- ability:
-    - check cooldown and charges
-    - add api to put on cooldown without casting
-
-- use true enums everywhere
-    - for talents, have a good interaction to star import
-
-- tests:
-    - splinters and aurastone are unaffected by execute set, and other boosts
+- does WM apply to the cast that triggers it?
+    - erin_rose says it does
+    - check in-game and fix
 
 - rime tests:
     - integration tests: ask claude
     - functional tests: ??
-
-- improve Effect collection to have more explicit API:
-    - get
-    - filter
-    - fuse -> list of effects; for volley; remove name change on volley
 
 
 - try to remove all lazy imports
@@ -72,10 +59,6 @@
 
 - player HP model for ruby storm
 
-
-- ? usage of the full event variety
-
-- ? automated reconstruction of the enums? construction of the enums somehow?
 
 
 # TODO: the can_cast bullshit

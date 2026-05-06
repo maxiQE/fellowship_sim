@@ -13,6 +13,7 @@ RepeatingStars: each Multishot damage hit → Volley CD -0.3s.
 import pytest
 
 from fellowship_sim.base_classes import Enemy, State
+from fellowship_sim.base_classes.events import AbilityCastSuccess
 from fellowship_sim.base_classes.stats import RawStatsFromPercents
 from fellowship_sim.elarion.effect import (
     RepeatingStars,
@@ -43,7 +44,7 @@ class TestSkylitGrace:
         elarion.volley._do_cast(state.enemies[0])
         state.advance_time(0.0)  # process first tick without exhausting full Volley duration
 
-        assert len(VolleyEffect.get_volley(state.enemies[0])) == 1
+        assert len(state.enemies[0].effects.filter(VolleyEffect)) == 1
 
         cd_before = elarion.skystrider_grace.cooldown
         state.advance_time(1.0)
@@ -67,11 +68,11 @@ class TestSkylitGrace:
         elarion.volley._do_cast(state.enemies[0])
         state.advance_time(0.0)
 
-        assert len(VolleyEffect.get_volley(state.enemies[0])) == 2
+        assert len(state.enemies[0].effects.filter(VolleyEffect)) == 2
 
         assert elarion.skystrider_grace._tick
 
-        assert elarion.skystrider_grace._cdr_multiplier == pytest.approx(3.0)
+        assert elarion.skystrider_grace._cda_multiplier == pytest.approx(3.0)
 
     def test_cdr_returns_to_one_after_volley_expires(
         self, state_always_procs__st: State, unit_elarion__zero_stats: Elarion
@@ -86,13 +87,13 @@ class TestSkylitGrace:
 
         elarion.volley._do_cast(state.enemies[0])
 
-        assert elarion.skystrider_grace._cdr_multiplier == pytest.approx(2.0)
+        assert elarion.skystrider_grace._cda_multiplier == pytest.approx(2.0)
 
         state.advance_time(9.0)  # Volley fully expired (duration = 8.0+1e-9)
 
-        assert len(VolleyEffect.get_volley(state.enemies[0])) == 0
+        assert len(state.enemies[0].effects.filter(VolleyEffect)) == 0
 
-        assert elarion.skystrider_grace._cdr_multiplier == pytest.approx(1.0)
+        assert elarion.skystrider_grace._cda_multiplier == pytest.approx(1.0)
 
 
 class TestSkywardMunitions:
@@ -113,6 +114,7 @@ class TestSkywardMunitions:
         state, elarion = setup
         hwa_cd_before = elarion.highwind_arrow.cooldown
 
+        state.bus.emit(AbilityCastSuccess(ability=elarion.celestial_shot, owner=elarion, target=state.enemies[0]))
         elarion.celestial_shot._do_cast(state.enemies[0])
         state.advance_time(0.0)
 
@@ -123,6 +125,7 @@ class TestSkywardMunitions:
         state, elarion = setup
         barrage_cd_before = elarion.heartseeker_barrage.cooldown
 
+        state.bus.emit(AbilityCastSuccess(ability=elarion.celestial_shot, owner=elarion, target=state.enemies[0]))
         elarion.celestial_shot._do_cast(state.enemies[0])
         state.advance_time(0.0)
 
@@ -135,6 +138,7 @@ class TestSkywardMunitions:
         hwa_cd_before = elarion.highwind_arrow.cooldown
         barrage_cd_before = elarion.heartseeker_barrage.cooldown
 
+        state.bus.emit(AbilityCastSuccess(ability=elarion.multishot, owner=elarion, target=state.enemies[0]))
         elarion.multishot._do_cast(state.enemies[0])
         state.advance_time(0.0)
 

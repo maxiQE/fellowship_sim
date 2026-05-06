@@ -5,8 +5,8 @@ import pytest
 from fellowship_sim.base_classes import Enemy, SnapshotStats, State
 from fellowship_sim.base_classes.events import (
     AbilityDamage,
-    ComputeCooldownReduction,
     PreDamageSnapshotUpdate,
+    SnapshotCreation,
     UnitDestroyed,
 )
 from fellowship_sim.base_classes.stats import RawStatsFromPercents
@@ -390,7 +390,7 @@ class TestBlessingOfTheConqueror:
         enemy = state.enemies[0]
         elarion.effects.add(BlessingOfTheConqueror(owner=elarion))
         snap = SnapshotStats(average_damage=1000.0, crit_percent=0.0, crit_multiplier=1.0)
-        event = PreDamageSnapshotUpdate(damage_source=elarion.focused_shot, target=enemy, snapshot=snap)
+        event = SnapshotCreation(damage_source=elarion.focused_shot, snapshot=snap)
         state.bus.emit(event)
         assert event.snapshot.average_damage == pytest.approx(1050.0)
 
@@ -401,7 +401,7 @@ class TestBlessingOfTheConqueror:
         enemy = state.enemies[0]
         elarion.effects.add(BlessingOfTheConqueror(is_level_2=True, owner=elarion))
         snap = SnapshotStats(average_damage=1000.0, crit_percent=0.0, crit_multiplier=1.0)
-        event = PreDamageSnapshotUpdate(damage_source=elarion.focused_shot, target=enemy, snapshot=snap)
+        event = SnapshotCreation(damage_source=elarion.focused_shot, snapshot=snap)
         state.bus.emit(event)
         assert event.snapshot.average_damage == pytest.approx(1150.0)
 
@@ -412,7 +412,7 @@ class TestBlessingOfTheConqueror:
         enemy = state_always_procs__st.enemies[0]
         elarion.effects.add(BlessingOfTheConqueror(owner=elarion))
         snap = SnapshotStats(average_damage=1000.0, crit_percent=0.0, crit_multiplier=1.0)
-        event = PreDamageSnapshotUpdate(damage_source=elarion.focused_shot, target=enemy, snapshot=snap)
+        event = SnapshotCreation(damage_source=elarion.focused_shot, snapshot=snap)
         state_always_procs__st.bus.emit(event)
         assert event.snapshot.average_damage == pytest.approx(1000.0)
 
@@ -425,18 +425,14 @@ class TestBlessingOfTheCommander:
     ) -> None:
         elarion = unit_elarion__zero_stats
         elarion.effects.add(BlessingOfTheCommander(owner=elarion))
-        event = ComputeCooldownReduction(ability=elarion.focused_shot, owner=elarion)
-        state_always_procs__st.bus.emit(event)
-        assert event.cdr_modifiers == [0.04]
+        assert elarion.cooldown_reduction == 0.96
 
     def test_appends_cdr_modifier_level_2(
         self, state_always_procs__st: State, unit_elarion__zero_stats: Elarion
     ) -> None:
         elarion = unit_elarion__zero_stats
         elarion.effects.add(BlessingOfTheCommander(is_level_2=True, owner=elarion))
-        event = ComputeCooldownReduction(ability=elarion.focused_shot, owner=elarion)
-        state_always_procs__st.bus.emit(event)
-        assert event.cdr_modifiers == [0.12]
+        assert elarion.cooldown_reduction == 0.88
 
 
 class TestHarmoniousSoul:

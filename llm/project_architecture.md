@@ -76,10 +76,10 @@ Ability:
 
 # Static info
 - base_cooldown: float
-- is_channel: bool
+- has_unhasted_cast_time: bool
 - base_cast_time: float
 - average_damage: float
-- has_hasted_cdr: bool
+- has_hasted_cda: bool
 - max_charges: int
 
 # Dynamic info
@@ -137,10 +137,10 @@ classDiagram
 
     class Ability {
         +base_cooldown: float
-        +is_channel: bool
+        +has_unhasted_cast_time: bool
         +base_cast_time: float
         +average_damage: float
-        +has_hasted_cdr: bool
+        +has_hasted_cda: bool
         +max_charges: int
         +cooldown: float
         +charges: int

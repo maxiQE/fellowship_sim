@@ -2,7 +2,7 @@ import math
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Literal
 
-from fellowship_sim.base_classes import AbilityCastSuccess, Entity, create_standard_damage
+from fellowship_sim.base_classes import Entity, create_standard_damage
 from fellowship_sim.base_classes.ability import (
     Ability,
     CastReturnCode,
@@ -112,6 +112,9 @@ class GlacialBlast(RimeAbility):
         default=rime_config.GLACIAL_BLAST_GLACIAL_ASSAULT_PLAYER_DOWNTIME, init=False
     )
     glacial_assault_orb_cost: int = field(default=rime_config.GLACIAL_BLAST_GLACIAL_ASSAULT_ORB_COST, init=False)
+    icy_flow_cast_time_reduction: float = field(
+        default=rime_config.GLACIAL_BLAST_ICY_FLOW_CAST_TIME_REDUCTION, init=False
+    )
 
     def is_empowered(self) -> bool:
         glacial_assault = self.owner.effects.get(GlacialAssaultAura)
@@ -150,7 +153,7 @@ class GlacialBlast(RimeAbility):
         if glacial_assault is not None and glacial_assault.is_ready:
             return self.glacial_assault_cast_time
         if self.owner.effects.has(IcyFlowEffect):
-            return (self.base_cast_time - rime_config.GLACIAL_BLAST_ICY_FLOW_CAST_TIME_REDUCTION) / (
+            return (self.base_cast_time - self.icy_flow_cast_time_reduction) / (
                 1 + self.owner.stats.haste_percent
             )
         return super().cast_time
@@ -163,7 +166,7 @@ class GlacialBlast(RimeAbility):
         if glacial_assault is not None and glacial_assault.is_ready:
             return self.glacial_assault_player_downtime
         if self.owner.effects.has(IcyFlowEffect):
-            return (self.base_player_downtime - rime_config.GLACIAL_BLAST_ICY_FLOW_CAST_TIME_REDUCTION) / (
+            return (self.base_player_downtime - self.icy_flow_cast_time_reduction) / (
                 1 + self.owner.stats.haste_percent
             )
         return super().player_downtime
@@ -182,6 +185,7 @@ class IceComet(RimeAbility):
     num_targets_softcap: int = field(default=rime_config.ICE_COMET_NUM_TARGETS_SOFTCAP, init=False)
 
     minimum_delay_until_hit: float = field(default=rime_config.ICE_COMET_ICY_FLOW_MINIMUM_DELAY, init=False)
+    icy_flow_delay_reduction: float = field(default=rime_config.ICE_COMET_ICY_FLOW_DELAY_REDUCTION, init=False)
 
     has_avalanche_talent: bool = field(default=False, init=False)
     avalanche_2_hit_chance: float = field(default=rime_config.AVALANCHE_2_HIT_CHANCE, init=False)
@@ -190,8 +194,6 @@ class IceComet(RimeAbility):
     def _do_cast(self, target: Entity) -> None:
         """Overwritten for avalanche talent which can proc multiple IceComet attacks."""
         state = self.owner.state
-        event = AbilityCastSuccess(ability=self, owner=self.owner, target=target)
-        state.bus.emit(event)
 
         number_of_hits = 1
 
@@ -205,7 +207,9 @@ class IceComet(RimeAbility):
         for hit_number in range(1, number_of_hits + 1):
             delay_until_hit = self.delay_until_hit * hit_number
             if hit_number == 1 and self.owner.effects.has(IcyFlowEffect):
-                delay_until_hit = max(self.minimum_delay_until_hit, delay_until_hit - rime_config.ICE_COMET_ICY_FLOW_DELAY_REDUCTION)
+                delay_until_hit = max(
+                    self.minimum_delay_until_hit, delay_until_hit - self.icy_flow_delay_reduction
+                )
 
             create_standard_damage(
                 state,
@@ -232,8 +236,14 @@ class FreezingTorrent(RimeAbility):
         default=(rime_config.FREEZING_TORRENT_DAMAGE_MIN + rime_config.FREEZING_TORRENT_DAMAGE_MAX) / 2, init=False
     )
 
-    is_channel: bool = field(default=True, init=False)
-    tick_time: float = field(default=rime_config.FREEZING_TORRENT_TICK_TIME, init=False)
+    has_unhasted_cast_time: bool = field(default=True, init=False)
+    base_tick_interval: float = field(default=rime_config.FREEZING_TORRENT_TICK_TIME, init=False)
+    soulfrost_speed_multiplier: float = field(default=rime_config.SOULFROST_TORRENT_FT_SPEED_MULTIPLIER, init=False)
+    partial_clip_threshold: float = field(default=rime_config.FREEZING_TORRENT_PARTIAL_CLIP_THRESHOLD, init=False)
+
+    @property
+    def channel_time(self) -> float:
+        return self.base_player_downtime
 
     def is_empowered(self) -> bool:
         return self.owner.effects.has(SoulfrostTorrentEffect)
@@ -247,28 +257,28 @@ class FreezingTorrent(RimeAbility):
     def _do_cast(self, target: Entity) -> None:
         """Overwritten to implement channel logic, with partial."""
         state = self.owner.state
-        event = AbilityCastSuccess(ability=self, owner=self.owner, target=target)
-        state.bus.emit(event)
 
-        tick_time = self.tick_time
+        base_tick_interval = self.base_tick_interval
 
         soulfrost_torrent = self.owner.effects.get(SoulfrostTorrentEffect)
         if soulfrost_torrent is not None:
-            tick_time /= rime_config.SOULFROST_TORRENT_FT_SPEED_MULTIPLIER
+            base_tick_interval /= self.soulfrost_speed_multiplier
             state.schedule(
-                time_delay=self.player_downtime,
+                time_delay=self.channel_time,
                 callback=GenericTimedEvent(name="Remove soulfrost torrent", callback=soulfrost_torrent.remove),
             )
 
         haste = self.owner.stats.haste_percent
-        tick_interval = tick_time / (1 + haste)
+        tick_interval = base_tick_interval / (1 + haste)
         epsilon = 0.001
-        num_ticks = math.floor(self.player_downtime / tick_interval + epsilon)
+        num_ticks = math.floor(self.channel_time / tick_interval + epsilon)
 
-        partial_size = self.player_downtime - num_ticks * tick_interval
+        partial_size = (self.channel_time - num_ticks * tick_interval) / tick_interval
+
+        num_ticks += 1
 
         # special to freezing torrent: small partial are clipped
-        partial_size = partial_size if partial_size >= rime_config.FREEZING_TORRENT_PARTIAL_CLIP_THRESHOLD else 0
+        partial_size = partial_size if partial_size >= self.partial_clip_threshold else 0
 
         # shaving a slight amount off tick_interval to ensure that when player is available, all shots have been fired
         tick_interval *= 0.999
@@ -280,10 +290,12 @@ class FreezingTorrent(RimeAbility):
                 hit_counter=0,
                 total_count=num_ticks,
                 partial_size=partial_size,
+                partial_time=state.time + self.channel_time,
             )
 
+        # NB: freezing torrent has immediate damage tick
         state.schedule(
-            time_delay=tick_interval, callback=GenericTimedEvent(name="barrage tick", callback=_next_channel_tick)
+            time_delay=0, callback=GenericTimedEvent(name="freezing torrent tick", callback=_next_channel_tick)
         )
 
     def _schedule_channel_attack(
@@ -293,8 +305,13 @@ class FreezingTorrent(RimeAbility):
         hit_counter: int,
         total_count: int,
         partial_size: float,
+        partial_time: float,
     ) -> None:
         state = self.owner.state
+        if state.time > partial_time:
+            raise Exception(  # noqa: TRY002, TRY003
+                f"Unexpected behavior in freezing torrent: partial time f{partial_time} is earlier than current time {state.time}"
+            )
 
         if hit_counter < total_count:  # noqa: SIM108
             base_damage = self.average_damage
@@ -322,6 +339,7 @@ class FreezingTorrent(RimeAbility):
                 hit_counter=hit_counter + 1,
                 total_count=total_count,
                 partial_size=partial_size,
+                partial_time=partial_time,
             )
 
         if hit_counter < total_count - 1:
@@ -331,7 +349,7 @@ class FreezingTorrent(RimeAbility):
 
         elif hit_counter == total_count - 1 and partial_size > 0:
             state.schedule(
-                time_delay=partial_size * tick_interval,
+                time_delay=partial_time - state.time,
                 callback=GenericTimedEvent(name="barrage tick", callback=_next_channel_tick),
             )
 
@@ -348,9 +366,12 @@ class ColdSnap(RimeAbility):
 
     max_charges: int = field(default=rime_config.COLD_SNAP_MAX_CHARGES, init=False)
     initial_charges: int = field(default=rime_config.COLD_SNAP_MAX_CHARGES, init=False)
-    has_hasted_cdr: bool = field(default=True, init=False)
+    has_hasted_cda: bool = field(default=True, init=False)
 
     orb_gain: int = field(default=1, init=False)
+    frostwyrms_spite_damage_bonus: float = field(
+        default=rime_config.FROSTWYRMS_SPITE_DAMAGE_BONUS_PER_STACK, init=False
+    )
 
     def is_empowered(self) -> bool:
         return self.owner.effects.has(NavirsKeeper) or self.empowered_by__frostwyrms_spite_instance() is not None
@@ -388,15 +409,13 @@ class ColdSnap(RimeAbility):
         """
 
         state = self.owner.state
-        event = AbilityCastSuccess(ability=self, owner=self.owner, target=target)
-        state.bus.emit(event)
 
         base_damage = self.average_damage
 
         frostwyrms_spite = self.empowered_by__frostwyrms_spite_instance()
 
         if frostwyrms_spite is not None:
-            base_damage *= 1 + rime_config.FROSTWYRMS_SPITE_DAMAGE_BONUS_PER_STACK * frostwyrms_spite.stacks
+            base_damage *= 1 + self.frostwyrms_spite_damage_bonus * frostwyrms_spite.stacks
             frostwyrms_spite._do_pulse(base_damage, target)
 
         create_standard_damage(
@@ -433,14 +452,8 @@ class BurstingIce(RimeAbility):
     tick_time: float = field(default=rime_config.BURSTING_ICE_TICK_TIME, init=False)
     duration: float = field(default=rime_config.BURSTING_ICE_DURATION, init=False)
 
-    has_winters_embrace: bool = field(default=False, init=False)
-
     def _do_cast(self, target: Entity) -> None:
         """Overwritten to remove damage and apply effect."""
-        state = self.owner.state
-        event = AbilityCastSuccess(ability=self, owner=self.owner, target=target)
-        state.bus.emit(event)
-
         tick_interval = self.tick_time / (1 + self.owner.stats.haste_percent)
 
         target.effects.add(
@@ -449,7 +462,6 @@ class BurstingIce(RimeAbility):
                 ability=self,
                 tick_interval=tick_interval,
                 duration=self.duration,
-                has_winters_embrace=self.has_winters_embrace,
             )
         )
 
@@ -518,10 +530,6 @@ class FlightOfTheNavir(RimeAbility):
 
     def _do_cast(self, target: Entity) -> None:
         """Overwritten to not apply damage."""
-        state = self.owner.state
-        event = AbilityCastSuccess(ability=self, owner=self.owner, target=target)
-        state.bus.emit(event)
-
         for effect_constructor in self.effect_list:
             self.owner.effects.add(effect_constructor(owner=self.owner))
 

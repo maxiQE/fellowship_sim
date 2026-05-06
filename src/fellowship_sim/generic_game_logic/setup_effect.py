@@ -1,12 +1,13 @@
 """Generic weapon trait setup effects — applied once after character initialisation."""
 
 import re
+from collections.abc import Iterator
 from dataclasses import dataclass, field
-from typing import Generic, Literal, TypeVar, get_args
+from typing import Generic, TypeVar, get_args, overload
 
 from loguru import logger
 
-from fellowship_sim.base_classes import Effect, RawStatsFromScores, State
+from fellowship_sim.base_classes import Effect, Gem, HeroicTrait, MasterTrait, RawStatsFromScores, State, Weapon
 from fellowship_sim.base_classes.entity import Player
 from fellowship_sim.base_classes.setup import SetupContext, SetupEffect, SetupEffectEarly, SetupEffectLate
 from fellowship_sim.base_classes.stats import RawStats
@@ -47,13 +48,38 @@ from fellowship_sim.generic_game_logic.set_effects import (
     _SET_EFFECTS,
     SetEffectName,
 )
-from fellowship_sim.generic_game_logic.weapon_abilities import WeaponAbilitySetupEffectDict, WeaponName
-from fellowship_sim.generic_game_logic.weapon_traits import (
-    _HEROIC_TRAITS,
-    _MASTER_TRAITS,
-    WeaponHeroicTraitName,
-    WeaponMasterTraitName,
-)
+from fellowship_sim.generic_game_logic.weapon_abilities import WeaponAbilitySetupEffectDict
+from fellowship_sim.generic_game_logic.weapon_traits import _HEROIC_TRAITS, _MASTER_TRAITS
+
+
+class TalentBuild[T]:
+    """Immutable ordered talent list supporting + (append) and - (remove) operators."""
+
+    def __init__(self, talents: list[T]) -> None:
+        self._talents: list[T] = list(talents)
+
+    @overload
+    def __getitem__(self, index: int) -> T: ...
+    @overload
+    def __getitem__(self, index: slice) -> list[T]: ...
+    def __getitem__(self, index: int | slice) -> T | list[T]:
+        return self._talents[index]
+
+    def __len__(self) -> int:
+        return len(self._talents)
+
+    def __iter__(self) -> Iterator[T]:
+        return iter(self._talents)
+
+    def __add__(self, talent: T) -> "TalentBuild[T]":
+        return TalentBuild([*self._talents, talent])
+
+    def __sub__(self, talent: T) -> "TalentBuild[T]":
+        return TalentBuild([t for t in self._talents if t != talent])
+
+    def __repr__(self) -> str:
+        return f"TalentBuild({self._talents!r})"
+
 
 _UNLOCK_THRESHOLDS: list[int] = generic_config.GEM_UNLOCK_THRESHOLDS
 _LEVELUP_THRESHOLDS: list[int] = generic_config.GEM_LEVELUP_THRESHOLDS
@@ -81,7 +107,7 @@ class DefaultEffectSetup(SetupEffectEarly[Player]):
 class WeaponMasterTraitSelection(SetupEffectLate[Player]):
     """Apply up to one weapon master trait to the character."""
 
-    master_trait: WeaponMasterTraitName
+    master_trait: MasterTrait
     trait_level: int = 4
 
     def __str__(self) -> str:
@@ -98,7 +124,7 @@ class WeaponMasterTraitSelection(SetupEffectLate[Player]):
 class WeaponHeroicTraitSelection(SetupEffectLate[Player]):
     """Apply up to two weapon heroic traits to the character."""
 
-    heroic_traits: list[WeaponHeroicTraitName] = field(default_factory=list)
+    heroic_traits: list[HeroicTrait] = field(default_factory=list)
     trait_level: int = 4
 
     def __post_init__(self) -> None:
@@ -245,17 +271,8 @@ class BlessingOfTheProphetSetup(_GenericGemSetupEffectLate):
         )
 
 
-GemColorName = Literal[
-    "red__ruby",
-    "purple__amethyst",
-    "yellow__topaz",
-    "green__emerald",
-    "blue__saphire",
-    "white__diamond",
-]
-
 # NB: all gem effects have the is_level_2 keyword argument
-_GEM_EFFECTS: dict[GemColorName, list[type[_GenericGemSetupEffectLate] | type[Effect]]] = {
+_GEM_EFFECTS: dict[str, list[type[_GenericGemSetupEffectLate] | type[Effect]]] = {
     "red__ruby": [
         MightOfTheMinotaur,
         ChampionsHeart,
@@ -310,16 +327,13 @@ class GemSetupEffect(SetupEffectLate[Player]):
     Power above 2640 generates a GemOvercap bonus: k * 0.005% main stat where k = power - 2640.
     """
 
-    gem_power: dict[GemColorName, int]
+    gem_power: dict[Gem, int]
 
     total_gem_power: int = field(default=generic_config.GEM_TOTAL_MAX_POWER, init=True)
-    gem_trait_level: dict[GemColorName, tuple[int, int]] = field(init=False)
+    gem_trait_level: dict[Gem, tuple[int, int]] = field(init=False)
     overcap_power: int = field(init=False)
 
     def __post_init__(self) -> None:
-        invalid_keys = [k for k in self.gem_power if k not in get_args(GemColorName)]
-        if invalid_keys:
-            raise ValueError(f"invalid gem_power keys {invalid_keys!r}; must be one of {get_args(GemColorName)}")  # noqa: TRY003
         total_gem_power = sum(self.gem_power.values())
         if total_gem_power > self.total_gem_power:
             raise ValueError(f"Configured gem power {total_gem_power} exceeds maximum {self.total_gem_power}")  # noqa: TRY003
@@ -336,7 +350,7 @@ class GemSetupEffect(SetupEffectLate[Player]):
 
     def __str__(self) -> str:
         trait_level_info = []
-        for gem_color in get_args(GemColorName):
+        for gem_color in Gem:
             if gem_color not in self.gem_power:
                 continue
             num_unlocked, num_leveled = self.gem_trait_level[gem_color]
@@ -391,7 +405,7 @@ _P = TypeVar("_P", bound=Player)
 
 
 @dataclass(kw_only=True)
-class PlayerSetup(Generic[_P]):
+class PlayerSetup(Generic[_P]):  # noqa: UP046
     """Generic base for all character setup orchestrators.
 
     Subclasses must:
@@ -403,13 +417,13 @@ class PlayerSetup(Generic[_P]):
     raw_stats: RawStats
     initial_spirit_points: float = 100
 
-    weapon_ability: WeaponName | None = None
-    master_trait: WeaponMasterTraitName | None = None
+    weapon_ability: Weapon | None = None
+    master_trait: MasterTrait | None = None
     master_trait_level: int = 4
-    heroic_traits: list[WeaponHeroicTraitName] | None = None
+    heroic_traits: list[HeroicTrait] | None = None
     heroic_trait_level: int = 4
     sets: list[SetEffectName] | None = None
-    gem_power: dict[GemColorName, int] | None = None
+    gem_power: dict[Gem, int] | None = None
     total_gem_power: int | None = None
     high_hp_uptime: float | None = None
 
@@ -417,7 +431,7 @@ class PlayerSetup(Generic[_P]):
 
     # Declared without default: each subclass overrides with field(init=False, default_factory=...)
     # listing only the weapons valid for that specific character.
-    valid_weapon_abilities: frozenset[WeaponName]
+    valid_weapon_abilities: frozenset[Weapon]
 
     total_gem_power_default: list[int] = field(default_factory=lambda: [5256, 4608, 3876, 3066, 2256], init=False)
     setup_effect_list: list[SetupEffect[Player]] = field(init=False)
@@ -452,16 +466,6 @@ class PlayerSetup(Generic[_P]):
             raise ValueError(  # noqa: TRY003
                 f"invalid weapon_ability {self.weapon_ability!r}; must be one of {sorted(self.valid_weapon_abilities)}"
             )
-        if self.master_trait is not None and self.master_trait not in get_args(WeaponMasterTraitName):
-            raise ValueError(  # noqa: TRY003
-                f"invalid master_trait {self.master_trait!r}; must be one of {get_args(WeaponMasterTraitName)}"
-            )
-        if self.heroic_traits is not None:
-            invalid = [t for t in self.heroic_traits if t not in get_args(WeaponHeroicTraitName)]
-            if invalid:
-                raise ValueError(  # noqa: TRY003
-                    f"invalid heroic_traits {invalid!r}; must be one of {get_args(WeaponHeroicTraitName)}"
-                )
         if self.sets is not None:
             invalid_sets = [s for s in self.sets if s not in get_args(SetEffectName)]
             if invalid_sets:

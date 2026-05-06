@@ -2,7 +2,7 @@ import itertools
 from abc import abstractmethod
 from collections.abc import Iterator
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Self
 
 from loguru import logger
 
@@ -31,6 +31,8 @@ class Effect:
 
     stacks: int = field(default=1, init=False)
     max_stacks: int = field(default=1, init=False)
+
+    is_independently_stackable: bool = field(default=False, init=False)
 
     attached_to: "Entity | None" = field(
         default=None, init=False
@@ -99,37 +101,53 @@ class Effect:
             callback=EffectExpiry(effect=self, callback=lambda: self._expire(seq)),
         )
 
-    def fuse(self, incoming: "Effect") -> None:
-        """Called when an incoming effect of the same name lands on top of this one.
+    def fuse(self, existing: list[Self]) -> bool:
+        """Called when self is a new effect incoming on the target and the target already has one or more effects of the same type.
+
+        Return a flag indicating whether to keep self or discard it.
 
         Default behaviour:
         - Infinite-duration effects cannot be fused (something has gone wrong).
-        - Finite-duration effects: renew duration and merge stacks up to cap.
+        - Finite-duration effects:
+            - renew duration of the existing effect,
+            - merge stacks up to cap,
+            - discard incomming effect (self)
 
         Override in subclasses to implement custom fusion logic (e.g. AmethystSplintersDoT).
         """
         from .events import EffectRefreshed
 
-        if self.attached_to is None:
-            raise Exception(f"Effect {self} not attached during fuse")  # noqa: TRY002, TRY003
+        # independently stackable traits have no fuse logic: we just apply them side-by-side
+        if self.is_independently_stackable:
+            return True
 
+        # infinite duration, non-stackable: raise Error to prevent user and programming errors
         if self.duration == float("inf"):
             raise DuplicateEffectError(self.name)
 
-        self.duration = incoming.duration
-        self.stacks = min(self.stacks + incoming.stacks, self.max_stacks)
-        self._schedule_expiry()
+        # finite duration, non-stackable: renew duration, add stacks
+        current = existing[0]
+
+        if current.attached_to is None:
+            raise Exception(f"current existing effect {current} is unnattached during fuse")  # noqa: TRY002, TRY003
+
+        # reset duration
+        current.duration = self.duration
+        current.stacks = min(self.stacks + current.stacks, current.max_stacks)
+        current._schedule_expiry()
 
         self.owner.state.bus.emit(
             EffectRefreshed(
-                effect=self,
-                target=self.attached_to,
+                effect=current,
+                target=current.attached_to,
             )
         )
 
-        self.on_fuse()
+        current.on_fuse(self)
 
-    def on_fuse(self) -> None:
+        return False
+
+    def on_fuse(self, new_effect: Self) -> None:
         """Called after fuse completes. Override in subclasses for post-fuse behaviour."""
 
     def _expire(self, seq: int) -> None:
@@ -166,44 +184,50 @@ class Effect:
 
 class EffectCollection:
     def __init__(self) -> None:
-        self._effects: dict[str, Effect] = {}
+        self._effects: list[Effect] = []
         self._entity: Entity | None = None
 
     def get[T: Effect](self, effect_type: type[T]) -> T | None:
         """Return the first active effect of type effect_type, or None if absent."""
-        for effect in self._effects.values():
+        for effect in self._effects:
             if isinstance(effect, effect_type):
                 return effect
         return None
 
+    def filter[T: Effect](self, effect_type: type[T]) -> list[T]:
+        """Return the list of active effect of type effect_type."""
+        return [effect for effect in self._effects if isinstance(effect, effect_type)]
+
     def has[T: Effect](self, effect_type: type[T]) -> bool:
         """Return True if any active effect is an instance of effect_type."""
-        return any(isinstance(e, effect_type) for e in self._effects.values())
+        return any(isinstance(e, effect_type) for e in self._effects)
 
-    def add(self, effect: Effect) -> None:
+    def add[T: Effect](self, new_effect: T) -> None:
         """Add effect to the collection.
 
         If an effect with the same name is already active, calls fuse() on the
         existing effect instead of adding a duplicate.
         """
-        existing = self._effects.get(effect.name)
-        if existing is not None:
-            existing.fuse(effect)
-            return
+        existing = self.filter(type(new_effect))
+        if len(existing):
+            insert_new_effect = new_effect.fuse(existing)
 
-        self._effects[effect.name] = effect
-        effect.attached_to = self._entity
+            if not insert_new_effect:
+                return
 
-        effect.add()
-        effect._schedule_expiry()
+        self._effects.append(new_effect)
+        new_effect.attached_to = self._entity
+
+        new_effect.add()
+        new_effect._schedule_expiry()
 
     def remove(self, effect: Effect) -> None:
         """Remove effect from the internal dict. Called by Effect.remove() after on_remove()."""
-        del self._effects[effect.name]
+        self._effects.remove(effect)
         # Note: effect.attached_to is cleared by Effect.remove() after on_remove()
 
     def __iter__(self) -> Iterator[Effect]:
-        return iter(self._effects.values())
+        return iter(self._effects)
 
     def __len__(self) -> int:
         return len(self._effects)
@@ -241,7 +265,7 @@ class Buff(Effect):
         else:
             self.attached_to._recalculate_stats()
 
-    def on_fuse(self) -> None:
+    def on_fuse(self, new_effect: Self) -> None:  # ty:ignore[invalid-method-override]
         if self.attached_to is None:
             raise Exception("Buff unnattached in on_fuse")  # noqa: TRY002, TRY003
         else:
@@ -264,68 +288,186 @@ class Buff(Effect):
 
 @dataclass(kw_only=True, repr=False)
 class DoTEffect(Effect):
-    """Generic periodic-damage DoT effect.
-
-    Stats are snapshotted by the caller before creating the effect and passed
-    in via the ``snapshot`` field.  Tick interval scales with haste:
-        tick_duration = base_tick_duration / (1 + snapshot.haste_percent)
-
-    If ``does_partial_final_tick`` is True, a scaled partial damage fires on
-    removal proportional to the fractional tick window at the end of the duration:
-        partial_ratio = (duration / base_tick_duration * (1 + haste_percent)) % 1
-    Only applies to finite-duration effects.
-    """
+    """Generic periodic-damage DoT effect."""
 
     owner: "Player"
 
-    snapshot: "SnapshotStats"
-    base_tick_duration: float
-    does_partial_final_tick: bool = False
+    average_damage: float = field(init=False)
+    duration: float = field(init=False)
+    base_tick_interval: float = field(init=False)
+    does_partial_final_tick: bool = field(default=True, init=False)
+    does_immediate_tick: bool = field(default=False, init=False)
+    is_scaled_by_expertise: bool = field(default=True, init=False)
+    is_scaled_by_main_stat: bool = field(default=True, init=False)
+    crit_percent_override: float | None = field(default=None, init=False)
 
-    _tick_duration: float = field(default=0.0, init=False)
-    _partial_ratio: float = field(default=0.0, init=False)
+    last_elapsed_fraction__value: float = field(init=False)
+    last_elapsed_fraction__time: float = field(init=False)
+    last_elapsed_fraction__tick_interval: float = field(init=False)
+
+    _tick_interval_change_guard: int = field(default=0, init=False)
+
+    def __post_init__(self) -> None:
+        self.last_elapsed_fraction__value = 0
+        self.last_elapsed_fraction__time = self.owner.state.time
+        self.last_elapsed_fraction__tick_interval = self.tick_interval
+
+    @property
+    def tick_interval(self) -> float:
+        return self.owner.dot_tick_rate * self.base_tick_interval / (1 + self.owner.stats.haste_percent)
+
+    @property
+    def elapsed_fraction(self) -> float:
+        return (
+            self.last_elapsed_fraction__value
+            + (self.owner.state.time - self.last_elapsed_fraction__time) / self.last_elapsed_fraction__tick_interval
+        )
+
+    @property
+    def average_tick_damage_snapshot(self) -> "SnapshotStats":
+        from fellowship_sim.base_classes import SnapshotStats
+
+        snapshot = SnapshotStats.from_base_damage_and_character(
+            base_damage=self.average_damage,
+            character=self.owner,
+            damage_source=self,
+            is_scaled_by_expertise=self.is_scaled_by_expertise,
+            is_scaled_by_main_stat=self.is_scaled_by_main_stat,
+        )
+        if self.crit_percent_override is not None:
+            snapshot = snapshot.fixed_crit_percent(self.crit_percent_override)
+        return snapshot
+
+    def recompute_tick_time(self) -> None:
+        # invalidate previous tick
+        self._tick_interval_change_guard += 1
+
+        # Compute new tick time
+        remaining_tick_interval = (1 - self.elapsed_fraction) * self.tick_interval
+        self.schedule_tick(remaining_tick_interval)
+
+    def schedule_tick(self, tick_interval: float) -> None:
+        guard = self._tick_interval_change_guard
+
+        self.last_elapsed_fraction__value = self.elapsed_fraction
+        self.last_elapsed_fraction__time = self.owner.state.time
+        self.last_elapsed_fraction__tick_interval = self.tick_interval
+
+        self.owner.state.schedule(
+            time_delay=tick_interval,
+            callback=GenericTimedEvent(name=f"{self.name} tick", callback=lambda: self._fire_tick(guard)),
+        )
+
+    def deal_tick_damage(self, ratio: float = 1) -> None:
+        from fellowship_sim.base_classes import deal_damage
+
+        if self.attached_to is None:
+            raise Exception(f"Dot {self} unattached during deal_damage")  # noqa: TRY002, TRY003
+
+        deal_damage(
+            snapshot=self.average_tick_damage_snapshot.scale_average_damage(ratio),
+            damage_origin=self,
+            target=self.attached_to,
+            is_dot=True,
+        )
+
+    @property
+    def max_duration(self) -> float:
+        return type(self).duration
+
+    def extend_duration(self, duration_increase: float) -> None:
+        self.duration = min(self.duration + duration_increase, self.max_duration)
+        self._schedule_expiry()
 
     def on_add(self) -> None:
+        self.owner.register_dot(self)
 
-        haste_percent = self.owner.stats.haste_percent
+        if self.does_immediate_tick:
+            self.deal_tick_damage()
 
-        self._tick_duration = (
-            self.base_tick_duration / (1 + haste_percent)
-        ) - 1e-9  # slightly shave off duration to ensure that all base ticks go through
-
-        if self.does_partial_final_tick and self.duration != float("inf"):
-            total = self.duration / self.base_tick_duration * (1 + haste_percent)
-            self._partial_ratio = total % 1
+        self.schedule_tick(self.tick_interval)
 
         human_readable_name = self.name.replace("_", " ")
         logger.debug(
-            f"dot added: {human_readable_name} tick duration={self._tick_duration:.3f}s partial ratio={self._partial_ratio:.3f} on {self.attached_to}",
-        )
-        state = self.owner.state
-        state.schedule(
-            time_delay=self._tick_duration,
-            callback=GenericTimedEvent(name=f"{self.name} tick", callback=self._fire_tick),
+            f"dot added: {human_readable_name} tick interval={self.tick_interval:.3f}s on {self.attached_to}",
         )
 
     def on_remove(self, *, is_remove_from_expiration: bool = False) -> None:
-        if self.attached_to is not None and self.does_partial_final_tick and self._partial_ratio > 1e-9:
-            partial_snap = self.snapshot.scale_average_damage(self._partial_ratio)
-            self._deal_periodic(partial_snap, self.attached_to)
+        self.owner.unregister_dot(self)
 
-    def _fire_tick(self) -> None:
+        if self.attached_to is not None and self.does_partial_final_tick and is_remove_from_expiration:
+            partial_ratio = self.elapsed_fraction
+            self.deal_tick_damage(partial_ratio)
 
-        if self.attached_to is None:
+    def _fire_tick(self, guard: int) -> None:
+        if self.attached_to is None or guard != self._tick_interval_change_guard:
             return
-        if self.snapshot is not None:
-            self._deal_periodic(self.snapshot, self.attached_to)
 
-        state = self.owner.state
-        state.schedule(
-            time_delay=self._tick_duration,
-            callback=GenericTimedEvent(name=f"{self.name} tick", callback=self._fire_tick),
+        self.deal_tick_damage()
+
+        self.last_elapsed_fraction__value = 0
+        self.last_elapsed_fraction__time = self.owner.state.time
+        self.schedule_tick(self.tick_interval)
+
+    def fuse(self, existing: list[Self]) -> bool:  # ty:ignore[invalid-method-override]
+        """Called when self is a new effect incoming on the target and the target already has one or more effects of the same type.
+
+        Return a flag indicating whether to keep self or discard it.
+
+        Overwritten: fot DoTs, we keep the incoming, and discard the existing DoT.
+        """
+        for dot in existing:
+            dot.remove(is_remove_from_expiration=False)
+
+        return True
+
+
+@dataclass(kw_only=True, repr=False)
+class AccumulatorEffect(DoTEffect):
+    """Damage-over-time with variable damage."""
+
+    average_damage: float = field(init=True)
+    is_scaled_by_expertise: bool = field(default=False, init=False)
+    is_scaled_by_main_stat: bool = field(default=False, init=False)
+    crit_percent_override: float | None = field(default=0.0, init=False)
+
+    def fuse(self, existing: list[Self]) -> bool:  # ty:ignore[invalid-method-override]
+        """Called when self is a new effect incoming on the target and the target already has one or more effects of the same type.
+
+        Return a flag indicating whether to keep self or discard it.
+
+        Overwritten for custom updating of the stored damage.
+
+        remaining_duration_fraction = current_duration / initial_duration
+        (type(self).duration is the class-level default, i.e. the initial duration)
+
+        The fraction (1 - remaining_duration_fraction) of self.average_damage has already
+        been paid out via past ticks, so only the remaining fraction is kept.
+        new_effect.average_damage is added in full, as none of it has been dealt yet.
+
+        NB: this seems to be game-accurate.
+        """
+        from .events import EffectRefreshed
+
+        current = existing[0]
+
+        if current.attached_to is None:
+            raise Exception(f"current existing effect {current} is unnattached during fuse")  # noqa: TRY002, TRY003
+
+        remaining_duration_fraction = current.duration / type(self).duration
+        current.average_damage = remaining_duration_fraction * current.average_damage + self.average_damage
+
+        current.duration = self.duration
+
+        current._schedule_expiry()
+
+        self.owner.state.bus.emit(
+            EffectRefreshed(
+                effect=current,
+                target=current.attached_to,
+            )
         )
 
-    def _deal_periodic(self, snapshot: "SnapshotStats", target: "Entity") -> None:
-        from .combat import deal_damage
+        current.on_fuse(self)
 
-        deal_damage(snapshot, self, target, is_dot=True)
+        return False

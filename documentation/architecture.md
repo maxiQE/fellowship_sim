@@ -259,7 +259,7 @@ flowchart LR
 `Ability._tick(dt)` drains `cooldown` by `dt * _cdr_multiplier`. The multiplier is recomputed by `_recalculate_cdr_multiplier()` whenever stats change (via `Player._recalculate_cdr_multipliers()`).
 
 `_compute_cooldown_reduction_and_acceleration()` fires `ComputeCooldownReduction`. The event accumulates:
-- **CDA** (Cooldown Drain Acceleration) additive values — haste is injected here when `ability.has_hasted_cdr` is `True`.
+- **CDA** (Cooldown Drain Acceleration) additive values — haste is injected here when `ability.has_hasted_cda` is `True`.
 - **CDR** (Cooldown Reduction) multiplicative values — e.g. a specific buff that reduces a particular ability's cooldown.
 
 Effective multiplier: `(1 + Σ CDA) × Π CDR`.

@@ -1,8 +1,9 @@
 import pytest
 
-from fellowship_sim.base_classes import AbilityDamage, RawStatsFromPercents
+from fellowship_sim.base_classes import AbilityDamage, Gem, RawStatsFromPercents
 from fellowship_sim.base_classes.entity import Entity
 from fellowship_sim.base_classes.events import UnitDestroyed
+from fellowship_sim.elarion import Talent
 from fellowship_sim.elarion.ability import ElarionAbility
 from fellowship_sim.elarion.entity import Elarion
 from fellowship_sim.elarion.setup import ElarionSetup
@@ -29,19 +30,19 @@ _SETUP = ElarionSetup(
         main_stat=1000.0,
     ),
     talents=[
-        "Piercing Seekers",
-        "Fusillade",
-        "Lunar Fury",
-        "Lunarlight Affinity",
-        "Fervent Supremacy",
-        "Impending Heartseeker",
-        "Last Lights",
+        Talent.PIERCING_SEEKERS,
+        Talent.FUSILLADE,
+        Talent.LUNAR_FURY,
+        Talent.LUNARLIGHT_AFFINITY,
+        Talent.FERVENT_SUPREMACY,
+        Talent.IMPENDING_HEARTSEEKER,
+        Talent.LAST_LIGHTS,
     ],
     sets=["Death's Grasp"],
     gem_power={
-        "red__ruby": 1458,  # red 6: MightOfTheMinotaur L2 (+9% main stat above 80% HP)
-        "purple__amethyst": 1458,  # purple 6: SealedFate L2, KillerInstinct L1, BlessingOfTheDeathdealer L1
-        "white__diamond": 120,  # white 1 : on UnitDestroyed, gain HarmoniousSoulBuff
+        Gem.RED: 1458,  # red 6: MightOfTheMinotaur L2 (+9% main stat above 80% HP)
+        Gem.PURPLE: 1458,  # purple 6: SealedFate L2, KillerInstinct L1, BlessingOfTheDeathdealer L1
+        Gem.WHITE: 120,  # white 1 : on UnitDestroyed, gain HarmoniousSoulBuff
     },
 )
 
@@ -379,9 +380,9 @@ class TestScenarios:
         setup = ElarionSetup(
             raw_stats=RawStatsFromPercents(main_stat=1000.0),
             gem_power={
-                "yellow__topaz": 120,  # yellow 1: when damaging an enemy in execute range, gain a haste bonus AdrenalineRushBuff
-                "green__emerald": 120,  # green 1: when damaging an enemy for the first time, gain an expertise buff FirstStrikeBuff
-                "white__diamond": 120,  # white 1 : on UnitDestroyed, gain HarmoniousSoulBuff
+                Gem.YELLOW: 120,  # yellow 1: when damaging an enemy in execute range, gain a haste bonus AdrenalineRushBuff
+                Gem.GREEN: 120,  # green 1: when damaging an enemy for the first time, gain an expertise buff FirstStrikeBuff
+                Gem.WHITE: 120,  # white 1 : on UnitDestroyed, gain HarmoniousSoulBuff
             },
         )
         state, elarion = generate_new_scenario(scenario=scenario, setup=setup, rng_seed=42)

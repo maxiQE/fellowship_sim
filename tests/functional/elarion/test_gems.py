@@ -1,6 +1,6 @@
 import pytest
 
-from fellowship_sim.base_classes import AbilityDamage, Enemy, State
+from fellowship_sim.base_classes import AbilityDamage, Enemy, MasterTrait, State
 from fellowship_sim.base_classes.stats import RawStatsFromPercents
 from fellowship_sim.elarion.buff import EventHorizonBuff
 from fellowship_sim.elarion.setup import ElarionSetup
@@ -137,7 +137,7 @@ class TestGemProcs:
                 haste_percent=0.0,
                 spirit_percent=0.0,
             ),
-            master_trait="Emerald Judgement",
+            master_trait=MasterTrait.EMERALD_JUDGEMENT,
         )
 
         elarion = setup.finalize(state)
@@ -173,7 +173,7 @@ class TestGemProcs:
             raw_stats=RawStatsFromPercents(
                 main_stat=1000.0,
             ),
-            master_trait="Diamond Strike",
+            master_trait=MasterTrait.DIAMOND_STRIKE,
         )
         elarion = setup.finalize(state)
 
@@ -271,7 +271,7 @@ class TestGemProcs:
                 haste_percent=0.0,
                 spirit_percent=0.0,
             ),
-            master_trait="Sapphire Aurastone",
+            master_trait=MasterTrait.SAPPHIRE_AURASTONE,
         )
         elarion = setup.finalize(state)
 
@@ -359,7 +359,7 @@ class TestGemProcs:
                 main_stat=main_stat,
                 expertise_percent=expertise_percent,
             ),
-            master_trait="Ruby Storm",
+            master_trait=MasterTrait.RUBY_STORM,
         )
         elarion = setup.finalize(state)
         elarion.healthpoints = healthpoints

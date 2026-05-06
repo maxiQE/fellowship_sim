@@ -96,7 +96,7 @@ class TestChargeAndCooldownMechanics:
         ability.cooldown = 3.0
         ability.base_cooldown = 10.0
 
-        ability._reduce_cooldown(flat_cdr=5.0)
+        ability._remove_cooldown(flat_cdr=5.0)
 
         # cooldown 3.0 - 5.0 = -2.0 → finalize: grant charge, cooldown = -2 + 10 = 8.0
         assert ability.charges == 1
@@ -112,7 +112,7 @@ class TestCastTimeAndHaste:
     def test_cast_time_channel_ignores_haste(self, setup_hasted_elarion: Callable[..., Elarion]) -> None:
         player = setup_hasted_elarion(haste=0.2)
         ability = _TestAbility(owner=player)
-        ability.is_channel = True
+        ability.has_unhasted_cast_time = True
         assert ability.cast_time == pytest.approx(2.0)
 
     def test_weapon_ability_cdr_always_one(self, setup_hasted_elarion: Callable[..., Elarion]) -> None:

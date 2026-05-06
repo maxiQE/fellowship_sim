@@ -2,7 +2,9 @@
 
 import pytest
 
+from fellowship_sim.base_classes import Gem
 from fellowship_sim.base_classes.stats import RawStatsFromPercents
+from fellowship_sim.elarion import Talent
 from fellowship_sim.elarion.setup import ElarionSetup
 from fellowship_sim.simulation.scenarios import (
     boss_fight_scenario,
@@ -16,17 +18,17 @@ _SETUP = ElarionSetup(
         crit_percent=0.15,
     ),
     talents=[
-        # "Piercing Seekers",
-        "Fusillade",
-        "Lunar Fury",
-        "Lunarlight Affinity",
-        "Fervent Supremacy",
-        "Impending Heartseeker",
-        "Last Lights",
+        # Talent.PIERCING_SEEKERS,
+        Talent.FUSILLADE,
+        Talent.LUNAR_FURY,
+        Talent.LUNARLIGHT_AFFINITY,
+        Talent.FERVENT_SUPREMACY,
+        Talent.IMPENDING_HEARTSEEKER,
+        Talent.LAST_LIGHTS,
     ],
     sets=["Death's Grasp"],
     gem_power={
-        "purple__amethyst": 1458,  # purple 6
+        Gem.PURPLE: 1458,  # purple 6
     },
 )
 

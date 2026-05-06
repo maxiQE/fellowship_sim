@@ -1,6 +1,6 @@
 import pytest
 
-from fellowship_sim.base_classes import Enemy, RawStatsFromPercents, State
+from fellowship_sim.base_classes import Enemy, Gem, RawStatsFromPercents, State
 from fellowship_sim.elarion.setup import ElarionSetup
 from fellowship_sim.generic_game_logic.buff import SpiritOfHeroism
 from fellowship_sim.generic_game_logic.gems import (
@@ -120,7 +120,7 @@ def test_main_stat_from_setup() -> None:
             main_stat=base_main_stat,
         ),
         gem_power={
-            "red__ruby": 2640 + 500,
+            Gem.RED: 2640 + 500,
         },
     ).finalize(state)
     calculated = elarion.stats.main_stat
@@ -135,7 +135,7 @@ def test_main_stat_from_setup() -> None:
             main_stat=base_main_stat,
         ),
         gem_power={
-            "blue__saphire": 2640 + 500,
+            Gem.BLUE: 2640 + 500,
         },
     ).finalize(state)
     elarion.event_horizon.cast(state.enemies[0])
@@ -151,9 +151,9 @@ def test_main_stat_from_setup() -> None:
             main_stat=base_main_stat,
         ),
         gem_power={
-            "blue__saphire": 2754,
-            "red__ruby": 120,
-            "white__diamond": 720,
+            Gem.BLUE: 2754,
+            Gem.RED: 120,
+            Gem.WHITE: 720,
         },
     ).finalize(state)
     elarion.event_horizon.cast(state.enemies[0])

@@ -8,6 +8,7 @@ from .ability import (
 from .combat import create_standard_damage, deal_damage
 from .effect import Buff, DoTEffect, Effect
 from .entity import Enemy, Entity, Player
+from .enums import Gem, HeroicTrait, Legendary, MasterTrait, Weapon
 from .events import (
     AbilityCastSuccess,
     AbilityDamage,
@@ -70,11 +71,15 @@ __all__ = [
     "ExpertisePercentAdditive",
     "ExpertiseScoreAdditive",
     "FinalStats",
+    "Gem",
     "HastePercentAdditive",
     "HasteScoreAdditive",
+    "HeroicTrait",
+    "Legendary",
     "MainStatAdditiveCharacter",
     "MainStatAdditiveMultiplierCharacter",
     "MainStatTrueMultiplierCharacter",
+    "MasterTrait",
     "MutableStats",
     "Player",
     "PreDamageSnapshotUpdate",
@@ -95,6 +100,7 @@ __all__ = [
     "StatModifier",
     "State",
     "StateInformation",
+    "Weapon",
     "WeaponAbility",
     "WeaponAbilityNotInitialized",
     "create_standard_damage",

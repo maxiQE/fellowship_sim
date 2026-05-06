@@ -3,6 +3,21 @@ from fellowship_sim.base_classes import base_config
 # Talent point configuration
 TOTAL_TALENT_POINTS = 13
 
+# Ultimatum affix
+ULTIMATUM_AFFIX_CDR = 0.10
+
+# Crit Bonus 20% affix (storm shield)
+CRIT_BONUS_20_PERCENT_VALUE = 0.20
+
+# Haste Bonus 20% affix (Shadow Lord / Empowered)
+HASTE_BONUS_20_PERCENT_VALUE = 0.20
+
+# Meteor Rain affix
+METEOR_RAIN_INTERVAL_MIN = 100.0
+METEOR_RAIN_INTERVAL_MAX = 120.0
+METEOR_RAIN_SPIRIT_PER_METEOR = 2.0
+METEOR_RAIN_NUMBER_OF_METEORS = 4
+
 # Dark Prophecy
 DARK_PROPHECY_PPM = 0.8
 DARK_PROPHECY_BUFF_DURATION = 20.0

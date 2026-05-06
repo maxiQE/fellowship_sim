@@ -221,11 +221,11 @@ class TestChronoshift:
     def test_cdr_multiplier_applied_to_abilities(self, state_1e: tuple[State, Elarion, Enemy, Chronoshift]) -> None:
         """With ChronoshiftChannelCDR active, ability CDR multiplier is greater than 1."""
         state, elarion, target, cs = state_1e
-        assert elarion.heartseeker_barrage._cdr_multiplier == pytest.approx(1.0)
+        assert elarion.heartseeker_barrage._cda_multiplier == pytest.approx(1.0)
 
         elarion.effects.add(ChronoshiftChannelCDR(duration=3.0, owner=elarion))
 
-        assert elarion.heartseeker_barrage._cdr_multiplier > 1.0
+        assert elarion.heartseeker_barrage._cda_multiplier > 1.0
 
     def test_ability_drains_faster_during_channel(self, state_1e: tuple[State, Elarion, Enemy, Chronoshift]) -> None:
         """With CDR active, an ability at 24s cooldown fully drains in 3s channel."""
@@ -239,7 +239,7 @@ class TestChronoshift:
         state, elarion, target, cs = state_1e
         cs.cast(target)
         assert not elarion.effects.has(ChronoshiftChannelCDR)
-        assert elarion.heartseeker_barrage._cdr_multiplier == pytest.approx(1.0)
+        assert elarion.heartseeker_barrage._cda_multiplier == pytest.approx(1.0)
 
     def test_hits_multiple_enemies(self) -> None:
         """Each tick hits all enemies up to the 12-enemy cap."""

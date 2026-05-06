@@ -18,6 +18,8 @@ class Resource(enum.Enum):
     WINTER_ORBS = "winter_orbs"
     MANA = "mana"
     CHRONA = "chrona"
+    CINDERS = "cinders"
+    EMBERS = "embers"
 
 
 # ---------------------------------------------------------------------------
@@ -101,8 +103,24 @@ class AbilityChannelSuccess:
 
 
 @dataclass(kw_only=True)
+class SnapshotCreation:
+    """Fired when a snapshot is created (missile-creation point) to gather modifiers.
+
+    These modifiers are applied to all of the damage events derived from this snapshot.
+    """
+
+    damage_source: Ability[Player] | Effect
+    snapshot: SnapshotStats
+
+    def __post_init__(self) -> None:
+        self.time = self.damage_source.owner.state.time
+
+        logger.debug(f"snapshot creation: {self.damage_source}")
+
+
+@dataclass(kw_only=True)
 class PreDamageSnapshotUpdate:
-    """Fired by deal_damage() just before applying damage.
+    """Fired by deal_damage() just before applying damage to update the snapshot with target-specific information.
 
     Both global bus listeners and cast-specific closures may replace
     ``snapshot`` (a frozen dataclass — reassign the field, don't mutate).
@@ -125,7 +143,7 @@ class PreDamageSnapshotUpdate:
     def __post_init__(self) -> None:
         self.time = self.damage_source.owner.state.time
 
-        logger.debug(f"pre-damage snapshot: {self.damage_source} → {self.target}")
+        logger.debug(f"pre-damage snapshot update: {self.damage_source} → {self.target}")
 
     def finalize(self) -> SnapshotStats:
         for modifier in self.predamage_snapshot_modifiers:
@@ -206,7 +224,7 @@ class ResourceChanged:
 class ResourceSpent:
     owner: Entity
     ability: Ability[Player]
-    target: Entity
+    target: Entity | None
     resource_type: Resource
     resource_amount: int
     time: float = field(init=False)
@@ -278,23 +296,26 @@ class EffectRefreshed:
 
 
 @dataclass(kw_only=True)
-class ComputeCooldownReduction:
+class ComputeCooldownAcceleration:
     """Fired each tick for an ability that is on cooldown.
 
     Listeners append values to ``cda_modifiers`` (CooldownAccelerationAdditive)
     or ``cdr_modifiers`` (CooldownReductionAdditive).
 
-    effective_dt = dt * (1 + sum(cda)) * (1 + sum(cdr))
+    total cda =
+        (
+            (1 + sum(cda_additive)) * prod(1 + cda_multiplicative)
+            + sum(cda_independent)
+        )
 
-    Haste is injected into ``cda_modifiers`` by the tick logic when
-    ``ability.has_hasted_cdr`` is True — listeners must not add it again.
+    Haste is injected into ``cda_additive`` by the tick logic when ``ability.has_hasted_cda``.
     """
 
     ability: Ability[Player]
     owner: Player
-    cda_modifiers: list[float] = field(default_factory=list)
-    cdr_modifiers: list[float] = field(default_factory=list)
-    cdrecovery_modifiers: list[float] = field(default_factory=list)
+    cda_additive: list[float] = field(default_factory=list)
+    cda_multiplicative: list[float] = field(default_factory=list)
+    cda_independent: list[float] = field(default_factory=list)
     time: float = field(init=False)
 
     def __post_init__(self) -> None:
@@ -303,11 +324,11 @@ class ComputeCooldownReduction:
         logger.debug(f"compute CDR: {self.ability}")
 
     def resolve(self) -> float:
-        cdr_multiplier = 1
-        for elem in self.cdr_modifiers:
-            cdr_multiplier *= elem
-        cooldown_reduction_multiplier = (1 + sum(self.cda_modifiers)) * cdr_multiplier + sum(self.cdrecovery_modifiers)
-        return cooldown_reduction_multiplier
+        cda_multiplier = 1
+        for elem in self.cda_multiplicative:
+            cda_multiplier *= elem
+        final_cda = (1 + sum(self.cda_additive)) * cda_multiplier + sum(self.cda_independent)
+        return final_cda
 
 
 @dataclass(kw_only=True)
@@ -376,7 +397,7 @@ class ComputeFinalStats:
 SimEvent = (
     AbilityActivated
     | AbilityCastStart
-    | ComputeCooldownReduction
+    | ComputeCooldownAcceleration
     | AbilityCastSuccess
     | AbilityChannelStart
     | AbilityChannelSuccess
@@ -385,6 +406,7 @@ SimEvent = (
     | EffectApplied
     | EffectRefreshed
     | EffectRemoved
+    | SnapshotCreation
     | PreDamageSnapshotUpdate
     | ResourceChanged
     | ResourceSpent

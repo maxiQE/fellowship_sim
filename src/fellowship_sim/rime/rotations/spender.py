@@ -31,7 +31,7 @@ class RimeSpender(Rotation[Rime]):
         def use_aoe_abilities() -> bool:
             return state.num_enemies >= self.num_enemies_aoe
 
-        def at_max_winter_orbs(*args) -> bool:
+        def at_max_winter_orbs(*args: object) -> bool:
             return rime.winter_orbs >= rime.max_winter_orbs
 
         ##################

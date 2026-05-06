@@ -1,6 +1,6 @@
 import pytest
 
-from fellowship_sim.base_classes import AbilityDamage, AbilityPeriodicDamage, Enemy, State
+from fellowship_sim.base_classes import AbilityDamage, AbilityPeriodicDamage, Enemy, MasterTrait, State
 from fellowship_sim.base_classes.stats import RawStatsFromPercents
 from fellowship_sim.base_classes.timed_events import GenericTimedEvent
 from fellowship_sim.elarion.entity import Elarion
@@ -34,7 +34,7 @@ class TestAmethystSplinters:
                 haste_percent=haste_percent,
                 spirit_percent=0.0,
             ),
-            master_trait="Amethyst Splinters",
+            master_trait=MasterTrait.AMETHYST_SPLINTERS,
         ).finalize(state)
 
     def _emit_crit(self, state: State, elarion: Elarion, damage: float = _CRIT_DAMAGE, is_dot: bool = False) -> None:

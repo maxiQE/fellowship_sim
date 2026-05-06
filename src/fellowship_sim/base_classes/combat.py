@@ -137,21 +137,26 @@ def create_standard_damage(
     Works for both ability casts and proc effects — callers are responsible for snapshot construction.
     """
 
+    snapshot = SnapshotStats.from_base_damage_and_character(
+        base_damage=base_damage,
+        character=owner,
+        damage_source=damage_source,
+        is_scaled_by_expertise=is_scaled_by_expertise,
+        is_scaled_by_main_stat=is_scaled_by_main_stat,
+    )
+
     def callback() -> None:
         apply_standard_damage(
             state=state,
             damage_source=damage_source,
-            owner=owner,
             target=target,
-            base_damage=base_damage,
+            snapshot=snapshot,
             main_damage_multiplier=main_damage_multiplier,
             num_secondary_targets=num_secondary_targets,
             num_targets_softcap=num_targets_softcap,
             secondary_damage_multiplier=secondary_damage_multiplier,
             cast_specific_predamage_snapshot_modifiers=cast_specific_predamage_snapshot_modifiers,
             priority_func=priority_func,
-            is_scaled_by_expertise=is_scaled_by_expertise,
-            is_scaled_by_main_stat=is_scaled_by_main_stat,
         )
 
     state.schedule(
@@ -166,9 +171,8 @@ def create_standard_damage(
 def apply_standard_damage(
     state: State,
     damage_source: "Ability | Effect",
-    owner: "Player",
     target: "Entity | None",
-    base_damage: float,
+    snapshot: SnapshotStats,
     *,
     main_damage_multiplier: float = 1.0,
     num_secondary_targets: int = 0,
@@ -176,34 +180,22 @@ def apply_standard_damage(
     secondary_damage_multiplier: float = 1.0,
     cast_specific_predamage_snapshot_modifiers: "list[Callable[..., None]] | None" = None,
     priority_func: Callable[["Entity"], float] | None = None,
-    is_scaled_by_expertise: bool = True,
-    is_scaled_by_main_stat: bool = True,
 ) -> None:
-    """Compute a snapshot and immediately deal damage to main and secondary targets.
+    """Immediately deal damage to main and secondary targets from a pre-built snapshot.
 
     Unlike create_standard_damage, this is called at hit time (no scheduling).
 
     Args:
         state: The current simulation state.
         damage_source: Ability or effect originating the hit.
-        owner: The casting player (stats used for the snapshot).
         target: Main target; if None, skips the primary hit.
-        base_damage: Raw base damage before stat scaling.
+        snapshot: Pre-built snapshot (base damage + stat scaling already applied).
         main_damage_multiplier: Damage multiplier for the primary hit.
         num_secondary_targets: How many additional targets to hit.
         secondary_damage_multiplier: Damage multiplier for each secondary hit.
         cast_specific_predamage_snapshot_modifiers: Per-cast closures applied at hit time.
         priority_func: Scoring function for secondary target selection.
-        is_scaled_by_expertise: Whether expertise applies.
-        is_scaled_by_main_stat: Whether main stat applies.
     """
-    snapshot = SnapshotStats.from_base_damage_and_character(
-        base_damage=base_damage,
-        character=owner,
-        is_scaled_by_expertise=is_scaled_by_expertise,
-        is_scaled_by_main_stat=is_scaled_by_main_stat,
-    )
-
     if target is not None:
         num_targets_total = 1 + min(num_secondary_targets, state.num_enemies - 1)
     else:

@@ -1,7 +1,8 @@
 import pytest
 
-from fellowship_sim.base_classes import Enemy, State
+from fellowship_sim.base_classes import Enemy, State, Weapon
 from fellowship_sim.base_classes.stats import RawStatsFromPercents
+from fellowship_sim.elarion import Talent
 from fellowship_sim.elarion.buff import EventHorizonBuff
 from fellowship_sim.elarion.effect import VolleyEffect
 from fellowship_sim.elarion.setup import ElarionSetup
@@ -39,7 +40,7 @@ class TestComplexCDRStacking:
         elarion.highwind_arrow.cast(target)
 
         # NB: haste affects both CDA and cast time, cancelling the effect on cooldown
-        assert elarion.highwind_arrow._cdr_multiplier == pytest.approx(1 + haste)
+        assert elarion.highwind_arrow._cda_multiplier == pytest.approx(1 + haste)
         assert elarion.highwind_arrow.cooldown == pytest.approx(15)  # Cooldown starts ticking at end of cast
 
         elarion.wait(20)
@@ -54,7 +55,7 @@ class TestComplexCDRStacking:
 
         assert state.time == pytest.approx(t_before_cast + 2.0 / (1 + haste))
 
-        assert elarion.highwind_arrow._cdr_multiplier == pytest.approx(1 + 2 * haste)
+        assert elarion.highwind_arrow._cda_multiplier == pytest.approx(1 + 2 * haste)
 
         recovery_time = elarion.highwind_arrow.base_cooldown / (1 + 2 * haste)
         # wait to just before recovery
@@ -84,26 +85,26 @@ class TestComplexCDRStacking:
         chrono_effect = ChronoshiftChannelCDR(owner=elarion)
         elarion.effects.add(chrono_effect)
 
-        assert elarion.heartseeker_barrage._cdr_multiplier == pytest.approx(8.0)
+        assert elarion.heartseeker_barrage._cda_multiplier == pytest.approx(8.0)
 
         chrono_effect.remove()
 
-        assert elarion.heartseeker_barrage._cdr_multiplier == pytest.approx(1.0)
+        assert elarion.heartseeker_barrage._cda_multiplier == pytest.approx(1.0)
 
         chrono_effect = ChronoshiftChannelCDR(owner=elarion)
         elarion.effects.add(chrono_effect)
         eh_effect = EventHorizonBuff(owner=elarion)
         elarion.effects.add(eh_effect)
 
-        assert elarion.heartseeker_barrage._cdr_multiplier == pytest.approx(8.0 * (1 + elarion.stats.haste_percent))
+        assert elarion.heartseeker_barrage._cda_multiplier == pytest.approx(8.0 * (1 + elarion.stats.haste_percent))
 
         chrono_effect.remove()
 
-        assert elarion.heartseeker_barrage._cdr_multiplier == pytest.approx(1 + elarion.stats.haste_percent)
+        assert elarion.heartseeker_barrage._cda_multiplier == pytest.approx(1 + elarion.stats.haste_percent)
 
         eh_effect.remove()
 
-        assert elarion.heartseeker_barrage._cdr_multiplier == pytest.approx(1.0)
+        assert elarion.heartseeker_barrage._cda_multiplier == pytest.approx(1.0)
 
     @pytest.mark.parametrize("haste", [0.0, 0.2])
     def test_chronoshift_and_eh_stack_multiplicatively__functional(self, haste: float) -> None:
@@ -121,7 +122,7 @@ class TestComplexCDRStacking:
                 haste_percent=haste,
                 spirit_percent=0.0,
             ),
-            weapon_ability="Chronoshift",
+            weapon_ability=Weapon.CHRONOSHIFT,
         )
         elarion = setup.finalize(state)
 
@@ -197,7 +198,7 @@ class TestComplexCDRStacking:
         )
         target.effects.add(volley_effect)
 
-        assert elarion.skystrider_grace._cdr_multiplier == pytest.approx(8.0 + 1.0)
+        assert elarion.skystrider_grace._cda_multiplier == pytest.approx(8.0 + 1.0)
 
         chrono_effect.remove()
         volley_effect.remove()
@@ -216,13 +217,13 @@ class TestComplexCDRStacking:
         )
         target.effects.add(volley_effect)
 
-        assert elarion.skystrider_grace._cdr_multiplier == pytest.approx(8.0 * (1 + elarion.stats.haste_percent) + 1.0)
+        assert elarion.skystrider_grace._cda_multiplier == pytest.approx(8.0 * (1 + elarion.stats.haste_percent) + 1.0)
 
         chrono_effect.remove()
         eh_effect.remove()
         volley_effect.remove()
 
-        assert elarion.skystrider_grace._cdr_multiplier == pytest.approx(1.0)
+        assert elarion.skystrider_grace._cda_multiplier == pytest.approx(1.0)
 
     @pytest.mark.parametrize("haste", [0.0, 0.2])
     @pytest.mark.parametrize("n_volley", [1, 2, 3])
@@ -231,7 +232,8 @@ class TestComplexCDRStacking:
     ) -> None:
         """Tested by MaxiQE on 08/04/26.
 
-        NB: builds upon the EH + chronoshift interaction test"""
+        NB: builds upon the EH + chronoshift interaction test.
+        """
         state = State(rng=FixedRNG(value=0.0))
         target = Enemy(state=state)
 
@@ -243,8 +245,8 @@ class TestComplexCDRStacking:
                 haste_percent=haste,
                 spirit_percent=0.0,
             ),
-            weapon_ability="Chronoshift",
-            talents=["Skylit Grace"],
+            weapon_ability=Weapon.CHRONOSHIFT,
+            talents=[Talent.SKYLIT_GRACE],
         )
         elarion = setup.finalize(state)
 

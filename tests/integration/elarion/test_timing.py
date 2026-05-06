@@ -174,7 +174,7 @@ class TestImpendingHeartseeker:
                 main_stat=main_stat,
                 crit_percent=crit_percent,
                 expertise_percent=expertise_percent,
-            )
+            ),
         )
         elarion.effects.add(ImpendingHeartseeker(owner=elarion))
 
@@ -230,7 +230,7 @@ class TestVolleyStacking:
         elarion.volley._do_cast(state.enemies[0])
         state.advance_time(0.0)  # process second volley's first tick only
 
-        assert len(VolleyEffect.get_volley(state.enemies[0])) == 2
+        assert len(state.enemies[0].effects.filter(VolleyEffect)) == 2
 
     def test_two_instances_each_tick_independently(
         self, state_always_procs__st: State, unit_elarion__zero_stats: Elarion
@@ -271,9 +271,9 @@ class TestVolleyStacking:
         state.advance_time(3.0)
         elarion.volley._do_cast(state.enemies[0])
 
-        assert len(VolleyEffect.get_volley(state.enemies[0])) == 2
+        assert len(state.enemies[0].effects.filter(VolleyEffect)) == 2
 
         # Advance past first Volley's expiry (t=8+eps), but before second's (t=11+eps)
         state.advance_time(5.5)  # now at t=8.5
 
-        assert len(VolleyEffect.get_volley(state.enemies[0])) == 1
+        assert len(state.enemies[0].effects.filter(VolleyEffect)) == 1

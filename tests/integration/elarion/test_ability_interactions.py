@@ -6,7 +6,7 @@ Tests that discrete mechanics compose correctly across ability boundaries.
 import pytest
 
 from fellowship_sim.base_classes import Enemy, State
-from fellowship_sim.base_classes.events import AbilityDamage
+from fellowship_sim.base_classes.events import AbilityCastSuccess, AbilityDamage
 from fellowship_sim.base_classes.stats import RawStatsFromPercents
 from fellowship_sim.elarion.buff import (
     EmpoweredMultishotChargeBuff,
@@ -227,9 +227,11 @@ class TestResurgentWinds:
 
         marked_damages: list[AbilityDamage] = []
         state.bus.subscribe(AbilityDamage, marked_damages.append)
+        state.bus.emit(AbilityCastSuccess(ability=elarion.highwind_arrow, owner=elarion, target=target))
         elarion.highwind_arrow._do_cast(target)  # first cast: buffed
         state.step()
 
+        state.bus.emit(AbilityCastSuccess(ability=elarion.highwind_arrow, owner=elarion, target=target))
         elarion.highwind_arrow._do_cast(target)  # second cast: unbuffed
         state.step()
 
@@ -361,6 +363,7 @@ class TestFinalCrescendo:
                 lambda e, d=cast_damages: d.append(e),
                 owner=cast_damages,  # required for unsubscribe_all to work
             )
+            state.bus.emit(AbilityCastSuccess(ability=elarion.highwind_arrow, owner=elarion, target=enemies[0]))
             elarion.highwind_arrow._do_cast(enemies[0])
             state.advance_time(0.2)
             state.bus.unsubscribe_all(cast_damages)
@@ -387,6 +390,7 @@ class TestFinalCrescendo:
 
         for idx in range(4):
             assert fc_aura.stacks == idx
+            state.bus.emit(AbilityCastSuccess(ability=elarion.highwind_arrow, owner=elarion, target=enemies[0]))
             elarion.highwind_arrow._do_cast(enemies[0])
             state.step()
 

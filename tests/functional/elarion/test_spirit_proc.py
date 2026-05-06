@@ -1,6 +1,6 @@
 import pytest
 
-from fellowship_sim.base_classes import AbilityDamage, Enemy, State
+from fellowship_sim.base_classes import AbilityDamage, Enemy, HeroicTrait, State
 from fellowship_sim.base_classes.events import (
     SpiritProc,
 )
@@ -83,6 +83,8 @@ def test_enemy_based_spirit_regen(
         assert elarion.spirit_regen_rate == pytest.approx(base_regen + state.num_enemies * enemy_spirit_score / 4 / ttl)
 
 
+# Skipped: unclear if correct in game or not
+# @pytest.mark.skip
 def test_willful_momentum_is_effective_on_its_cast() -> None:
     """Check that the cast that triggers WM is affected by the buffed main stat."""
     rng = SequenceRNG(values=[0.0, 1.0, 1.0])
@@ -91,7 +93,7 @@ def test_willful_momentum_is_effective_on_its_cast() -> None:
     elarion = ElarionSetup(
         raw_stats=RawStatsFromPercents(main_stat=1000.0, spirit_percent=0.2),
         heroic_traits=[
-            "Willful Momentum",
+            HeroicTrait.WILLFUL_MOMENTUM,
         ],
     ).finalize(state)
 

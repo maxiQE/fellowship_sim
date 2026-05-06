@@ -262,7 +262,7 @@ class TestStartstrikersAscent:
         elarion.heartseeker_barrage.charges = 0
 
         state.bus.emit(SpiritProc(ability=elarion.celestial_shot, owner=elarion, resource_amount=15))
-        state.advance_time(0.0)
+        state.advance_time(0.2)
 
         assert elarion.heartseeker_barrage.cooldown == 0.0
         ih = elarion.effects.get(ImpendingHeartseeker)

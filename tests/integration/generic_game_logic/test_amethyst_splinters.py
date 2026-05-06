@@ -13,7 +13,7 @@ from fellowship_sim.base_classes import Enemy, State
 from fellowship_sim.base_classes.events import AbilityDamage, AbilityPeriodicDamage
 from fellowship_sim.base_classes.stats import RawStatsFromPercents
 from fellowship_sim.elarion.entity import Elarion
-from fellowship_sim.generic_game_logic.weapon_traits import AmethystSplinters
+from fellowship_sim.generic_game_logic.weapon_traits import AmethystSplintersAura
 from tests.integration.fixtures import FixedRNG
 
 _CRIT_DAMAGE = 10_000.0
@@ -35,7 +35,7 @@ class TestAmethystSplintersScaling:
         state = State(rng=FixedRNG(value=0.0))
         target = Enemy(state=state)
         elarion = Elarion(state=state, raw_stats=RawStatsFromPercents(main_stat=1000.0, haste_percent=haste_percent))
-        aura = AmethystSplinters(owner=elarion, trait_level=_TRAIT_LEVEL)
+        aura = AmethystSplintersAura(owner=elarion, trait_level=_TRAIT_LEVEL)
         elarion.effects.add(aura)
 
         ticks: list[float] = []
@@ -65,9 +65,9 @@ class TestAmethystSplintersScaling:
                 main_stat=1000.0,
                 haste_percent=0.2,
                 expertise_percent=expertise_percent,
-            )
+            ),
         )
-        aura = AmethystSplinters(owner=elarion, trait_level=_TRAIT_LEVEL)
+        aura = AmethystSplintersAura(owner=elarion, trait_level=_TRAIT_LEVEL)
         elarion.effects.add(aura)
 
         ticks: list[float] = []
@@ -97,9 +97,9 @@ class TestAmethystSplintersScaling:
                 main_stat=1000.0,
                 haste_percent=0.2,
                 crit_percent=crit_percent,
-            )
+            ),
         )
-        aura = AmethystSplinters(owner=elarion, trait_level=_TRAIT_LEVEL)
+        aura = AmethystSplintersAura(owner=elarion, trait_level=_TRAIT_LEVEL)
         elarion.effects.add(aura)
 
         ticks: list[float] = []
@@ -129,9 +129,9 @@ class TestAmethystSplintersScaling:
                 main_stat=1000.0,
                 haste_percent=0.2,
                 crit_multiplier=crit_multiplier,
-            )
+            ),
         )
-        aura = AmethystSplinters(owner=elarion, trait_level=_TRAIT_LEVEL)
+        aura = AmethystSplintersAura(owner=elarion, trait_level=_TRAIT_LEVEL)
         elarion.effects.add(aura)
 
         ticks: list[float] = []

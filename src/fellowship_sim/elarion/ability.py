@@ -19,7 +19,6 @@ if TYPE_CHECKING:
     from .entity import Elarion  # noqa: F401
 
 from fellowship_sim.base_classes.events import (
-    AbilityCastSuccess,
     Resource,
     ResourceSpent,
 )
@@ -179,12 +178,10 @@ class Multishot(ElarionAbility):
         provider_label = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", type(provider).__name__)
         logger.debug(f"Multishot: empowered provider unregistered: {provider_label}")
 
-    @can_cast_check
-    def _check_availability(self) -> CastReturnCode:
+    @property
+    def is_available(self) -> bool:
         """Overwritten: empowered charges can be used instead of normal ones."""
-        if self.charges > 0 or self.is_empowered():
-            return CastReturnCode.OK
-        return CastReturnCode.ON_COOLDOWN
+        return self.charges > 0 or self.is_empowered()
 
     @property
     def focus_cost(self) -> int:
@@ -199,10 +196,7 @@ class Multishot(ElarionAbility):
         - FE -> all empowered MS has bonus damage.
         - empowered MS has a minimum number of arrows.
         """
-        # Standard behavior: emit event
         state = self.owner.state
-        event = AbilityCastSuccess(ability=self, owner=self.owner, target=target)
-        state.bus.emit(event)
 
         # NON-STANDARD: update average damage if empowered by FS or FE talent
         provider = self._empowered_by__instance()
@@ -287,7 +281,7 @@ class HighwindArrow(ElarionAbility):
     )
     max_charges: int = field(default=elarion_config.HIGHWIND_ARROW_MAX_CHARGES, init=False)
     initial_charges: int = field(default=elarion_config.HIGHWIND_ARROW_MAX_CHARGES, init=False)
-    has_hasted_cdr: bool = field(default=True, init=False)
+    has_hasted_cda: bool = field(default=True, init=False)
 
     base_focus_cost: int = field(default=elarion_config.HIGHWIND_ARROW_FOCUS_COST, init=False)
 
@@ -356,14 +350,10 @@ class HighwindArrow(ElarionAbility):
         - modify base damage and number of secondary targets on FC attack;
         - add RW modifier if active
         """
-        # NON-STANDARD: cache buff values; they will get cleared on AbilityCastSuccess
         is_fc_hwa = self.has_final_crescendo_buff
         is_rw_hwa = self.has_resurgent_winds_buff
 
-        # Standard behavior: emit event
         state = self.owner.state
-        event = AbilityCastSuccess(ability=self, owner=self.owner, target=target)
-        state.bus.emit(event)
 
         # NON-STANDARD: update damage and secondaries if this shot if modified by FC
         base_damage = self.average_damage
@@ -427,10 +417,6 @@ class Volley(ElarionAbility):
     def _do_cast(self, target: Entity) -> None:
         from fellowship_sim.elarion.effect import VolleyEffect
 
-        state = self.owner.state
-        event = AbilityCastSuccess(ability=self, owner=self.owner, target=target)
-        state.bus.emit(event)
-
         haste_percent = self.owner.stats.haste_percent
         target.effects.add(
             VolleyEffect(
@@ -458,7 +444,7 @@ class HeartseekerBarrage(ElarionAbility):
         init=False,
     )
 
-    is_channel: bool = field(default=True, init=False)
+    has_unhasted_cast_time: bool = field(default=True, init=False)
     tick_time: float = field(default=elarion_config.HEARTSEEKER_BARRAGE_TICK_TIME, init=False)
 
     delay_until_hit: float = field(
@@ -475,12 +461,9 @@ class HeartseekerBarrage(ElarionAbility):
 
     def _do_cast(self, target: Entity) -> None:
         """Overwritten: to check for IHB buff and apply it to channel."""
-        # gets cleared at AbilityCastSuccess
         has_impending_barrage = self.has_impending_barrage
 
         state = self.owner.state
-        event = AbilityCastSuccess(ability=self, owner=self.owner, target=target)
-        state.bus.emit(event)
 
         # Special barrage modifier
         damage_step = self.impending_barrage_step if has_impending_barrage else 0
@@ -595,10 +578,7 @@ class LunarlightMark(ElarionAbility):
             ResurgentWinds,
         )
 
-        # Standard behavior: emit event
         state = self.owner.state
-        event = AbilityCastSuccess(ability=self, owner=self.owner, target=target)
-        state.bus.emit(event)
 
         # NON-STANDARD: add resurgent_winds buff on highwind arrow, if talented
         if self.has_resurgent_winds_talent:
@@ -732,10 +712,6 @@ class SkystriderSupremacy(ElarionAbility):
     is_fervent_supremacy: bool = field(default=False, init=False)
 
     def _do_cast(self, target: Entity) -> None:
-        state = self.owner.state
-        event = AbilityCastSuccess(ability=self, owner=self.owner, target=target)
-        state.bus.emit(event)
-
         if self.is_fervent_supremacy:
             self.owner.effects.add(FerventSupremacyBuff(owner=self.owner))
             logger.debug("Skystrider Supremacy (talented): Fervent Supremacy buff applied")

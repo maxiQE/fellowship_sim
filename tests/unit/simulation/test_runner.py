@@ -127,14 +127,14 @@ class TestRunK:
             return generate_new_scenario(scenario=scenario, setup=setup, rng_seed=rng_seed)
 
         with patch("fellowship_sim.simulation.runner.generate_new_scenario", _capturing_gen):
-            run_k(k=3, scenario=_SCENARIO, rotation=_StateCapturingRotation(), setup=_SETUP, base_seed=10, metrics=[])
+            run_k(k=3, scenario=_SCENARIO, rotation=_StateCapturingRotation(), setup=_SETUP, base_seed=10, metrics=[], workers=1)
 
         assert seeds_seen == [10, 11, 12]
 
     def test_each_run_gets_fresh_state(self) -> None:
         """Each of the k runs operates on a distinct State instance."""
         rotation = _StateCapturingRotation()
-        run_k(k=2, scenario=_SCENARIO, rotation=rotation, setup=_SETUP, base_seed=0, metrics=[])
+        run_k(k=2, scenario=_SCENARIO, rotation=rotation, setup=_SETUP, base_seed=0, metrics=[], workers=1)
         assert rotation.captured_states[0] is not rotation.captured_states[1]
 
     def test_enemy_damage_starts_at_zero_each_run(self) -> None:
@@ -144,7 +144,7 @@ class TestRunK:
         The next call must still see 0, proving generate_new_scenario creates a fresh enemy.
         """
         rotation = _DamageAndExitRotation()
-        run_k(k=3, scenario=_SCENARIO, rotation=rotation, setup=_SETUP, base_seed=0, metrics=[])
+        run_k(k=3, scenario=_SCENARIO, rotation=rotation, setup=_SETUP, base_seed=0, metrics=[], workers=1)
         assert rotation.initial_totals == [0.0, 0.0, 0.0]
 
     def test_enemy_objects_are_distinct_across_runs(self) -> None:
@@ -153,5 +153,5 @@ class TestRunK:
         A shared object would mean damage and effects from one run could bleed into the next.
         """
         rotation = _StateCapturingRotation()
-        run_k(k=2, scenario=_SCENARIO, rotation=rotation, setup=_SETUP, base_seed=0, metrics=[])
+        run_k(k=2, scenario=_SCENARIO, rotation=rotation, setup=_SETUP, base_seed=0, metrics=[], workers=1)
         assert rotation.captured_states[0].enemies[0] is not rotation.captured_states[1].enemies[0]

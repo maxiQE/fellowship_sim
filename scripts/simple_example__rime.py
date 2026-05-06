@@ -9,8 +9,9 @@ import random
 from loguru import logger
 
 from fellowship_sim import configure_logging
-from fellowship_sim.base_classes import Enemy, State
+from fellowship_sim.base_classes import Enemy, Gem, HeroicTrait, Legendary, MasterTrait, State, Weapon
 from fellowship_sim.base_classes.stats import RawStatsFromScores
+from fellowship_sim.rime import Talent
 from fellowship_sim.rime.entity import Rime
 from fellowship_sim.rime.setup import RimeSetup
 
@@ -22,7 +23,7 @@ from fellowship_sim.rime.setup import RimeSetup
 # TRACE | DEBUG : for debugging
 # INFO: show damage
 # SUCCESS: show important effects
-# WARNING | ERROR: show problems
+# WARNING | ERROR: show problems
 
 LOG_LEVEL = "INFO"
 NUM_TARGETS = 5
@@ -38,28 +39,28 @@ character_setup = RimeSetup(
         haste_score=1239,
         spirit_score=500,
     ),
-    legendary="Neck",
-    weapon_ability="Chronoshift",
-    master_trait="Visions Of Grandeur",
+    legendary=Legendary.NECK,
+    weapon_ability=Weapon.CHRONOSHIFT,
+    master_trait=MasterTrait.VISIONS_OF_GRANDEUR,
     heroic_traits=[
-        "Willful Momentum",
-        "Kindling",
+        HeroicTrait.WILLFUL_MOMENTUM,
+        HeroicTrait.KINDLING,
     ],
     talents=[
-        "Winter's Embrace",
-        "Burstbolter",
-        "Icy Flow",
-        "Avalanche",
-        "Greater Glacial Blast",
-        "Frostweaver's Wrath",
-        "Biting Cold",
-        "Wisdom of the North",
+        Talent.WINTERS_EMBRACE,
+        Talent.BURSTBOLTER,
+        Talent.ICY_FLOW,
+        Talent.AVALANCHE,
+        Talent.GREATER_GLACIAL_BLAST,
+        Talent.FROSTWEAVERS_WRATH,
+        Talent.BITING_COLD,
+        Talent.WISDOM_OF_THE_NORTH,
     ],
     gem_power={
         # 10b, 7p, 1r
-        "blue__saphire": 2664,
-        "purple__amethyst": 1620,
-        "red__ruby": 162,
+        Gem.BLUE: 2664,
+        Gem.PURPLE: 1620,
+        Gem.RED: 162,
     },
     sets=[
         "Drakheim's Absolution",

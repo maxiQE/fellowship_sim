@@ -1,9 +1,9 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Self
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from fellowship_sim.base_classes import Ability, Player
+    from fellowship_sim.base_classes import Ability, Effect, Player
 
 
 # ---------------------------------------------------------------------------
@@ -379,10 +379,9 @@ class SnapshotStats:
     average_damage: float
     crit_multiplier: float
     crit_percent: float
-    # haste_percent: float
 
-    @classmethod
-    def from_ability_and_character(cls, ability: "Ability", character: "Player") -> Self:
+    @staticmethod
+    def from_ability_and_character(ability: "Ability", character: "Player") -> "SnapshotStats":
         """Derive a snapshot from an ability's average_damage and the character's current stats.
 
         Scales average_damage by main_stat/1000 and (1 + expertise_percent).
@@ -391,25 +390,29 @@ class SnapshotStats:
             ability: The ability whose average_damage is used as the base.
             character: The casting player (stats read at call time).
         """
-        return cls(
+        from fellowship_sim.base_classes.events import SnapshotCreation
+
+        snapshot = SnapshotStats(
             average_damage=ability.average_damage
             * character.stats.main_stat
             / 1000
             * (1 + character.stats.expertise_percent),
             crit_multiplier=character.stats.crit_multiplier,
             crit_percent=character.stats.crit_percent,
-            # haste_percent=character.stats.haste_percent,
         )
+        event = SnapshotCreation(damage_source=ability, snapshot=snapshot)
+        character.state.bus.emit(event)
+        return event.snapshot
 
-    @classmethod
+    @staticmethod
     def from_base_damage_and_character(
-        cls,
         base_damage: float,
         character: "Player",
         *,
+        damage_source: "Ability | Effect",
         is_scaled_by_expertise: bool = True,
         is_scaled_by_main_stat: bool = True,
-    ) -> Self:
+    ) -> "SnapshotStats":
         """Derive snapshot from a raw base damage value and the character's current stats.
 
         Args:
@@ -418,14 +421,18 @@ class SnapshotStats:
             is_scaled_by_expertise: Whether expertise scales the damage.
             is_scaled_by_main_stat: Whether main stat scales the damage.
         """
-        return cls(
+        from fellowship_sim.base_classes.events import SnapshotCreation
+
+        snapshot = SnapshotStats(
             average_damage=base_damage
             * ((character.stats.main_stat / 1000) if is_scaled_by_main_stat else 1)
             * ((1 + character.stats.expertise_percent) if is_scaled_by_expertise else 1),
             crit_multiplier=character.stats.crit_multiplier,
             crit_percent=character.stats.crit_percent,
-            # haste_percent=character.stats.haste_percent,
         )
+        event = SnapshotCreation(damage_source=damage_source, snapshot=snapshot)
+        character.state.bus.emit(event)
+        return event.snapshot
 
     def scale_average_damage(self, multiplier: float) -> "SnapshotStats":
         """Return a new snapshot with average_damage multiplied by multiplier."""
@@ -433,7 +440,6 @@ class SnapshotStats:
             average_damage=self.average_damage * multiplier,
             crit_multiplier=self.crit_multiplier,
             crit_percent=self.crit_percent,
-            # haste_percent=self.haste_percent,
         )
 
     def add_crit_percent(self, delta: float) -> "SnapshotStats":
@@ -442,5 +448,12 @@ class SnapshotStats:
             average_damage=self.average_damage,
             crit_multiplier=self.crit_multiplier,
             crit_percent=self.crit_percent + delta,
-            # haste_percent=self.haste_percent,
+        )
+
+    def fixed_crit_percent(self, crit_percent: float) -> "SnapshotStats":
+        """Return a new snapshot with crit_percent set to desired value."""
+        return SnapshotStats(
+            average_damage=self.average_damage,
+            crit_multiplier=self.crit_multiplier,
+            crit_percent=crit_percent,
         )
