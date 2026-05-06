@@ -2,7 +2,8 @@ import contextlib
 import time
 from dataclasses import dataclass
 
-from fellowship_sim.elarion.setup import ElarionSetup
+from fellowship_sim.base_classes.entity import Player
+from fellowship_sim.generic_game_logic.setup_effect import PlayerSetup
 from fellowship_sim.simulation.base import FightOver, Rotation
 from fellowship_sim.simulation.metrics import (
     DEFAULT_METRICS,
@@ -33,10 +34,10 @@ class RepetitionResult:
         return "\n".join(lines)
 
 
-def run_once(
+def run_once[P: Player](
     scenario: Scenario,
-    rotation: Rotation,
-    setup: ElarionSetup,
+    rotation: Rotation[P],
+    setup: PlayerSetup[P],
     seed: int | None = None,
     probe_types: set[type[Probe]] | None = None,
 ) -> tuple[dict[type[Probe], Probe], float]:
@@ -47,7 +48,7 @@ def run_once(
 
     Args:
         scenario: The fight scenario (duration, enemies, spirit income).
-        rotation: Callable that yields abilities for elarion to cast.
+        rotation: Callable that yields abilities for the player to cast.
         setup: Character build (stats, talents, gear).
         seed: RNG seed for reproducibility; None for random.
         probe_types: Set of Probe subclasses to attach; defaults to empty.
@@ -56,7 +57,7 @@ def run_once(
         Dict mapping each Probe type to its populated instance.
         Duration of the scenario.
     """
-    state, elarion = generate_new_scenario(scenario=scenario, setup=setup, rng_seed=seed)
+    state, player = generate_new_scenario(scenario=scenario, setup=setup, rng_seed=seed)
 
     probes: dict[type[Probe], Probe] = {}
     for pt in probe_types or set():
@@ -65,11 +66,11 @@ def run_once(
         probes[pt] = probe
 
     with contextlib.suppress(FightOver):
-        for ability in rotation(elarion):
+        for ability in rotation(player):
             if ability is not None:
                 ability.cast(state.main_target)
 
-    for entity in [*state.enemies, elarion]:
+    for entity in [*state.enemies, player]:
         for effect in list(entity.effects):
             if effect.attached_to:
                 effect.remove()
@@ -77,11 +78,11 @@ def run_once(
     return probes, state.time
 
 
-def run_k(
+def run_k[P: Player](
     k: int,
     scenario: Scenario,
-    rotation: Rotation,
-    setup: ElarionSetup,
+    rotation: Rotation[P],
+    setup: PlayerSetup[P],
     base_seed: int | None = None,
     metrics: list[Metric] = DEFAULT_METRICS,
 ) -> RepetitionResult:
@@ -90,7 +91,7 @@ def run_k(
     Args:
         k: Number of repetitions.
         scenario: The fight scenario.
-        rotation: Callable that yields abilities for elarion to cast.
+        rotation: Callable that yields abilities for the player to cast.
         setup: Character build.
         base_seed: Base RNG seed; each rep uses base_seed+i. None for random.
         metrics: List of ScalarMetric/TextMetric to compute; defaults to DEFAULT_METRICS.

@@ -7,7 +7,7 @@ from fellowship_sim.simulation.base import Rotation
 from fellowship_sim.simulation.rotation import Optional, PriorityList
 
 
-class VoidBarrageMethod(Rotation):
+class VoidBarrageMethod(Rotation[Elarion]):
     description = """
     An AOE rotation for neck barrage, using the method.gg priority list.
 

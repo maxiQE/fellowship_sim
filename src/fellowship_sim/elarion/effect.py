@@ -18,6 +18,7 @@ from fellowship_sim.base_classes.events import (
     AbilityDamage,
     ComputeCooldownReduction,
     PreDamageSnapshotUpdate,
+    Resource,
     ResourceSpent,
     SpiritProc,
 )
@@ -207,7 +208,7 @@ class LunarlightMarkEffect(Effect):
 
 
 @dataclass(kw_only=True, repr=False)
-class SpiritEffectProc(Effect):
+class ElarionSpiritProcAura(Effect):
     """Permanent aura on Elarion.
 
     - Any focus-spending ability can trigger a spirit proc.
@@ -219,7 +220,7 @@ class SpiritEffectProc(Effect):
 
     owner: "Elarion" = field(init=True)
 
-    name: str = field(default="spirit_effect", init=False)
+    name: str = field(default="elarion_spirit_effect", init=False)
 
     main_target_mark_count: int = field(default=elarion_config.SPIRIT_EFFECT_MAIN_TARGET_MARK_COUNT, init=False)
     secondary_target_mark_count: int = field(
@@ -231,6 +232,9 @@ class SpiritEffectProc(Effect):
         self.owner.state.bus.subscribe(ResourceSpent, self._on_resource_spent, owner=self)
 
     def _on_resource_spent(self, event: ResourceSpent) -> None:
+        if event.resource_type != Resource.FOCUS:
+            return
+
         state = self.owner.state
 
         proc_chance = self.owner.stats.spirit_proc_chance
@@ -258,7 +262,9 @@ class SpiritEffectProc(Effect):
         state.bus.emit(SpiritProc(ability=ability, owner=self.owner, resource_amount=resource_amount))
 
         # Gain 1 spirit point
-        self.owner.spirit_points = min(self.owner.spirit_points + 1, self.owner.max_spirit_points)
+        self.owner.spirit_points = min(
+            self.owner.spirit_points + elarion_config.ELARION_SPIRIT_POINT_GAIN_ON_PROC, self.owner.max_spirit_points
+        )
 
         # Refund focus
         self.owner.focus += resource_amount
@@ -467,13 +473,13 @@ class VolleyEffect(Effect):
 
     owner: "Elarion" = field(init=True)
 
-    tick_interval: float
-    duration: float
+    tick_interval: float = field(init=True)
+    duration: float = field(init=True)
 
-    ability: "Volley"
+    ability: "Volley" = field(init=True)
 
-    multishot_extends_duration_by: float
-    has_skylit_grace: bool
+    multishot_extends_duration_by: float = field(init=True)
+    has_skylit_grace: bool = field(init=True)
 
     name: str = field(default="", init=False)
 
@@ -521,7 +527,7 @@ class VolleyEffect(Effect):
     def _on_compute_cdr(self, event: ComputeCooldownReduction) -> None:
         if not isinstance(event.ability, SkystriderGrace):
             return
-        event.cdrecovery_modifiers.append(1.0)
+        event.cdrecovery_modifiers.append(elarion_config.SKYLIT_GRACE_CDR_MODIFIER)
         logger.trace("Volley (Skylit Grace): Skystrider Grace CDA +1.0")
 
     def _do_tick(self) -> None:
@@ -696,7 +702,7 @@ class Shimmer(Effect):
 
 
 @dataclass(kw_only=True, repr=False)
-class HighwindAppliesShimmerEffect(Effect):
+class ElarionCloak(Effect):
     """Permanent aura: each HighwindArrow damage hit applies Shimmer to the target."""
 
     name: str = field(default="hwa_shimmer_aura", init=False)
@@ -712,7 +718,7 @@ class HighwindAppliesShimmerEffect(Effect):
 
 
 @dataclass(kw_only=True, repr=False)
-class StarstrikersAscentLegendary(Effect):
+class ElarionNeck(Effect):
     """Legendary: on Spirit proc, 50% chance to gain ImpendingHeartseeker (which resets barrage CD)."""
 
     owner: "Elarion" = field(init=True)

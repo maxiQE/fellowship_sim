@@ -12,93 +12,42 @@
 
 ## Todo
 
-- x in chained packs, encode info in state_information for rotation to inspect
+- rename and correct implementation for cda, cdr, flat cd remove
+    - cda: acceleration, change tick rate
+    - cdr: change base cooldown
+    - flat cd remove: remove N seconds at a specific point
 
-- tests:
-    - splinters and aurastone are unaffected by execute set, and other boosts
+- DOT mechanics:
+    - dynamic tick rate
+    - accumulator mechanics
+
+- shorted duration in execute:
+    - linear decrease in HP balanced to give the appropriate execute duration
+    - set hp decrease by default to be 15% faster during execute
 
 - ability:
     - check cooldown and charges
     - add api to put on cooldown without casting
 
-- slight randomness on scenario duration (a few seconds)
-- slight randomness on TTL among similar mobs (buff yellow and white)
-- full dungeon run
-- CD planning
-- SLIGHT improvement to rotation once CD planning is here
+- use true enums everywhere
+    - for talents, have a good interaction to star import
 
-- rotation inspection script
-- rotation work:
-    - pack opener
-    - pack closer
-    - check against standard prio
+- tests:
+    - splinters and aurastone are unaffected by execute set, and other boosts
 
-- realistic setup comparison:
-    - decent rotation:
-        - opener
-        - decent priority list
-        - decent use of EH resets
-        - decent ult timing
-        - PARAMETRIC !!
-        - rotation should have three modes:
-            - ST
-            - AOE
-            - Prio: on AOE, increase main target damage, ignore secondaries
-    - check choices of the rotation
-        - inspect ability choices at various points (around ultimate)
-        - inspect focus throughout
-        - inspect ability choices around spirit procs; use `import inspect` to control rng
-            ````python
-            import inspect
-
-            caller_frame = inspect.stack()[1]
-
-            filename = os.path.basename(caller_frame.filename)
-            line_number = caller_frame.lineno
-            function_name = caller_frame.function
-            if function_name == "spirit_proc":
-                return 0
-            ````
-    - realistic scenarios:
-        - ideally, full dungeon run:
-            - pack - pause - pack - pause - pack - pause - boss (with or without adds)
-        - realistic spirit regen -> check logs; in and out of combat
-        - realistic pack health split
-        - realistic pack-to-pack downtime
-        - boss: 5m
-        - trash: 9m total; 3 packs; 170s per pack; 15s walk? 4 packs; 125s per pack; 15s walk?
-
-
-- scenarios for proper simming
-    - 5-6m maybe for boss
-    - prob 8 minutes on trash
-
-- x measure spirit gain on logs -> 0.8 per s, including both baseline (0.14 per s?? and mobs and spirit proc (0.15 per s at 25% proc chance??))
+- rime tests:
+    - integration tests: ask claude
+    - functional tests: ??
 
 - improve Effect collection to have more explicit API:
     - get
     - filter
     - fuse -> list of effects; for volley; remove name change on volley
 
-- rotation is scuffed on cold starts:
-    - it holds weapon instead of sending it
-
-    - hold weapon + grace + ult for execute if possible
-    - don't hold weapon and grace if ult is super far away
 
 - try to remove all lazy imports
 
-- dot rewrite:
-    - dynamic tick rate
-    - dynamic damage (That should already work)
-- dot effects: take snapshot on dot creation instead of having the creator create the snapshot
-    - fixed by improved snapshotting??
-
 - can all events be broadcasted at post init then finalized immediately when they have modifiers???
-
-- add a mechanic for cooldown reduction:
-    - when casting an ability with CDReduction, set cooldown to base_cd * (1 - reduction)
-    - green 10 and ultimatum give CDReduction
 
 - stats: add flag to ignore static modifiers so that user can simply copy scores or percents from stronghold character sheet, without subtracting static effects
 - on score buildup, add flags to ignore gems (and other modifiers which are included in the character sheet); NB this is for ease of use
@@ -115,18 +64,6 @@
             - debuffs have an attached_to field which hides the attached_to property and enables independance
             - during post_init, immediately attach to 
 
-- splinters rework:
-    - listener on stat modifications:
-        - trigger tick recompute
-    - listener on crit:
-        - no tick recompute
-        - stored damage recompute
-    - each tick is a dynamic damage event
-        - look at current stored damage
-        - tick
-    - on remove:
-        - partial tick
-    - tests: look at model
 
 
 - talent builds: give syntax so that this is possible:

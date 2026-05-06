@@ -15,8 +15,8 @@ from fellowship_sim.elarion.buff import (
     SkystriderSupremacyBuff,
 )
 from fellowship_sim.elarion.effect import (
+    ElarionCloak,
     FinalCrescendo,
-    HighwindAppliesShimmerEffect,
     LethalShots,
     LunarlightMarkEffect,
     ResurgentWinds,
@@ -444,7 +444,7 @@ class TestShimmer:
         Use advance_time(0.0) to avoid Shimmer expiry at t=9.
         """
         elarion = unit_elarion__zero_stats
-        elarion.effects.add(HighwindAppliesShimmerEffect(owner=elarion))
+        elarion.effects.add(ElarionCloak(owner=elarion))
 
         damages: list[AbilityDamage] = []
         state_always_procs__st.bus.subscribe(AbilityDamage, damages.append)
@@ -466,7 +466,7 @@ class TestShimmer:
         Use advance_time(0.0) to avoid expiry at t=9 that would remove Shimmer.
         """
         elarion = unit_elarion__zero_stats
-        elarion.effects.add(HighwindAppliesShimmerEffect(owner=elarion))
+        elarion.effects.add(ElarionCloak(owner=elarion))
 
         for _ in range(3):
             elarion.highwind_arrow._do_cast(state_always_procs__st.enemies[0])
@@ -482,7 +482,7 @@ class TestShimmer:
     ) -> None:
         """A second Shimmer application before expiry fuses and renews duration."""
         elarion = unit_elarion__zero_stats
-        elarion.effects.add(HighwindAppliesShimmerEffect(owner=elarion))
+        elarion.effects.add(ElarionCloak(owner=elarion))
 
         # Apply first Shimmer
         elarion.highwind_arrow._do_cast(state_always_procs__st.enemies[0])

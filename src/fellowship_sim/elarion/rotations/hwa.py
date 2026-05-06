@@ -18,7 +18,7 @@ from fellowship_sim.simulation.rotation import Optional, PriorityList
 
 
 @dataclass(kw_only=True)
-class HWASyncedCDs(Rotation):
+class HWASyncedCDs(Rotation[Elarion]):
     description = """
     A complex rotation for shimmer HWA.
 
@@ -97,7 +97,7 @@ class HWASyncedCDs(Rotation):
 
         def final_crescendo_ready() -> bool:
             fc = elarion.effects.get(FinalCrescendo)
-            return elarion.highwind_arrow.can_cast() and fc is not None and fc.stacks == 3
+            return elarion.highwind_arrow.can_cast() and fc is not None and fc.stacks == fc.max_stacks
 
         ##################
         # Custom actions
@@ -241,7 +241,7 @@ class HWASyncedCDs(Rotation):
             yield grouped_prio(state)
 
 
-class HwaSimple(Rotation):
+class HwaSimple(Rotation[Elarion]):
     description = """
     An AOE rotation for neck barrage, using the method.gg priority list.
     """
@@ -279,7 +279,7 @@ class HwaSimple(Rotation):
 
         def final_crescendo_ready() -> bool:
             fc = elarion.effects.get(FinalCrescendo)
-            return elarion.highwind_arrow.can_cast() and fc is not None and fc.stacks == 3
+            return elarion.highwind_arrow.can_cast() and fc is not None and fc.stacks == fc.max_stacks
 
         dont_send_fc_just_before_llm = lambda s: not (elarion.lunarlight_mark.cooldown <= 5 and final_crescendo_ready())
 

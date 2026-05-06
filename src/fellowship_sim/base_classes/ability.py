@@ -60,6 +60,8 @@ class Ability(Generic[TCharacter]):  # noqa: UP046
     # ultimate
     is_ultimate_ability: bool = field(default=False, init=False)
 
+    delay_until_hit: float = field(default=0.1, init=False)
+
     # Dynamic info (runtime state)
     cooldown: float = field(default=0.0, init=False)
     charges: int = field(init=False)
@@ -67,6 +69,7 @@ class Ability(Generic[TCharacter]):  # noqa: UP046
 
     # AOE settings: number of targets, damage multipliers
     num_secondary_targets: int = field(default=0, init=False)
+    num_targets_softcap: int = field(default=12, init=False)
     main_damage_multiplier: float = field(default=1.0, init=False)
     secondary_damage_multiplier: float = field(default=1.0, init=False)
 
@@ -228,8 +231,10 @@ class Ability(Generic[TCharacter]):  # noqa: UP046
                 self.owner,
                 target,
                 self.average_damage,
+                delay_until_hit=self.delay_until_hit,
                 main_damage_multiplier=self.main_damage_multiplier,
                 num_secondary_targets=self.num_secondary_targets,
+                num_targets_softcap=self.num_targets_softcap,
                 secondary_damage_multiplier=self.secondary_damage_multiplier,
             )
 

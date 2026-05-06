@@ -288,8 +288,7 @@ class DoTEffect(Effect):
     def on_add(self) -> None:
 
         haste_percent = self.owner.stats.haste_percent
-        # TODO: fix DOT ticking even when duration % tick_rate == 0
-        # Currently, the expiry and the final dot collide, preventing the final dot
+
         self._tick_duration = (
             self.base_tick_duration / (1 + haste_percent)
         ) - 1e-9  # slightly shave off duration to ensure that all base ticks go through

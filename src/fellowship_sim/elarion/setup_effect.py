@@ -6,33 +6,37 @@ from typing import TYPE_CHECKING, Literal
 
 from loguru import logger
 
+import fellowship_sim.base_classes.base_config
+import fellowship_sim.base_classes.config
 from fellowship_sim.base_classes import SetupEffectEarly
 from fellowship_sim.base_classes.setup import SetupContext, SetupEffectLate
-from fellowship_sim.elarion import elarion_config
 from fellowship_sim.elarion.effect import (
     CelestialImpetusAura,
+    ElarionCloak,
+    ElarionNeck,
+    ElarionSpiritProcAura,
     FinalCrescendo,
     FocusedExpanseEffect,
     Fusillade,
-    HighwindAppliesShimmerEffect,
     LastLights,
     LethalShots,
     LunarFury,
     LunarlightAffinity,
     RepeatingStars,
     SkywardMunitions,
-    SpiritEffectProc,
-    StarstrikersAscentLegendary,
 )
 
+from . import elarion_config
+
 if TYPE_CHECKING:
-    from fellowship_sim.elarion.entity import Elarion
+    from .entity import Elarion
 
 
+@dataclass(kw_only=True)
 class ElarionDefaultEffectSetup(SetupEffectEarly["Elarion"]):
     def apply(self, character: "Elarion", context: SetupContext) -> None:
         character.effects.add(CelestialImpetusAura(owner=character))
-        character.effects.add(SpiritEffectProc(owner=character))
+        character.effects.add(ElarionSpiritProcAura(owner=character))
 
 
 @dataclass(kw_only=True)
@@ -172,12 +176,14 @@ class TheWeightOfGravitySetup(SetupEffectLate["Elarion"]):
 # Legendary selection
 # ---------------------------------------------------------------------------
 
+ElarionLegendaryName = Literal["Boots", "Cloak", "Neck"]
+
 
 @dataclass(kw_only=True)
 class ElarionLegendarySelection(SetupEffectLate["Elarion"]):
     """Apply one of the three Elarion legendary item effects."""
 
-    selected_legendary: Literal["Boots", "Cloak", "Neck"]
+    selected_legendary: ElarionLegendaryName
 
     def __str__(self) -> str:
         return f"Legendary: {self.selected_legendary}"
@@ -191,7 +197,7 @@ class ElarionLegendarySelection(SetupEffectLate["Elarion"]):
             self._apply_cloak(character)
 
     def _apply_neck(self, character: "Elarion") -> None:
-        character.effects.add(StarstrikersAscentLegendary(owner=character))
+        character.effects.add(ElarionNeck(owner=character))
         logger.debug("legendary (Neck): Starstriker's Ascent added")
 
     def _apply_boots(self, character: "Elarion") -> None:
@@ -204,7 +210,7 @@ class ElarionLegendarySelection(SetupEffectLate["Elarion"]):
         )
 
     def _apply_cloak(self, character: "Elarion") -> None:
-        character.effects.add(HighwindAppliesShimmerEffect(owner=character))
+        character.effects.add(ElarionCloak(owner=character))
         logger.debug("legendary (Cloak): Highwind Arrow shimmer effect added")
 
 
@@ -312,7 +318,7 @@ class ElarionTalentSelection(SetupEffectLate["Elarion"]):
     """
 
     talents: list[ElarionTalentName] = field(default_factory=list)
-    total_talent_points: int = elarion_config.ELARION_MAX_TALENT_POINTS
+    total_talent_points: int = fellowship_sim.base_classes.base_config.MAX_TALENT_POINTS
 
     def __post_init__(self) -> None:
         total_cost = sum(_TALENT_COSTS[t] for t in self.talents)

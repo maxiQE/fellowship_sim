@@ -1,5 +1,8 @@
 from fellowship_sim.base_classes import base_config
 
+# Talent point configuration
+TOTAL_TALENT_POINTS = 13
+
 # Dark Prophecy
 DARK_PROPHECY_PPM = 0.8
 DARK_PROPHECY_BUFF_DURATION = 20.0

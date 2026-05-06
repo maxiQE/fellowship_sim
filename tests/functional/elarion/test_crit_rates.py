@@ -4,7 +4,7 @@ from typing import cast
 import pytest
 
 from fellowship_sim.base_classes import AbilityDamage, Enemy, RawStatsFromPercents, State
-from fellowship_sim.base_classes.entity import Entity
+from fellowship_sim.base_classes.entity import Entity, Player
 from fellowship_sim.elarion.ability import ElarionAbility
 from fellowship_sim.elarion.entity import Elarion
 from fellowship_sim.elarion.rotations.void_barrage_method import VoidBarrageMethod
@@ -97,8 +97,8 @@ def aoe_scenario() -> Scenario:
 
 
 def _make_execute_scenario() -> Scenario:
-    def _finalize(elarion: Elarion) -> None:
-        for enemy in elarion.state.enemies:
+    def _finalize(player: Player) -> None:
+        for enemy in player.state.enemies:
             enemy.percent_hp = 0.2
 
     return Scenario(

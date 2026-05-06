@@ -12,7 +12,7 @@ from fellowship_sim.simulation.rotation import Optional, PriorityList
 
 
 @dataclass(kw_only=True)
-class ChronoBarrage(Rotation):
+class ChronoBarrage(Rotation[Elarion]):
     description = """
     A complex priority-based action list for IHB barrage with chrono.
 

@@ -13,7 +13,7 @@ from fellowship_sim.simulation.rotation import Optional, PriorityList
 
 
 @dataclass(kw_only=True)
-class VoidBarrage(Rotation):
+class VoidBarrage(Rotation[Elarion]):
     description = """
     A complex rotation for IBH barrage with voidbringers.
     """

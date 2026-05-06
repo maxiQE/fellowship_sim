@@ -20,6 +20,7 @@ if TYPE_CHECKING:
 
 from fellowship_sim.base_classes.events import (
     AbilityCastSuccess,
+    Resource,
     ResourceSpent,
 )
 from fellowship_sim.base_classes.timed_events import GenericTimedEvent
@@ -41,7 +42,7 @@ from fellowship_sim.elarion.buff import (
 class ElarionAbility(Ability["Elarion"]):
     """Base class for all Elarion abilities.
 
-    Declares focus_cost, focus_gain, and secondary-target fields.
+    Declares focus_cost, focus_gain fields.
     Focus economy is handled by FocusAura.
     """
 
@@ -77,9 +78,10 @@ class ElarionAbility(Ability["Elarion"]):
             state = self.owner.state
             state.bus.emit(
                 ResourceSpent(
-                    ability=self,
                     owner=self.owner,
+                    ability=self,
                     target=target,
+                    resource_type=Resource.FOCUS,
                     resource_amount=focus_cost,
                 )
             )
@@ -128,6 +130,7 @@ class Multishot(ElarionAbility):
     initial_charges: int = field(default=0, init=False)
     base_focus_cost: int = field(default=elarion_config.MULTISHOT_FOCUS_COST, init=False)
     num_secondary_targets: int = field(default=elarion_config.MULTISHOT_NUM_SECONDARY_TARGETS, init=False)
+    num_targets_softcap: int = field(default=elarion_config.MULTISHOT_NUM_TARGETS_SOFTCAP, init=False)
 
     empowered_num_arrows_min: int = field(default=elarion_config.MULTISHOT_EMPOWERED_MIN_ARROWS, init=False)
     empowered_ms_bonus_damage: float = field(default=0.0, init=False)  # Provided by FE
@@ -186,7 +189,7 @@ class Multishot(ElarionAbility):
     @property
     def focus_cost(self) -> int:
         """Overwritten: empowered MS has half-focus cost."""
-        divisor = 2 if self.is_empowered() else 1
+        divisor = elarion_config.MULTISHOT_EMPOWERED_FOCUS_COST_DIVISOR if self.is_empowered() else 1
         return math.ceil(super().focus_cost / divisor)
 
     def _do_cast(self, target: "Entity") -> None:
@@ -404,9 +407,7 @@ class HighwindArrow(ElarionAbility):
 
 @dataclass(kw_only=True, repr=False)
 class Volley(ElarionAbility):
-    """1.5s cast, 30s CD, 30 focus. DoT: 1+floor(8*(1+haste)) ticks at 1/(1+haste) interval.
-    TODO: secondary targets (up to 11 additional, 100% damage each).
-    """
+    """1.5s cast, 30s CD, 30 focus. DoT: 1+floor(8*(1+haste)) ticks at 1/(1+haste) interval."""
 
     base_cooldown: float = field(default=elarion_config.VOLLEY_COOLDOWN, init=False)
     average_damage: float = field(
@@ -416,6 +417,7 @@ class Volley(ElarionAbility):
     base_focus_cost: int = field(default=elarion_config.VOLLEY_FOCUS_COST, init=False)
 
     num_secondary_targets: int = field(default=elarion_config.VOLLEY_NUM_SECONDARY_TARGETS, init=False)
+    num_targets_softcap: int = field(default=elarion_config.VOLLEY_NUM_TARGETS_SOFTCAP, init=False)
 
     duration: float = field(default=elarion_config.VOLLEY_DURATION, init=False)
     tick_time: float = field(default=elarion_config.VOLLEY_TICK_TIME, init=False)
@@ -491,7 +493,7 @@ class HeartseekerBarrage(ElarionAbility):
         num_ticks = math.floor(self.player_downtime / tick_interval + epsilon)
 
         # shaving a slight amount off tick_interval to ensure that when player is available, all shots have been fired
-        tick_interval *= 0.99
+        tick_interval *= elarion_config.HEARTSEEKER_BARRAGE_TICK_INTERVAL_FACTOR
 
         logger.debug(
             f"barrage channel start: scheduling {num_ticks} tick(s) on {target} (interval={tick_interval:.3f}s)"
@@ -499,7 +501,7 @@ class HeartseekerBarrage(ElarionAbility):
 
         def _next_barrage_tick() -> None:
             self._schedule_barrage_tick(
-                main_target=target,
+                target=target,
                 tick_interval=tick_interval,
                 hit_counter=0,
                 total_count=num_ticks,
@@ -512,7 +514,7 @@ class HeartseekerBarrage(ElarionAbility):
 
     def _schedule_barrage_tick(
         self,
-        main_target: Entity,
+        target: Entity,
         tick_interval: float,
         hit_counter: int,
         total_count: int,
@@ -546,7 +548,7 @@ class HeartseekerBarrage(ElarionAbility):
             state=state,
             damage_source=self,
             owner=self.owner,
-            target=main_target,
+            target=target,
             base_damage=scaled_base_damage,
             num_secondary_targets=self.num_secondary_targets,
             secondary_damage_multiplier=self.secondary_damage_multiplier,
@@ -558,7 +560,7 @@ class HeartseekerBarrage(ElarionAbility):
 
             def _next_barrage_tick() -> None:
                 self._schedule_barrage_tick(
-                    main_target=main_target,
+                    target=target,
                     tick_interval=tick_interval,
                     hit_counter=hit_counter + 1,
                     total_count=total_count,

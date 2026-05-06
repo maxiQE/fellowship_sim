@@ -21,6 +21,7 @@ from collections.abc import Callable
 from fellowship_sim.base_classes import Enemy, State
 from fellowship_sim.base_classes.events import (
     AbilityCastSuccess,
+    Resource,
     ResourceSpent,
     SpiritProc,
 )
@@ -28,10 +29,10 @@ from fellowship_sim.base_classes.stats import RawStatsFromPercents
 from fellowship_sim.elarion.effect import (
     CelestialImpetusAura,
     CelestialImpetusProc,
+    ElarionNeck,
+    ElarionSpiritProcAura,
     ImpendingHeartseeker,
     LunarlightMarkEffect,
-    SpiritEffectProc,
-    StarstrikersAscentLegendary,
 )
 from fellowship_sim.elarion.setup import Elarion
 from tests.integration.fixtures import SequenceRNG
@@ -158,13 +159,19 @@ class TestSpiritProc:
         """spirit=0 → proc_chance=0 → ResourceSpent never produces a SpiritProc."""
         state = state_always_procs__st
         elarion = unit_elarion__zero_stats
-        elarion.effects.add(SpiritEffectProc(owner=elarion))
+        elarion.effects.add(ElarionSpiritProcAura(owner=elarion))
 
         spirit_procs: list[SpiritProc] = []
         state.bus.subscribe(SpiritProc, spirit_procs.append)
 
         state.bus.emit(
-            ResourceSpent(owner=elarion, ability=elarion.celestial_shot, target=state.enemies[0], resource_amount=15)
+            ResourceSpent(
+                owner=elarion,
+                ability=elarion.celestial_shot,
+                target=state.enemies[0],
+                resource_type=Resource.FOCUS,
+                resource_amount=15,
+            )
         )
         state.advance_time(0.0)
 
@@ -176,13 +183,19 @@ class TestSpiritProc:
         elarion = unit_elarion__zero_stats
         elarion.raw_stats = RawStatsFromPercents(main_stat=1000.0, spirit_percent=0.5)
         elarion._recalculate_stats()
-        elarion.effects.add(SpiritEffectProc(owner=elarion))
+        elarion.effects.add(ElarionSpiritProcAura(owner=elarion))
 
         spirit_procs: list[SpiritProc] = []
         state.bus.subscribe(SpiritProc, spirit_procs.append)
 
         state.bus.emit(
-            ResourceSpent(owner=elarion, ability=elarion.celestial_shot, target=state.enemies[0], resource_amount=15)
+            ResourceSpent(
+                owner=elarion,
+                ability=elarion.celestial_shot,
+                target=state.enemies[0],
+                resource_type=Resource.FOCUS,
+                resource_amount=15,
+            )
         )
         state.advance_time(0.0)
 
@@ -194,13 +207,19 @@ class TestSpiritProc:
         state = State(rng=SequenceRNG(values=[0.5]))
         enemies = [Enemy(state=state)]
         elarion = Elarion(state=state, raw_stats=RawStatsFromPercents(main_stat=1000.0, spirit_percent=1.0))
-        elarion.effects.add(SpiritEffectProc(owner=elarion))
+        elarion.effects.add(ElarionSpiritProcAura(owner=elarion))
 
         spirit_procs: list[SpiritProc] = []
         state.bus.subscribe(SpiritProc, spirit_procs.append)
 
         state.bus.emit(
-            ResourceSpent(owner=elarion, ability=elarion.celestial_shot, target=enemies[0], resource_amount=15)
+            ResourceSpent(
+                owner=elarion,
+                ability=elarion.celestial_shot,
+                target=enemies[0],
+                resource_type=Resource.FOCUS,
+                resource_amount=15,
+            )
         )
         state.advance_time(0.0)
 
@@ -211,13 +230,19 @@ class TestSpiritProc:
         state = State(rng=SequenceRNG(values=[0.499]))
         enemies = [Enemy(state=state)]
         elarion = Elarion(state=state, raw_stats=RawStatsFromPercents(main_stat=1000.0, spirit_percent=1.0))
-        elarion.effects.add(SpiritEffectProc(owner=elarion))
+        elarion.effects.add(ElarionSpiritProcAura(owner=elarion))
 
         spirit_procs: list[SpiritProc] = []
         state.bus.subscribe(SpiritProc, spirit_procs.append)
 
         state.bus.emit(
-            ResourceSpent(owner=elarion, ability=elarion.celestial_shot, target=enemies[0], resource_amount=15)
+            ResourceSpent(
+                owner=elarion,
+                ability=elarion.celestial_shot,
+                target=enemies[0],
+                resource_type=Resource.FOCUS,
+                resource_amount=15,
+            )
         )
         state.advance_time(0.0)
 
@@ -232,7 +257,7 @@ class TestStartstrikersAscent:
         state = State(rng=SequenceRNG(values=[0.0]))  # roll: 0.0 < 0.5 → procs
         enemies = [Enemy(state=state)]
         elarion = Elarion(state=state, raw_stats=RawStatsFromPercents(main_stat=1000.0))
-        elarion.effects.add(StarstrikersAscentLegendary(owner=elarion))
+        elarion.effects.add(ElarionNeck(owner=elarion))
         elarion.heartseeker_barrage.cooldown = 20.0
         elarion.heartseeker_barrage.charges = 0
 
@@ -249,7 +274,7 @@ class TestStartstrikersAscent:
         state = State(rng=SequenceRNG(values=[0.5]))  # at threshold → no proc
         enemies = [Enemy(state=state)]
         elarion = Elarion(state=state, raw_stats=RawStatsFromPercents(main_stat=1000.0))
-        elarion.effects.add(StarstrikersAscentLegendary(owner=elarion))
+        elarion.effects.add(ElarionNeck(owner=elarion))
 
         state.bus.emit(SpiritProc(ability=elarion.celestial_shot, owner=elarion, resource_amount=15))
         state.advance_time(0.0)

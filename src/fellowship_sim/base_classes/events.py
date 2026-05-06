@@ -1,3 +1,4 @@
+import enum
 import re
 from collections import defaultdict
 from collections.abc import Callable
@@ -9,6 +10,15 @@ from .ability import Ability
 from .effect import Effect
 from .entity import Entity, Player
 from .stats import RawStats, SnapshotStats, StatModifier
+
+
+class Resource(enum.Enum):
+    FOCUS = "focus"
+    ANIMA = "anima"
+    WINTER_ORBS = "winter_orbs"
+    MANA = "mana"
+    CHRONA = "chrona"
+
 
 # ---------------------------------------------------------------------------
 # Event variants
@@ -182,14 +192,14 @@ class ResourceChanged:
     """Fired whenever a player resource (focus, mana, …) changes."""
 
     owner: Entity
+    resource_type: Resource
     resource_amount: float
-    delta: float
     time: float = field(init=False)
 
     def __post_init__(self) -> None:
         self.time = self.owner.state.time
 
-        logger.debug(f"resource changed: {self.owner} {self.delta:+.0f} → {self.resource_amount:.0f}")
+        logger.debug(f"resource changed: {self.owner} {self.resource_type} {self.resource_amount:+.0f}")
 
 
 @dataclass(kw_only=True)
@@ -197,6 +207,7 @@ class ResourceSpent:
     owner: Entity
     ability: Ability[Player]
     target: Entity
+    resource_type: Resource
     resource_amount: int
     time: float = field(init=False)
 
@@ -316,7 +327,7 @@ class UltimateCast:
 
 @dataclass(kw_only=True)
 class SpiritProc:
-    """Fired when the Spirit passive refunds resource on a crit."""
+    """Fired when a character has a spirit proc."""
 
     ability: Ability[Player]
     owner: Entity

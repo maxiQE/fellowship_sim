@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import pytest
 
-from fellowship_sim.base_classes import AbilityPeriodicDamage, Enemy, Player, SnapshotStats, State
+from fellowship_sim.base_classes import AbilityPeriodicDamage, Enemy, Player, RawStatsFromScores, SnapshotStats, State
 from fellowship_sim.base_classes.events import (
     AbilityCastSuccess,
     AbilityDamage,
@@ -433,12 +433,12 @@ class TestNavigatorsIntuition:
         enemy = Enemy(state=state)
         elarion = Elarion(
             state=state,
-            raw_stats=RawStatsFromPercents(
+            raw_stats=RawStatsFromScores(
                 main_stat=1000.0,
-                spirit_percent=0.30,
-                crit_percent=0.10,
-                haste_percent=0.10,
-                expertise_percent=0.10,
+                crit_score=1000,
+                expertise_score=1000,
+                haste_score=1000,
+                spirit_score=1500,
             ),
         )
         ni = NavigatorsIntuition(trait_level=4, owner=elarion)
@@ -452,12 +452,12 @@ class TestNavigatorsIntuition:
         enemy = Enemy(state=state)
         elarion = Elarion(
             state=state,
-            raw_stats=RawStatsFromPercents(
+            raw_stats=RawStatsFromScores(
                 main_stat=1000.0,
-                spirit_percent=0.10,
-                crit_percent=0.10,
-                haste_percent=0.30,
-                expertise_percent=0.10,
+                crit_score=1000,
+                expertise_score=1000,
+                haste_score=1500,
+                spirit_score=1000,
             ),
         )
         ni = NavigatorsIntuition(trait_level=4, owner=elarion)

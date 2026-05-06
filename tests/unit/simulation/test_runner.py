@@ -43,7 +43,7 @@ class _StubDamageSource:
 
 
 @dataclass(kw_only=True)
-class _StateCapturingRotation(Rotation):
+class _StateCapturingRotation(Rotation[Elarion]):
     """Records the active State on each __call__, then immediately terminates."""
 
     captured_states: list[State] = field(default_factory=list)
@@ -54,7 +54,7 @@ class _StateCapturingRotation(Rotation):
 
 
 @dataclass(kw_only=True)
-class _DamageAndExitRotation(Rotation):
+class _DamageAndExitRotation(Rotation[Elarion]):
     """Records initial enemy damage total, applies 1 000 damage to it, then terminates.
 
     Designed to be used across k runs: each run sees the enemy's damage_tracker.total

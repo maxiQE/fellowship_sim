@@ -24,7 +24,7 @@ For typical effects, damage is scaled directly by crit, expertise and main stat:
 Averaging out the chance of a crit, we get the overall formula for damage:
 
 ````
-average_damage = (1 + crit_percent) * base_damage / 1000 * main_stat * (1 + expertise_percent) * (1 + bonus_crit_multiplier)
+average_damage = (1 + crit_percent (2 * (1 + bonus_crit_multiplier) - 1) ) * base_damage / 1000 * main_stat * (1 + expertise_percent)
 ````
 
 

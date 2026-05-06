@@ -222,27 +222,10 @@ setups = {
                 "Kindling",
             ],
         ),
-        "ihb__BOOTS_angry__drak_execute__kindling": replace(
-            angry__drak_execute__void,
-            legendary="Cloak",
-            heroic_traits=[
-                "Willful Momentum",
-                "Kindling",
-            ],
-        ),
     },
     "void_sync_all": {
         "ihb__angry_drak_execute__splinters_kindling": replace(
             angry__drak_execute__void,
-            master_trait="Amethyst Splinters",
-            heroic_traits=[
-                "Willful Momentum",
-                "Kindling",
-            ],
-        ),
-        "ihb__BOOTS_angry_drak_execute__splinters_kindling": replace(
-            angry__drak_execute__void,
-            legendary="Cloak",
             master_trait="Amethyst Splinters",
             heroic_traits=[
                 "Willful Momentum",
@@ -281,7 +264,7 @@ setups = {
 
 DESYNC_VOLLEY = True
 
-rotations: dict[str, Rotation] = {
+rotations: dict[str, Rotation[Elarion]] = {
     "void_sync_all": VoidBarrage(sync_grace_in_ult=True, desync_volley_on_aoe=DESYNC_VOLLEY),
     "void_dont_sync_grace": VoidBarrage(sync_grace_in_ult=False, desync_volley_on_aoe=DESYNC_VOLLEY),
     "void_fast_ult": VoidBarrage(can_send_early_ult=True, desync_volley_on_aoe=DESYNC_VOLLEY),

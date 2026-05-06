@@ -1,3 +1,4 @@
+import math
 from collections.abc import Callable
 from typing import TYPE_CHECKING
 
@@ -122,6 +123,7 @@ def create_standard_damage(
     delay_until_hit: float = 0.1,
     main_damage_multiplier: float = 1.0,
     num_secondary_targets: int = 0,
+    num_targets_softcap: int = 12,
     secondary_damage_multiplier: float = 1.0,
     cast_specific_predamage_snapshot_modifiers: "list[Callable[..., None]] | None" = None,
     priority_func: Callable[["Entity"], float] | None = None,
@@ -144,6 +146,7 @@ def create_standard_damage(
             base_damage=base_damage,
             main_damage_multiplier=main_damage_multiplier,
             num_secondary_targets=num_secondary_targets,
+            num_targets_softcap=num_targets_softcap,
             secondary_damage_multiplier=secondary_damage_multiplier,
             cast_specific_predamage_snapshot_modifiers=cast_specific_predamage_snapshot_modifiers,
             priority_func=priority_func,
@@ -169,6 +172,7 @@ def apply_standard_damage(
     *,
     main_damage_multiplier: float = 1.0,
     num_secondary_targets: int = 0,
+    num_targets_softcap: int = 12,
     secondary_damage_multiplier: float = 1.0,
     cast_specific_predamage_snapshot_modifiers: "list[Callable[..., None]] | None" = None,
     priority_func: Callable[["Entity"], float] | None = None,
@@ -199,6 +203,15 @@ def apply_standard_damage(
         is_scaled_by_expertise=is_scaled_by_expertise,
         is_scaled_by_main_stat=is_scaled_by_main_stat,
     )
+
+    if target is not None:
+        num_targets_total = 1 + min(num_secondary_targets, state.num_enemies - 1)
+    else:
+        num_targets_total = min(num_secondary_targets, state.num_enemies)
+
+    if num_targets_total > num_targets_softcap:
+        softcap_damage_multiplier = math.sqrt(num_targets_softcap / num_targets_total)
+        snapshot = snapshot.scale_average_damage(softcap_damage_multiplier)
 
     if target is not None:
         main_snapshot = (

@@ -1,255 +1,241 @@
 from fellowship_sim.base_classes import base_config
 
 # ---------------------------------------------------------------------------
-# Elarion entity
+# Rime entity
 # ---------------------------------------------------------------------------
-ELARION_MAX_FOCUS = 100.0
-ELARION_FOCUS_REGEN_RATE = 5.0
-ELARION_SPIRIT_POINT_GAIN_ON_PROC = 1
+RIME_MAX_WINTER_ORBS = 5
+RIME_MAX_ANIMA = 9
+RIME_SPIRIT_POINT_GAIN_ON_PROC = 2
+RIME_BIRDS_PER_ORB_GAINED = 3
 
 # ---------------------------------------------------------------------------
-# Focused Shot
+# Rime base ability
 # ---------------------------------------------------------------------------
-FOCUSED_SHOT_DAMAGE_MIN = 1212
-FOCUSED_SHOT_DAMAGE_MAX = 1481
-FOCUSED_SHOT_CAST_TIME = base_config.GCD_DURATION
-FOCUSED_SHOT_FOCUS_GAIN = 20
+RIME_ABILITY_DELAY_UNTIL_HIT = 0.5
 
 # ---------------------------------------------------------------------------
-# Celestial Shot
+# Frost Bolt
 # ---------------------------------------------------------------------------
-CELESTIAL_SHOT_DAMAGE_MIN = 2591
-CELESTIAL_SHOT_DAMAGE_MAX = 3166
-CELESTIAL_SHOT_FOCUS_COST = 15
+FROST_BOLT_DAMAGE_MIN = 2106
+FROST_BOLT_DAMAGE_MAX = 2574
+FROST_BOLT_CAST_TIME = base_config.GCD_DURATION
 
 # ---------------------------------------------------------------------------
-# Multishot
+# Glacial Blast
 # ---------------------------------------------------------------------------
-MULTISHOT_DAMAGE_MIN = 2173
-MULTISHOT_DAMAGE_MAX = 2655
-MULTISHOT_MAX_CHARGES = 5
-MULTISHOT_FOCUS_COST = 20
-MULTISHOT_NUM_SECONDARY_TARGETS = 11
-MULTISHOT_NUM_TARGETS_SOFTCAP = 15
-MULTISHOT_EMPOWERED_MIN_ARROWS = 3
-MULTISHOT_EMPOWERED_FOCUS_COST_DIVISOR = 2
+GLACIAL_BLAST_ORB_COST = 2
+GLACIAL_BLAST_DAMAGE_MIN = 10_693
+GLACIAL_BLAST_DAMAGE_MAX = 13_069
+GLACIAL_BLAST_CAST_TIME = 2.0
+GLACIAL_BLAST_WRATH_OF_WINTER_CAST_TIME = 0.0
+GLACIAL_BLAST_WRATH_OF_WINTER_PLAYER_DOWNTIME = base_config.GCD_DURATION
+GLACIAL_BLAST_ICY_FLOW_CAST_TIME_REDUCTION = 0.5
+GLACIAL_BLAST_GLACIAL_ASSAULT_CAST_TIME = 0.0
+GLACIAL_BLAST_GLACIAL_ASSAULT_PLAYER_DOWNTIME = base_config.GCD_DURATION
+GLACIAL_BLAST_GLACIAL_ASSAULT_ORB_COST = 0
 
 # ---------------------------------------------------------------------------
-# Highwind Arrow
+# Ice Comet
 # ---------------------------------------------------------------------------
-HIGHWIND_ARROW_COOLDOWN = 15.0
-HIGHWIND_ARROW_CAST_TIME = 2.0
-HIGHWIND_ARROW_DAMAGE_MIN = 8370
-HIGHWIND_ARROW_DAMAGE_MAX = 10230
-HIGHWIND_ARROW_MAX_CHARGES = 3
-HIGHWIND_ARROW_FOCUS_COST = 30
-HIGHWIND_ARROW_NUM_SECONDARY_TARGETS = 2
-HIGHWIND_ARROW_SECONDARY_DAMAGE_MULTIPLIER = 0.7
-HIGHWIND_ARROW_FC_DAMAGE_MULTIPLIER = 2.0
-HIGHWIND_ARROW_FC_NUM_SECONDARY_TARGETS = 7
-HIGHWIND_ARROW_RW_PLAYER_DOWNTIME = 1.5
-HIGHWIND_ARROW_RW_DAMAGE_MULTIPLIER = 1.5
-HIGHWIND_ARROW_MULTISHOT_CHARGE_MIN_ENEMIES = 3
+ICE_COMET_ORB_COST = 2
+ICE_COMET_DAMAGE_MIN = 4_261
+ICE_COMET_DAMAGE_MAX = 5_208
+ICE_COMET_NUM_SECONDARY_TARGETS = 20
+ICE_COMET_NUM_TARGETS_SOFTCAP = 12
+ICE_COMET_ICY_FLOW_MINIMUM_DELAY = 0.05
+ICE_COMET_ICY_FLOW_DELAY_REDUCTION = 0.5
 
 # ---------------------------------------------------------------------------
-# Volley
+# Freezing Torrent
 # ---------------------------------------------------------------------------
-VOLLEY_COOLDOWN = 30.0
-VOLLEY_DAMAGE_MIN = 977
-VOLLEY_DAMAGE_MAX = 1195
-VOLLEY_FOCUS_COST = 30
-VOLLEY_NUM_SECONDARY_TARGETS = 11
-VOLLEY_NUM_TARGETS_SOFTCAP = 15
-VOLLEY_DURATION = 8.0 + 1e-9  # epsilon ensures tick breakpoints are hit exactly
-VOLLEY_TICK_TIME = 1.0
+FREEZING_TORRENT_COOLDOWN = 15.0
+FREEZING_TORRENT_CHANNEL_DURATION = 2.0
+FREEZING_TORRENT_DAMAGE_MIN = 1_405
+FREEZING_TORRENT_DAMAGE_MAX = 1_718
+FREEZING_TORRENT_TICK_TIME = 0.4
+FREEZING_TORRENT_PARTIAL_CLIP_THRESHOLD = 0.2
 
 # ---------------------------------------------------------------------------
-# Heartseeker Barrage
+# Cold Snap
 # ---------------------------------------------------------------------------
-HEARTSEEKER_BARRAGE_COOLDOWN = 20.0
-HEARTSEEKER_BARRAGE_CHANNEL_DURATION = 2.0
-HEARTSEEKER_BARRAGE_DAMAGE_MIN = 1124
-HEARTSEEKER_BARRAGE_DAMAGE_MAX = 1373
-HEARTSEEKER_BARRAGE_TICK_TIME = 0.2
-HEARTSEEKER_BARRAGE_DELAY_UNTIL_HIT = 0.01
-HEARTSEEKER_BARRAGE_FOCUS_COST = 30
-HEARTSEEKER_BARRAGE_IMPENDING_STEP = 0.1
-HEARTSEEKER_BARRAGE_TICK_INTERVAL_FACTOR = 0.99
+COLD_SNAP_DAMAGE_MIN = 3_283
+COLD_SNAP_DAMAGE_MAX = 4_012
+COLD_SNAP_COOLDOWN = 12.0
+COLD_SNAP_MAX_CHARGES = 2
 
 # ---------------------------------------------------------------------------
-# Lunarlight Mark (ability)
+# Bursting Ice
 # ---------------------------------------------------------------------------
-LUNARLIGHT_MARK_COOLDOWN = 30.0
-LUNARLIGHT_MARK_NUM_SECONDARY_TARGETS = 11
-LUNARLIGHT_MARK_STACKS = 3
+BURSTING_ICE_COOLDOWN = 10.0
+BURSTING_ICE_CAST_TIME = 2.0
+BURSTING_ICE_DURATION = 3.0
+BURSTING_ICE_DAMAGE_MIN = 520
+BURSTING_ICE_DAMAGE_MAX = 635
+BURSTING_ICE_NUM_SECONDARY_TARGETS = 18
+BURSTING_ICE_NUM_TARGETS_SOFTCAP = 12
+BURSTING_ICE_TICK_TIME = 0.5
 
 # ---------------------------------------------------------------------------
-# Lunarlight Salvo / Explosion (shared damage values)
+# Winters Blessing (ability)
 # ---------------------------------------------------------------------------
-LUNARLIGHT_SALVO_DAMAGE_MIN = 2033
-LUNARLIGHT_SALVO_DAMAGE_MAX = 2485
-LUNARLIGHT_EXPLOSION_NUM_SECONDARY_TARGETS = 11
+WINTERS_BLESSING_COOLDOWN = 60.0
 
 # ---------------------------------------------------------------------------
-# Skystrider Grace (ability)
+# Ice Blitz (ability)
 # ---------------------------------------------------------------------------
-SKYSTRIDER_GRACE_COOLDOWN = 120.0
+ICE_BLITZ_COOLDOWN = 120.0
 
 # ---------------------------------------------------------------------------
-# Event Horizon (ability)
+# Flight of the Navir (ability)
 # ---------------------------------------------------------------------------
-EVENT_HORIZON_CAST_TIME = 0.7
-EVENT_HORIZON_FOCUS_COST_MULTIPLIER = 0.5
+FLIGHT_OF_THE_NAVIR_COOLDOWN = 60.0
+FLIGHT_OF_THE_NAVIR_BIRD_DAMAGE_MIN = 612
+FLIGHT_OF_THE_NAVIR_BIRD_DAMAGE_MAX = 748
 
 # ---------------------------------------------------------------------------
-# Skystrider Supremacy (ability)
+# Wrath of Winter (ability)
 # ---------------------------------------------------------------------------
-SKYSTRIDER_SUPREMACY_COOLDOWN = 40.0
+WRATH_OF_WINTER_CAST_TIME = base_config.GCD_DURATION
 
 # ---------------------------------------------------------------------------
-# Skystrider Grace buff
+# Winters Blessing buff
 # ---------------------------------------------------------------------------
-SKYSTRIDER_GRACE_BUFF_DURATION = 20.0
-SKYSTRIDER_GRACE_BUFF_HASTE = 0.30
+WINTERS_BLESSING_BUFF_DURATION = 20.0
+WINTERS_BLESSING_BUFF_SPIRIT = 0.20
 
 # ---------------------------------------------------------------------------
-# Event Horizon buff
+# Ice Blitz buff
 # ---------------------------------------------------------------------------
-EVENT_HORIZON_BUFF_DURATION = 20.0
-EVENT_HORIZON_BUFF_DAMAGE_MULTIPLIER = 1.20
-EVENT_HORIZON_HWA_CDR_ON_BARRAGE = 0.5
-EVENT_HORIZON_BARRAGE_CDR_ON_VOLLEY = 1.0
+ICE_BLITZ_BUFF_DURATION = 20.0
+ICE_BLITZ_BUFF_DAMAGE_MULTIPLIER = 1.20
 
 # ---------------------------------------------------------------------------
-# Skystrider Supremacy buff
+# Wrath of Winter effect
 # ---------------------------------------------------------------------------
-SKYSTRIDER_SUPREMACY_BUFF_DURATION = 4.0
+WRATH_OF_WINTER_EFFECT_DURATION = 20.0
+WRATH_OF_WINTER_EFFECT_DAMAGE_MULTIPLIER = 1.20
+WRATH_OF_WINTER_ORB_GENERATION_INTERVAL = 4.0
+WRATH_OF_WINTER_ORB_GENERATION_COUNT = 1
 
 # ---------------------------------------------------------------------------
-# Fervent Supremacy buff
+# Flight of the Navir effect
 # ---------------------------------------------------------------------------
-FERVENT_SUPREMACY_COOLDOWN_REDUCTION = 15.0
-FERVENT_SUPREMACY_BUFF_DURATION = 15.0
-FERVENT_SUPREMACY_BUFF_STACKS = 4
-FERVENT_SUPREMACY_BUFF_BONUS_DAMAGE = 0.25
+FLIGHT_OF_THE_NAVIR_EFFECT_DURATION = 20.0
+FLIGHT_OF_THE_NAVIR_N_BIRDS = 5
+
+
+WINTERS_EMBRACE_DAMAGE_MULTIPLIER = 1.20
 
 # ---------------------------------------------------------------------------
-# Empowered Multishot Charge buff
+# Burstbolter talent
 # ---------------------------------------------------------------------------
-EMPOWERED_MULTISHOT_CHARGE_BUFF_DURATION = 15.0
-EMPOWERED_MULTISHOT_CHARGE_BUFF_STACKS = 1
-EMPOWERED_MULTISHOT_CHARGE_BUFF_MAX_STACKS = 2
+BURSTBOLTER_ANIMA_GAIN = 2
 
 # ---------------------------------------------------------------------------
-# Celestial Impetus
+# Chilling Finesse talent
 # ---------------------------------------------------------------------------
-CELESTIAL_IMPETUS_PROC_DURATION = 15.0
-CELESTIAL_IMPETUS_PROC_MAX_STACKS = 2
-CELESTIAL_IMPETUS_AURA_MAIN_TARGET_MARK_COUNT = 3
-CELESTIAL_IMPETUS_AURA_PPM = 2.0
+CHILLING_FINESSE_BURSTING_ICE_CDR = 0.3
+CHILLING_FINESSE_FREEZING_TORRENT_CDR = 1.5
 
 # ---------------------------------------------------------------------------
-# Lunarlight Mark effect
+# Icy Flow talent
 # ---------------------------------------------------------------------------
-LUNARLIGHT_MARK_EFFECT_DURATION = 15.0
-LUNARLIGHT_MARK_EFFECT_MAX_STACKS = 20
-LUNARLIGHT_MARK_EFFECT_EXPLOSION_CHANCE = 0.20
-LUNARLIGHT_MARK_CRIT_PROC_CHANCE = 0.5
-LUNARLIGHT_MARK_NORMAL_PROC_CHANCE = 0.25
-LUNARLIGHT_MARK_TALENTED_PROC_CHANCE_MULTIPLIER = 2  # Talented volley and barrage proc chance multiplier
+ICY_FLOW_EFFECT_DURATION = 8.0
+ICY_FLOW_EFFECT_MAX_STACKS = 2
+ICY_FLOW_EFFECT_CRIT_BONUS = 0.30
 
 # ---------------------------------------------------------------------------
-# Spirit Effect
+# Biting Cold talent
 # ---------------------------------------------------------------------------
-SPIRIT_EFFECT_MAIN_TARGET_MARK_COUNT = 5
-SPIRIT_EFFECT_SECONDARY_TARGET_MARK_COUNT = 2
-SPIRIT_EFFECT_NUM_SECONDARY_TARGETS = 2
+BITING_COLD_BUFF_CRIT_MULTIPLIER = 1.10
 
 # ---------------------------------------------------------------------------
-# Final Crescendo
+# Wisdom of the North talent
 # ---------------------------------------------------------------------------
-FINAL_CRESCENDO_MAX_STACKS = 3
+WISDOM_OF_THE_NORTH_CDR_PER_ORB = 0.3
 
 # ---------------------------------------------------------------------------
-# Resurgent Winds
+# Avalanche talent
 # ---------------------------------------------------------------------------
-RESURGENT_WINDS_DURATION = 15.0
-RESURGENT_WINDS_MAX_STACKS = 2
+AVALANCHE_2_HIT_CHANCE = 0.15
+AVALANCHE_3_HIT_CHANCE = 0.07
 
 # ---------------------------------------------------------------------------
-# Impending Heartseeker
+# Glacial Assault talent
 # ---------------------------------------------------------------------------
-IMPENDING_HEARTSEEKER_DURATION = 15.0
+GLACIAL_ASSAULT_MAX_STACKS = 4
+GLACIAL_ASSAULT_DAMAGE_MULTIPLIER = 1.40
+GLACIAL_ASSAULT_DAMAGE_ECHO_FRACTION = 0.1
+GLACIAL_ASSAULT_NUM_SECONDARY_TARGETS = 19
 
 # ---------------------------------------------------------------------------
-# Skylit Grace talent
+# Navir's Keeper
 # ---------------------------------------------------------------------------
-SKYLIT_GRACE_CDR_MODIFIER = 1.0
+NAVIRS_KEEPER_DURATION = 10.0
+NAVIRS_KEEPER_MAX_STACKS = 2
 
 # ---------------------------------------------------------------------------
-# Fusillade
+# Frostweaver's Wrath
 # ---------------------------------------------------------------------------
-FUSILLADE_CRIT_BONUS = 0.20
-FUSILLADE_BARRAGE_CHANNEL_DURATION = 2.5
+FROSTWEAVERS_WRATH_EFFECT_DURATION = 12.0
+FROSTWEAVERS_WRATH_PROC_CHANCE = 0.17
+FROSTWEAVERS_WRATH_CRIT_BONUS = 1.0
 
 # ---------------------------------------------------------------------------
-# Focused Expanse
+# Cascading Bliz
 # ---------------------------------------------------------------------------
-FOCUSED_EXPANSE_PROC_CHANCE = 0.20
-FOCUSED_EXPANSE_MS_BONUS_DAMAGE = 0.25
+CASCADING_BLIZ_ICE_BLITZ_EXTENSION = 0.2
 
 # ---------------------------------------------------------------------------
-# Last Lights
+# Undulating Spirit
 # ---------------------------------------------------------------------------
-LAST_LIGHTS_HP_THRESHOLD = base_config.LOW_HEALTH_THRESHOLD
-LAST_LIGHTS_CRIT_BONUS = 0.30
+UNDULATING_SPIRIT_EFFECT_DURATION = 10.0
+UNDULATING_SPIRIT_PROC_CHANCE = 0.10
 
 # ---------------------------------------------------------------------------
-# Shimmer
+# Soulfrost Torrent
 # ---------------------------------------------------------------------------
-SHIMMER_DURATION = 9.0
-SHIMMER_MAX_STACKS = 2
-SHIMMER_DAMAGE_PER_STACK = 0.10
+SOULFROST_TORRENT_EFFECT_DURATION = 18.0
+SOULFROST_TORRENT_AURA_PPM = 1.5
+SOULFROST_TORRENT_CRIT_BONUS = 1.0
+SOULFROST_TORRENT_FT_SPEED_MULTIPLIER = 1.4
 
 # ---------------------------------------------------------------------------
-# Lethal Shots
+# Frostwyrm's Spite
 # ---------------------------------------------------------------------------
-LETHAL_SHOTS_PROC_CHANCE = 0.40
-LETHAL_SHOTS_CRIT_BONUS = 1.0
+FROSTWYRMS_SPITE_EFFECT_DURATION = 15.0
+FROSTWYRMS_SPITE_EFFECT_MAX_STACKS = 30
+FROSTWYRMS_SPITE_NUM_SECONDARY_TARGETS = 20
+FROSTWYRMS_SPITE_NUM_TARGETS_SOFTCAP = 3
+FROSTWYRMS_SPITE_DAMAGE_BONUS_PER_STACK = 0.2
 
 # ---------------------------------------------------------------------------
-# Lunar Fury
+# Coalescing Frost
 # ---------------------------------------------------------------------------
-LUNAR_FURY_DAMAGE_BONUS = 0.30
+COALESCING_FROST_DURATION = 3.0
+COALESCING_FROST_MAX_STACKS = 30
+COALESCING_FROST_AVERAGE_DAMAGE = 520
+COALESCING_FROST_NUM_SECONDARY_TARGETS = 20
+COALESCING_FROST_NUM_TARGETS_SOFTCAP = 10
+COALESCING_FROST_CRIT_EXTRA_STACK_CHANCE = 0.50
 
 # ---------------------------------------------------------------------------
-# Lunarlight Affinity
+# Supreme Torrent talent
 # ---------------------------------------------------------------------------
-LUNARLIGHT_AFFINITY_CRIT_BONUS = 0.40
+SUPREME_TORRENT_CHANNEL_DURATION = 2.8
 
 # ---------------------------------------------------------------------------
-# Skyward Munitions
+# Greater Glacial Blast talent
 # ---------------------------------------------------------------------------
-SKYWARD_MUNITIONS_CDR = 1.0
-
-# ---------------------------------------------------------------------------
-# Repeating Stars
-# ---------------------------------------------------------------------------
-REPEATING_STARS_VOLLEY_CDR = 0.3
-
-# ---------------------------------------------------------------------------
-# Piercing Seekers talent
-# ---------------------------------------------------------------------------
-PIERCING_SEEKERS_NUM_SECONDARY_TARGETS = 1
-PIERCING_SEEKERS_SECONDARY_DAMAGE_MULTIPLIER = 0.7
-
-# ---------------------------------------------------------------------------
-# Legendary: Neck; Starstriker's Ascent
-# ---------------------------------------------------------------------------
-STARSTRIKERS_ASCENT_PROC_CHANCE = 0.50
+GREATER_GLACIAL_BLAST_CAST_TIME = 2.5
+GREATER_GLACIAL_BLAST_DAMAGE_BONUS = 0.4
 
 # ---------------------------------------------------------------------------
 # Legendary: Boots
 # ---------------------------------------------------------------------------
-LEGENDARY_BOOTS_VOLLEY_DURATION_BONUS = 2.0
-LEGENDARY_BOOTS_MULTISHOT_EXTENDS_DURATION = 0.5
+LEGENDARY_BOOTS_BURSTING_ICE_DURATION_BONUS = 2.0
+
+# ---------------------------------------------------------------------------
+# Legendary: Neck
+# ---------------------------------------------------------------------------
+LEGENDARY_NECK_BOOSTED_SPIRIT_POINT_GAIN_ON_PROC = 3

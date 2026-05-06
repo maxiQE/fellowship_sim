@@ -2,7 +2,8 @@ from dataclasses import dataclass, field
 
 from loguru import logger
 
-from fellowship_sim.base_classes import Ability, Player
+from fellowship_sim.base_classes import Player
+from fellowship_sim.elarion import elarion_config
 from fellowship_sim.elarion.effect import CelestialImpetusProc
 
 from .ability import (
@@ -23,16 +24,14 @@ from .ability import (
 
 @dataclass(kw_only=True, repr=False)
 class Elarion(Player):
-    focus: float = field(default=100.0, init=True)
-    max_focus: float = field(default=100.0, init=False)
-    focus_regen_rate: float = field(default=5.0, init=False)  # focus per second at zero haste
+    focus: float = field(default=elarion_config.ELARION_MAX_FOCUS, init=True)
+    max_focus: float = field(default=elarion_config.ELARION_MAX_FOCUS, init=False)
+    focus_regen_rate: float = field(default=elarion_config.ELARION_FOCUS_REGEN_RATE, init=False)  # focus per second at zero haste
 
     has_increased_proc_chance_barrage: bool = field(default=False, init=False)
     has_increased_proc_chance_volley: bool = field(default=False, init=False)
 
     event_horizon__reduce_focust_cost: bool = field(default=False, init=False)
-
-    abilities: list[Ability] = field(default_factory=list, init=False)
 
     lunarlight_mark: "LunarlightMark" = field(init=False)
     _lunarlight_salvo: "LunarlightSalvo" = field(init=False)

@@ -2,23 +2,24 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from typing import TYPE_CHECKING
 
+from fellowship_sim.base_classes.entity import Player
+
 if TYPE_CHECKING:
     from fellowship_sim.base_classes.ability import Ability
-    from fellowship_sim.elarion.entity import Elarion
 
 
 class FightOver(Exception):
     """Raised by the scenario's end-of-fight callback to terminate the rotation loop."""
 
 
-class Rotation(ABC):
+class Rotation[TPlayer: Player](ABC):
     description: str = ""
 
     @abstractmethod
-    def __call__(self, elarion: "Elarion") -> Iterator["Ability | None"]:
+    def __call__(self, player: TPlayer, /) -> Iterator["Ability | None"]:
         """Yield the next ability to cast (or None to pass), given the current character state.
 
         Args:
-            elarion: The character being controlled.
+            player: The character being controlled.
         """
         ...

@@ -3,11 +3,10 @@ import random
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
-from fellowship_sim.base_classes.entity import Enemy
+from fellowship_sim.base_classes.entity import Enemy, Player
 from fellowship_sim.base_classes.state import State, StateInformation, get_state
 from fellowship_sim.base_classes.timed_events import FightDowntimeEnd, FightDowntimeStart, FightOverTimedEvent
-from fellowship_sim.elarion.entity import Elarion
-from fellowship_sim.elarion.setup import ElarionSetup
+from fellowship_sim.generic_game_logic.setup_effect import PlayerSetup
 
 
 @dataclass(kw_only=True)
@@ -41,7 +40,7 @@ class Scenario:
     delay_since_last_fight: float | None
     is_ult_authorized: bool
     initial_spirit_points: float
-    finalize_character: Callable[[Elarion], None] | None = field(default=None, repr=False)
+    finalize_character: Callable[[Player], None] | None = field(default=None, repr=False)
 
     @property
     def duration(self) -> float:
@@ -90,11 +89,11 @@ def _randomize_pack_health(pack: PackSpec, rng: random.Random) -> PackSpec:
     )
 
 
-def generate_new_scenario(
+def generate_new_scenario[P: Player](
     scenario: Scenario,
-    setup: ElarionSetup,
+    setup: PlayerSetup[P],
     rng_seed: float | None,
-) -> tuple[State, Elarion]:
+) -> tuple[State, P]:
     with contextlib.suppress(RuntimeError):
         get_state().deactivate()
 
@@ -135,14 +134,14 @@ def generate_new_scenario(
 
     state.schedule(current_time, FightOverTimedEvent())
 
-    elarion = setup.finalize(state)
-    elarion.spirit_points = 0
-    elarion._change_spirit_points(scenario.initial_spirit_points)
+    player = setup.finalize(state)
+    player.spirit_points = 0
+    player._change_spirit_points(scenario.initial_spirit_points)
 
     if scenario.finalize_character is not None:
-        scenario.finalize_character(elarion)
+        scenario.finalize_character(player)
 
-    return state, elarion
+    return state, player
 
 
 def boss_fight_scenario(
@@ -153,7 +152,7 @@ def boss_fight_scenario(
     initial_spirit_points: float = 130,
     ttl_jitter: float = 0.0,
     note: str = "",
-    finalize_character: Callable[[Elarion], None] | None = None,
+    finalize_character: Callable[[Player], None] | None = None,
 ) -> Scenario:
     return Scenario(
         note=note,
