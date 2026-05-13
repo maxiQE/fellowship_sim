@@ -248,6 +248,7 @@ class CracklingInfernoBurnDoT(AccumulatorEffect):
 class WildfireEffect(Effect):
     owner: Player
     dot_tick_acceleration: float = field(default=ardeos_config.WILDFIRE_DOT_TICK_ACCELERATION, init=False)
+    duration: float = field(default=ardeos_config.WILDFIRE_DURATION, init=False)
 
     def on_add(self) -> None:
         self.owner.dot_tick_rate *= 1 - self.dot_tick_acceleration
