@@ -1,9 +1,15 @@
 # Fellowship Sim Project
 
 This project is a simple simulation model for the game [fellowship](https://coffeestain.com/game/fellowship/).
-For the time being, only elarion is available.
+For the time being, elarion is available, rime and ardeos are in beta test.
 
-- **Github repository**: <https://github.com/maxiQE/fellowship_sim/>
+You can now test the sim directly in Google Colab:
+
+- [Elarion](https://colab.research.google.com/github/maxiQE/fellowship_sim/blob/main/notebooks/elarion.ipynb)
+- [Rime](https://colab.research.google.com/github/maxiQE/fellowship_sim/blob/main/notebooks/rime.ipynb)
+- [Ardeos](https://colab.research.google.com/github/maxiQE/fellowship_sim/blob/main/notebooks/ardeos.ipynb)
+
+**Github repository**: <https://github.com/maxiQE/fellowship_sim/>
 
 ## Table of Contents
 - [Installation](#installation)
