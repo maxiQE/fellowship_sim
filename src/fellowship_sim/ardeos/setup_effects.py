@@ -74,6 +74,7 @@ class FrogSquadSetup(SetupEffectLate["Ardeos"]):
 @dataclass(kw_only=True)
 class GreatBallsOfFireSetup(SetupEffectLate["Ardeos"]):
     def apply(self, character: "Ardeos", context: SetupContext) -> None:
+        # TODO: apply as effect instead?
         character.fire_ball.main_damage_multiplier *= ardeos_config.GREAT_BALLS_OF_FIRE_DAMAGE_MULTIPLIER
         logger.debug(f"setup: Great Balls of Fire → fire_ball damage ×{character.fire_ball.main_damage_multiplier:.2f}")
 

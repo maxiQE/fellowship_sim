@@ -18,6 +18,7 @@ from fellowship_sim.base_classes import (
     DoTEffect,
     Effect,
     Entity,
+    base_config,
     create_standard_damage,
 )
 from fellowship_sim.base_classes.ability import Ability, can_cast_check
@@ -37,11 +38,14 @@ class Apocalypse(ArdeosAbility):
     average_damage: float = field(
         default=(ardeos_config.APOCALYPSE_DAMAGE_MIN + ardeos_config.APOCALYPSE_DAMAGE_MAX) / 2, init=False
     )
+    base_cooldown = ardeos_config.APOCALYPSE_COOLDOWN
     base_cast_time: float = field(default=ardeos_config.APOCALYPSE_CAST_TIME, init=False)
     base_player_downtime: float = field(default=ardeos_config.APOCALYPSE_CAST_TIME, init=False)
 
     num_secondary_targets: int = field(default=ardeos_config.APOCALYPSE_NUM_SECONDARY_TARGETS, init=False)
     num_targets_softcap: int = field(default=ardeos_config.APOCALYPSE_TARGETS_SOFTCAP, init=False)
+
+    delay_until_hit = 0
 
 
 @dataclass(kw_only=True, repr=False)
@@ -108,12 +112,11 @@ class EngulfingFlames(ArdeosAbility):
         default=(ardeos_config.ENGULFING_FLAMES_DAMAGE_MIN + ardeos_config.ENGULFING_FLAMES_DAMAGE_MAX) / 2,
         init=False,
     )
+    base_cooldown: float = field(default=ardeos_config.ENGULFING_FLAMES_COOLDOWN, init=False)
+    base_cast_time: float = field(default=base_config.GCD_DURATION, init=False)
+    base_player_downtime: float = field(default=base_config.GCD_DURATION, init=False)
 
     duration: float = field(default=ardeos_config.ENGULFING_FLAMES_DURATION, init=False)
-    tick_duration: float = field(default=ardeos_config.ENGULFING_FLAMES_TICK_INTERVAL, init=False)
-
-    cinder_per_tick: int = field(default=ardeos_config.ENGULFING_FLAMES_CINDER_TICK_AMOUNT, init=False)
-    cinder_tick_duration: float = field(default=ardeos_config.ENGULFING_FLAMES_TICK_INTERVAL, init=False)
 
     def _do_cast(self, target: Entity) -> None:
         """Overwritten: apply debuff."""
@@ -128,6 +131,15 @@ class FireBall(ArdeosAbility):
     average_damage: float = field(
         default=(ardeos_config.FIREBALL_DAMAGE_MIN + ardeos_config.FIREBALL_DAMAGE_MAX) / 2, init=False
     )
+    base_cooldown: float = field(default=ardeos_config.FIREBALL_COOLDOWN, init=False)
+    base_cast_time: float = field(default=base_config.INSTANT_CAST_TIME, init=False)
+    base_player_downtime: float = field(default=base_config.GCD_DURATION, init=False)
+
+    initial_charges: int = field(default=ardeos_config.FIREBALL_CHARGES, init=False)
+    max_charges: int = field(default=ardeos_config.FIREBALL_CHARGES, init=False)
+
+    has_hasted_cda: bool = field(default=True, init=False)
+
     num_secondary_targets: int = field(default=ardeos_config.FIREBALL_NUM_SECONDARY_TARGETS, init=False)
     num_targets_softcap: int = field(default=ardeos_config.FIREBALL_TARGETS_SOFTCAP, init=False)
 
@@ -137,17 +149,20 @@ class FireFrogs(ArdeosAbility):
     average_damage: float = field(
         default=(ardeos_config.FIREFROGS_DAMAGE_MIN + ardeos_config.FIREFROGS_DAMAGE_MAX) / 2, init=False
     )
+    base_cooldown: float = field(default=ardeos_config.FIREFROGS_COOLDOWN, init=False)
+    base_cast_time: float = field(default=base_config.INSTANT_CAST_TIME, init=False)
+    base_player_downtime: float = field(default=base_config.GCD_DURATION, init=False)
 
-    delay_until_hit: float = field(default=0.35, init=False)
+    delay_until_hit: float = field(default=ardeos_config.FIREFROGS_DELAY_UNTIL_HIT, init=False)
 
     frog_count: int = field(default=ardeos_config.FIREFROGS_FROG_COUNT, init=False)
     toad_count: int = field(default=0, init=False)
     frog_to_toad_conversion_chance: float = field(default=0.0, init=False)
     frog_leap_count: int = field(default=ardeos_config.FIREFROGS_FROG_LEAP_COUNT, init=False)
 
-    fire_toad_damage_multiplier: float = field(default=8.0, init=False)
-    fire_toad_num_secondary_targets: int = field(default=19, init=False)
-    fire_toad_num_targets_softcap: int = field(default=1, init=False)
+    fire_toad_damage_multiplier: float = field(default=ardeos_config.FIRE_TOAD_DAMAGE_MULTIPLIER, init=False)
+    fire_toad_num_secondary_targets: int = field(default=ardeos_config.FIRE_TOAD_NUM_SECONDARY_TARGETS, init=False)
+    fire_toad_num_targets_softcap: int = field(default=ardeos_config.FIRE_TOAD_NUM_TARGETS_SOFTCAP, init=False)
 
     def _do_cast(self, target: Entity) -> None:
         """Overwritten: special attack logic for frogs."""
@@ -205,12 +220,12 @@ class Incinerate(ArdeosAbility):
     average_damage: float = field(
         default=(ardeos_config.INCINERATE_DAMAGE_MIN + ardeos_config.INCINERATE_DAMAGE_MAX) / 2, init=False
     )
-    num_secondary_targets: int = field(default=19, init=False)
-    num_targets_softcap: int = field(default=8, init=False)
+    num_secondary_targets: int = field(default=ardeos_config.INCINERATE_NUM_SECONDARY_TARGETS, init=False)
+    num_targets_softcap: int = field(default=ardeos_config.INCINERATE_TARGETS_SOFTCAP, init=False)
 
     base_cast_time: float = field(default=ardeos_config.INCINERATE_CAST_TIME, init=False)
     base_player_downtime: float = field(default=ardeos_config.INCINERATE_CHANNEL_TIME, init=False)
-    tick_interval: float = field(default=0.5, init=False)
+    tick_interval: float = field(default=ardeos_config.INCINERATE_TICK_INTERVAL, init=False)
 
     is_ultimate_ability: bool = field(default=True, init=False)
 
@@ -322,7 +337,7 @@ class InfernalWave(ArdeosAbility):
     base_cast_time: float = field(default=ardeos_config.INFERNAL_WAVE_CAST_TIME, init=False)
     base_player_downtime: float = field(default=ardeos_config.INFERNAL_WAVE_CAST_TIME, init=False)
 
-    cinder_gain_on_cast: int = field(default=40, init=False)
+    cinder_gain_on_cast: int = field(default=ardeos_config.INFERNAL_WAVE_CINDER_GAIN, init=False)
 
     def _do_cast(self, target: Entity) -> None:
         super()._do_cast(target)
@@ -354,15 +369,6 @@ class SearingBlaze(ArdeosAbility):
     base_cast_time: float = field(default=0, init=False)
     base_player_downtime: float = field(default=ardeos_config.SEARING_BLAZE_PLAYER_DOWNTIME, init=False)
 
-    tick_damage: float = field(
-        default=(ardeos_config.SEARING_BLAZE_DAMAGE_MIN + ardeos_config.SEARING_BLAZE_DAMAGE_MAX) / 2, init=False
-    )
-
-    duration: float = field(default=ardeos_config.SEARING_BLAZE_DURATION, init=False)
-    tick_duration: float = field(default=ardeos_config.SEARING_BLAZE_TICK_INTERVAL, init=False)
-
-    cinder_per_tick: int = field(default=ardeos_config.SEARING_BLAZE_CINDER_TICK_AMOUNT, init=False)
-    cinder_tick_duration: float = field(default=ardeos_config.SEARING_BLAZE_TICK_INTERVAL, init=False)
     is_agonizing_blaze: bool = field(default=False, init=False)
 
     def _do_cast(self, target: Entity) -> None:

@@ -50,6 +50,7 @@ class ArdeosCinderGeneratingDoT(DoTEffect):
     def _do_cinder_tick(self) -> None:
         if self.attached_to is None:
             return
+
         self.owner._change_cinder(self.cinder_tick_amount)
         self.schedule_cinder_tick()
 
@@ -71,7 +72,7 @@ class SearingBlazeDoT(ArdeosCinderGeneratingDoT):
     agonizing_blaze_damage_per_stack: float = field(default=ardeos_config.AGONIZING_BLAZE_DAMAGE_PER_STACK, init=False)
     agonizing_blaze_max_stacks: int = field(default=ardeos_config.AGONIZING_BLAZE_MAX_STACKS, init=False)
 
-    pandemic_duration_fraction: float = field(default=0.3, init=False)
+    pandemic_duration_fraction: float = field(default=ardeos_config.SEARING_BLAZE_PANDEMIC_FRACTION, init=False)
     _max_duration: float = field(default=ardeos_config.SEARING_BLAZE_DURATION, init=False)
 
     @property
@@ -144,12 +145,13 @@ class SearingBlazeDoT(ArdeosCinderGeneratingDoT):
 
 @dataclass(kw_only=True, repr=False)
 class EngulfingFlamesDoT(ArdeosCinderGeneratingDoT):
+    duration: float = field(init=True)  # set by ability; talent can extend it
+
     name: str = field(default="engulfing_flames_dot", init=False)
     average_damage: float = field(
         default=(ardeos_config.ENGULFING_FLAMES_DAMAGE_MIN + ardeos_config.ENGULFING_FLAMES_DAMAGE_MAX) / 2,
         init=False,
     )
-    duration: float = field(init=True)  # set by ability; talent can extend it
     base_tick_interval: float = field(default=ardeos_config.ENGULFING_FLAMES_TICK_INTERVAL, init=False)
     cinder_tick_interval: float = field(default=ardeos_config.ENGULFING_FLAMES_TICK_INTERVAL, init=False)
     cinder_tick_amount: int = field(default=ardeos_config.ENGULFING_FLAMES_CINDER_TICK_AMOUNT, init=False)
@@ -167,7 +169,7 @@ class IncinerateDoT(DoTEffect):
     )
     duration: float = field(default=ardeos_config.INCINERATE_DOT_DURATION, init=False)
     base_tick_interval: float = field(default=ardeos_config.INCINERATE_DOT_TICK_INTERVAL, init=False)
-    max_stacks: int = field(default=99, init=False)
+    max_stacks: int = field(default=ardeos_config.INCINERATE_DOT_MAX_STACKS, init=False)
     damage_bonus_per_stack: float = field(default=ardeos_config.INCINERATE_DOT_DAMAGE_BONUS_PER_STACK, init=False)
 
     @property
@@ -212,6 +214,9 @@ class FireBallDoT(AccumulatorEffect):
     duration: float = field(default=ardeos_config.FIREBALL_DOT_DURATION, init=False)
     base_tick_interval: float = field(default=ardeos_config.FIREBALL_DOT_TICK_INTERVAL, init=False)
 
+    cinder_generation_percent_chance: float = field(default=ardeos_config.FIREBALL_DOT_CINDER_CHANCE, init=False)
+    cinder_tick_amount: int = field(default=ardeos_config.FIREBALL_DOT_CINDER_AMOUNT, init=False)
+
     crit_percent_override: float = field(init=True)
 
     def _fire_tick(self, guard: int) -> None:
@@ -219,8 +224,8 @@ class FireBallDoT(AccumulatorEffect):
         if guard != self._tick_interval_change_guard or self.attached_to is None:
             return
 
-        if self.owner.state.rng.random() < 0.5:
-            self.owner._change_cinder(2)
+        if self.owner.state.rng.random() < self.cinder_generation_percent_chance:
+            self.owner._change_cinder(self.cinder_tick_amount)
 
 
 @dataclass(kw_only=True, repr=False)
@@ -254,7 +259,11 @@ class WildfireEffect(Effect):
         self.owner.dot_tick_rate *= 1 - self.dot_tick_acceleration
 
     def on_remove(self, *, is_remove_from_expiration: bool = False) -> None:
-        self.owner.dot_tick_rate = 1
+        if is_remove_from_expiration:
+            self.owner.dot_tick_rate = 1
+
+    def on_fuse(self, new_effect: Self) -> None:  # ty:ignore[invalid-method-override]
+        raise Exception("WildfireEffect will bug if renewed.")  # noqa: TRY002, TRY003
 
 
 @dataclass(kw_only=True, repr=False)
@@ -297,6 +306,8 @@ class DevouringFlameAura(Effect):
     def on_add(self) -> None:
         self.owner.state.bus.subscribe(PreDamageSnapshotUpdate, self._on_pre_damage, owner=self)
 
+    # Might fail to update detonate damage because detonate is currently coded as not looking at
+    # The second snapshot update
     def _on_pre_damage(self, event: PreDamageSnapshotUpdate) -> None:
         ef_count = len(event.target.effects.filter(EngulfingFlamesDoT))
         if ef_count == 0:
@@ -365,7 +376,7 @@ class FlareUpAura(Effect):
 
     name: str = field(default="flare_up_aura", init=False)
 
-    damage_echo_fraction: float = field(default=0.5, init=False)
+    damage_echo_fraction: float = field(default=ardeos_config.FLARE_UP_ECHO_FRACTION, init=False)
 
     def on_add(self) -> None:
         self.owner.state.bus.subscribe(AbilityDamage, self._on_damage, owner=self)
@@ -452,6 +463,7 @@ class CracklingInfernoAura(Effect):
 
     name: str = field(default="crackling_inferno_aura", init=False)
     iw_crit_bonus: float = field(default=ardeos_config.CRACKLING_INFERNO_IW_CRIT_BONUS, init=False)
+    dot_damage_fraction: float = field(default=ardeos_config.CRACKLING_INFERNO_DOT_DAMAGE_FRACTION, init=False)
 
     def on_add(self) -> None:
         bus = self.owner.state.bus
@@ -471,7 +483,9 @@ class CracklingInfernoAura(Effect):
 
         if not isinstance(event.damage_source, InfernalWave) or not event.is_crit:
             return
-        event.target.effects.add(CracklingInfernoBurnDoT(owner=self.owner, average_damage=0.60 * event.damage))
+        event.target.effects.add(
+            CracklingInfernoBurnDoT(owner=self.owner, average_damage=self.dot_damage_fraction * event.damage)
+        )
 
 
 @dataclass(kw_only=True, repr=False)
@@ -536,7 +550,7 @@ class ExplosivoAura(Effect):
 
     name: str = field(default="explosivo_aura", init=False)
 
-    max_multiplier: float = field(default=2.50, init=False)
+    max_multiplier: float = field(default=ardeos_config.EXPLOSIVO_MAX_DAMAGE_MULTIPLIER, init=False)
     fireball_cdr: float = field(default=ardeos_config.EXPLOSIVO_FIREBALL_CDR, init=False)
 
     def on_add(self) -> None:
@@ -557,7 +571,7 @@ class ExplosivoAura(Effect):
         if not isinstance(event.damage_source, Apocalypse):
             return
 
-        multiplier = self.max_multiplier * event.target.percent_hp
+        multiplier = 1 + self.max_multiplier * event.target.percent_hp
         event.snapshot = event.snapshot.scale_average_damage(multiplier)
 
         logger.trace(f"Explosivo: Apocalypse hit → damage multiplier: {multiplier}")
@@ -630,7 +644,10 @@ class FirestarterAura(Effect):
 
 @dataclass(kw_only=True, repr=False)
 class IntensifyingInfernoAura(Effect):
-    """Permanent aura: InfernalWave → +15% damage per unique DoT type on target."""
+    """Permanent aura: InfernalWave → +15% damage per unique DoT type on target.
+
+    Scales additively. Tested by MaxiQE on 14/05/2026.
+    """
 
     owner: "Ardeos"
 
@@ -670,11 +687,12 @@ class IncinerateHitAura(Effect):
 
         if not isinstance(event.damage_source, Incinerate):
             return
+
+        event.target.effects.add(IncinerateDoT(owner=self.owner))
+
         for effect in event.target.effects:
             if isinstance(effect, DoTEffect):
                 effect.extend_duration(self.dot_extension)
-
-        event.target.effects.add(IncinerateDoT(owner=self.owner))
 
         logger.trace(f"Incinerate hit: all DoTs +1.5s on {event.target}; IncinerateDoT stack added")
 
@@ -705,6 +723,7 @@ class FireBallAccumulatorAura(Effect):
     owner: "Ardeos"
 
     name: str = field(default="fireball_accumulator_aura", init=False)
+    accumulated_damage_fraction: float = field(default=ardeos_config.FIREBALL_DOT_DAMAGE_FRACTION, init=False)
     fixed_crit_chance: float = field(default=0.0, init=False)
 
     def on_add(self) -> None:
@@ -718,7 +737,7 @@ class FireBallAccumulatorAura(Effect):
 
         dot = FireBallDoT(
             owner=self.owner,
-            average_damage=0.20 * event.damage,
+            average_damage=self.accumulated_damage_fraction * event.damage,
             crit_percent_override=self.fixed_crit_chance,
         )
 
@@ -732,6 +751,7 @@ class FireFrogsAccumulatorAura(Effect):
     owner: "Ardeos"
 
     name: str = field(default="firefrogs_accumulator_aura", init=False)
+    accumulated_damage_fraction: float = field(default=ardeos_config.FIREFROGS_DOT_DAMAGE_FRACTION, init=False)
     fixed_crit_chance: float = field(default=0.0, init=False)
 
     def on_add(self) -> None:
@@ -745,7 +765,7 @@ class FireFrogsAccumulatorAura(Effect):
 
         dot = FireFrogsDoT(
             owner=self.owner,
-            average_damage=1.0 * event.damage,
+            average_damage=self.accumulated_damage_fraction * event.damage,
             crit_percent_override=self.fixed_crit_chance,
         )
         event.target.effects.add(dot)
@@ -785,9 +805,7 @@ class ArdeosSpiritProcAura(Effect):
 
         state.bus.emit(SpiritProc(ability=ability, owner=self.owner, resource_amount=resource_amount))
 
-        self.owner.spirit_points = min(
-            self.owner.spirit_points + self.owner.spirit_point_gain_on_proc, self.owner.max_spirit_points
-        )
+        self.owner._change_spirit_points(self.owner.spirit_point_gain_on_proc)
 
         # Refund resources
         self.owner._gain_ember(resource_amount)
