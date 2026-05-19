@@ -155,7 +155,7 @@ class TestGemProcs:
         assert not elarion.effects.has(FirstStrikeBuff)
 
         # guarantee procs
-        rng.value = 0.0
+        rng.change_rng_values(0.0)
 
         elarion.celestial_shot.cast(target)
 

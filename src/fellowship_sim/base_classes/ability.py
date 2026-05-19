@@ -122,7 +122,7 @@ class Ability(Generic[TCharacter]):  # noqa: UP046
 
     def _finish_cast(self, target: "Entity") -> None:
         """Ability has finished casting: resolve effects."""
-        from .events import AbilityCastSuccess
+        from .events import AbilityCastSuccess, UltimateCast
 
         logger.trace(f"Cast finished: {self}")
 
@@ -134,6 +134,9 @@ class Ability(Generic[TCharacter]):  # noqa: UP046
         state = self.owner.state
         event = AbilityCastSuccess(ability=self, owner=self.owner, target=target)
         state.bus.emit(event)
+
+        if self.is_ultimate_ability:
+            state.bus.emit(UltimateCast(ability=self, owner=self.owner, target=target))
 
         self._pay_cost_for_cast(target)
 
@@ -222,12 +225,8 @@ class Ability(Generic[TCharacter]):  # noqa: UP046
         """
 
         from .combat import create_standard_damage
-        from .events import UltimateCast
 
         state = self.owner.state
-
-        if self.is_ultimate_ability:
-            state.bus.emit(UltimateCast(ability=self, owner=self.owner, target=target))
 
         if self.average_damage > 0:
             create_standard_damage(

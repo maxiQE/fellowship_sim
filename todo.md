@@ -13,24 +13,15 @@
 - check that spirit double-proc is impossible
 - check that neck proc on comet is not immediately consummed and is not auto spirit proc (also check in-game lmao)
 
-### Ardeos
-
-- check that spamming searing blaze dot before tick prevents cinder gain and damage
-
 ### generic
 
 - splinters and aurastone are unaffected by execute set, and other boosts
 
 ## Todo
 
-- does WM apply to the cast that triggers it?
-    - erin_rose says it does
-    - check in-game and fix
-
 - rime tests:
     - integration tests: ask claude
     - functional tests: ??
-
 
 - try to remove all lazy imports
 

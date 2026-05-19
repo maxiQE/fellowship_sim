@@ -4,32 +4,9 @@ from collections.abc import Callable
 
 from fellowship_sim.base_classes import State
 from fellowship_sim.base_classes.events import AbilityDamage
+from tests.conftest import FixedRNG, SequenceRNG
 
-
-class FixedRNG:
-    """Fake RNG that always returns the same value, for fully deterministic tests."""
-
-    def __init__(self, value: float = 0.0) -> None:
-        self.value = value
-
-    def random(self) -> float:
-        return self.value
-
-
-class SequenceRNG:
-    """Fake RNG that returns values from a fixed sequence, cycling when exhausted.
-
-    Use 2.0 as a sentinel meaning 'never proc' (2.0 >= any realistic proc_chance).
-    """
-
-    def __init__(self, values: list[float]) -> None:
-        self._values = values
-        self._index = 0
-
-    def random(self) -> float:
-        value = self._values[self._index % len(self._values)]
-        self._index += 1
-        return value
+__all__ = ["FixedRNG", "SequenceRNG"]
 
 
 def count_hits(

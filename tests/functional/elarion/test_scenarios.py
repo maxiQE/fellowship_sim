@@ -72,7 +72,7 @@ class TestScenarios:
         """Cast ability twice (once above, once below the crit threshold) and assert damage."""
 
         # Roll just above threshold → no crit
-        rng.value = expected_crit_chance + bonus_crit + _EPSILON
+        rng.change_rng_values(expected_crit_chance + bonus_crit + _EPSILON)
         elarion._change_focus(+100)
         ability._add_charge()
         ability.cast(target)
@@ -81,7 +81,7 @@ class TestScenarios:
         assert damage_list[-1].damage == pytest.approx(bonus_damage * _STAT_SCALE * ability.average_damage)
 
         # Roll just below threshold → crit
-        rng.value = expected_crit_chance + bonus_crit - _EPSILON
+        rng.change_rng_values(expected_crit_chance + bonus_crit - _EPSILON)
         elarion._change_focus(+100)
         ability._add_charge()
         ability.cast(target)

@@ -31,6 +31,9 @@ class FixedRNG:
     def random(self) -> float:
         return self.value
 
+    def change_rng_values(self, value: float) -> None:
+        self.value = value
+
 
 class SequenceRNG:
     """Fake RNG that returns values from a fixed sequence, cycling when exhausted.
@@ -46,6 +49,10 @@ class SequenceRNG:
         value = self._values[self._index % len(self._values)]
         self._index += 1
         return value
+
+    def change_rng_values(self, values: list[float]) -> None:
+        self._values = values
+        self._index = 0
 
 
 @pytest.fixture

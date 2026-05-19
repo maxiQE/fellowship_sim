@@ -314,7 +314,7 @@ class DoTEffect(Effect):
 
     @property
     def tick_interval(self) -> float:
-        return self.owner.dot_tick_rate * self.base_tick_interval / (1 + self.owner.stats.haste_percent)
+        return self.base_tick_interval / (1 + self.owner.stats.haste_percent) / self.owner.dot_tick_acceleration
 
     @property
     def elapsed_fraction(self) -> float:
@@ -327,6 +327,9 @@ class DoTEffect(Effect):
     def average_tick_damage_snapshot(self) -> "SnapshotStats":
         from fellowship_sim.base_classes import SnapshotStats
 
+        if self.attached_to is None:
+            raise Exception("Unattached DoT can't compute its damage")  # noqa: TRY002, TRY003
+
         snapshot = SnapshotStats.from_base_damage_and_character(
             base_damage=self.average_damage,
             character=self.owner,
@@ -334,6 +337,7 @@ class DoTEffect(Effect):
             is_scaled_by_expertise=self.is_scaled_by_expertise,
             is_scaled_by_main_stat=self.is_scaled_by_main_stat,
         )
+
         if self.crit_percent_override is not None:
             snapshot = snapshot.fixed_crit_percent(self.crit_percent_override)
         return snapshot

@@ -6,15 +6,7 @@ from fellowship_sim.base_classes import Enemy, State
 from fellowship_sim.base_classes.real_ppm import RealPPM
 from fellowship_sim.base_classes.stats import RawStatsFromPercents
 from fellowship_sim.elarion.entity import Elarion
-
-
-class FixedRNG:
-    def __init__(self, value: float = 0.0) -> None:
-        self.value = value
-
-    def random(self) -> float:
-        return self.value
-
+from tests.conftest import FixedRNG
 
 _BASE_PPM = 6.0
 _INTERVAL = 60.0 / _BASE_PPM  # 10.0 seconds

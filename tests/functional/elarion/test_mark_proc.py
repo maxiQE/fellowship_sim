@@ -171,8 +171,7 @@ class TestMarkFromProcs:
         elarion = setup.finalize(state)
 
         # initiate rPPM; delay_since_last_fight=None → last_attempt_time=None → no CI roll on first cast
-        rng._values = [1.0]  # No crit
-        rng._index = 0
+        rng.change_rng_values([1.0])  # No crit
         elarion.focused_shot.cast(target)
         assert elarion.celestial_impetus_stacks == 0
 
@@ -180,15 +179,13 @@ class TestMarkFromProcs:
         elarion.wait(28.5)
 
         # Guaranteed proc
-        rng._values: list[int | float] = [0.99, 1.0]  #  barely proccing the rPPM check on CI aura, no crit
-        rng._index = 0
+        rng.change_rng_values([0.99, 1.0])  #  barely proccing the rPPM check on CI aura, no crit
         elarion.focused_shot.cast(target)
 
         assert elarion.celestial_impetus_stacks == 1
 
-        rng._values: list[int | float] = [1.0, 0.0, 1.0]  # No crit, proc mark salvo, no crit on salvo attack
+        rng.change_rng_values([1.0, 0.0, 1.0])  # No crit, proc mark salvo, no crit on salvo attack
         # NB: no roll on spirit proc because of proc_chance == 0
-        rng._index = 0
         elarion.celestial_shot.cast(target)
 
         mark = target.effects.get(LunarlightMarkEffect)
@@ -214,14 +211,8 @@ class TestMarkFromProcs:
         )
         elarion = setup.finalize(state)
 
-        rng._values: list[int | float] = [
-            0.0,
-            1.0,
-            0.0,
-            1.0,
-        ]  # Spirit proc, No crit, proc mark salvo, no crit on salvo attack
+        rng.change_rng_values([0.0, 1.0, 0.0, 1.0])  # Spirit proc, No crit, proc mark salvo, no crit on salvo attack
         # NB: no roll on spirit proc because of proc_chance == 0
-        rng._index = 0
         elarion.celestial_shot.cast(target)
 
         mark = target.effects.get(LunarlightMarkEffect)

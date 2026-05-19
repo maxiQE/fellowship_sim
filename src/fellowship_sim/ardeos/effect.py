@@ -64,7 +64,7 @@ class SearingBlazeDoT(ArdeosCinderGeneratingDoT):
     )
     duration: float = field(default=ardeos_config.SEARING_BLAZE_DURATION, init=False)
     base_tick_interval: float = field(default=ardeos_config.SEARING_BLAZE_TICK_INTERVAL, init=False)
-    cinder_tick_interval: float = field(default=ardeos_config.SEARING_BLAZE_TICK_INTERVAL, init=False)
+    cinder_tick_interval: float = field(default=ardeos_config.SEARING_BLAZE_CINDER_TICK_INTERVAL, init=False)
     cinder_tick_amount: int = field(default=ardeos_config.SEARING_BLAZE_CINDER_TICK_AMOUNT, init=False)
 
     is_agonizing_blaze: bool = field(init=True)
@@ -256,11 +256,11 @@ class WildfireEffect(Effect):
     duration: float = field(default=ardeos_config.WILDFIRE_DURATION, init=False)
 
     def on_add(self) -> None:
-        self.owner.dot_tick_rate *= 1 - self.dot_tick_acceleration
+        self.owner.dot_tick_acceleration *= 1 + self.dot_tick_acceleration
 
     def on_remove(self, *, is_remove_from_expiration: bool = False) -> None:
         if is_remove_from_expiration:
-            self.owner.dot_tick_rate = 1
+            self.owner.dot_tick_acceleration = 1
 
     def on_fuse(self, new_effect: Self) -> None:  # ty:ignore[invalid-method-override]
         raise Exception("WildfireEffect will bug if renewed.")  # noqa: TRY002, TRY003
@@ -296,7 +296,7 @@ class ReignOfFireEffect(Effect):
 
 @dataclass(kw_only=True, repr=False)
 class DevouringFlameAura(Effect):
-    """Permanent aura: manages DevouringFlameDebuff on targets based on EngulfingFlamesDoT presence."""
+    """Permanent aura: increase damage based on the number of Engulfing Flames DoT present on target."""
 
     owner: "Ardeos"
 

@@ -114,8 +114,7 @@ def test_willful_momentum_is_effective_on_its_cast() -> None:
     assert damage[-1].damage == pytest.approx(elarion.celestial_shot.average_damage * 1.048)
 
     elarion.wait(100)
-    rng._values = [1.0]
-    rng._index = 0
+    rng.change_rng_values([1.0])
 
     # no spirit proc, no crit
     elarion.celestial_shot.cast(target)
@@ -159,8 +158,7 @@ def test_spirit_proc__triggers_spirit_gain() -> None:
     elarion.wait(10)
     assert elarion.spirit_points == pytest.approx(spirit_points + 1 + state.time * elarion.spirit_regen_rate)
 
-    rng._values = [1.0]
-    rng._index = 0
+    rng.change_rng_values([1.0])
 
     # no spirit proc, no crit
     elarion.celestial_shot.cast(target)

@@ -321,7 +321,7 @@ class TestCritRatesBarrageBuild:
             )
 
         # Roll just above threshold → no crit
-        rng.value = expected_crit_chance + bonus_crit + _epsilon
+        rng.change_rng_values(expected_crit_chance + bonus_crit + _epsilon)
         elarion._change_focus(+100)
         ability._add_charge()
         ability.cast(target)
@@ -331,7 +331,7 @@ class TestCritRatesBarrageBuild:
         _check_secondary()
 
         # Roll just below threshold → crit
-        rng.value = expected_crit_chance + bonus_crit - _epsilon
+        rng.change_rng_values(expected_crit_chance + bonus_crit - _epsilon)
         elarion._change_focus(+100)
         ability._add_charge()
         ability.cast(target)

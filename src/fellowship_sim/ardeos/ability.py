@@ -13,13 +13,14 @@ from fellowship_sim.ardeos.effect import (
     WildfireEffect,
 )
 from fellowship_sim.base_classes import (
-    AbilityDamage,
     CastReturnCode,
     DoTEffect,
     Effect,
     Entity,
+    SnapshotStats,
     base_config,
     create_standard_damage,
+    deal_damage,
 )
 from fellowship_sim.base_classes.ability import Ability, can_cast_check
 from fellowship_sim.base_classes.timed_events import GenericTimedEvent
@@ -93,17 +94,22 @@ class Detonate(ArdeosAbility):
                     total_damage += snapshot.average_damage / effect.tick_interval * self.detonate_window_size
 
             attack_damage = total_damage / self.num_detonate_attacks
-            for _ in range(self.num_detonate_attacks):
-                splash = AbilityDamage(
+            if attack_damage > 0:
+                snapshot = SnapshotStats.from_base_damage_and_character(
+                    base_damage=attack_damage,
+                    character=self.owner,
                     damage_source=self,
-                    owner=self.owner,
-                    target=enemy,
-                    is_crit=False,
-                    is_grievous_crit=False,
-                    damage=attack_damage,
-                    is_secondary=True,
+                    is_scaled_by_expertise=False,
+                    is_scaled_by_main_stat=False,
                 )
-                self.owner.state.bus.emit(splash)
+                for _ in range(self.num_detonate_attacks):
+                    deal_damage(
+                        snapshot=snapshot,
+                        damage_origin=self,
+                        target=enemy,
+                        is_dot=False,
+                        is_secondary=False,
+                    )
 
 
 @dataclass(kw_only=True, repr=False)
@@ -227,6 +233,8 @@ class Incinerate(ArdeosAbility):
     base_player_downtime: float = field(default=ardeos_config.INCINERATE_CHANNEL_TIME, init=False)
     tick_interval: float = field(default=ardeos_config.INCINERATE_TICK_INTERVAL, init=False)
 
+    delay_until_hit: float = field(default=ardeos_config.INCINERATE_DELAY_UNTIL_HIT, init=False)
+
     is_ultimate_ability: bool = field(default=True, init=False)
 
     @property
@@ -263,6 +271,9 @@ class Incinerate(ArdeosAbility):
         # special to incinerate: partials above the minimum size get pushed to full ticks
         partial_size = 1 if partial_size >= 0.05 else 0
 
+        # shaving a slight amount off tick_interval to ensure that when player is available, all shots have been fired
+        tick_interval *= 0.999
+
         def _next_tick() -> None:
             self._schedule_next_tick(
                 target=target,
@@ -286,7 +297,7 @@ class Incinerate(ArdeosAbility):
             base_damage=self.average_damage,
             num_secondary_targets=self.num_secondary_targets,
             num_targets_softcap=self.num_targets_softcap,
-            delay_until_hit=0,
+            delay_until_hit=self.delay_until_hit,
         )
 
     def _schedule_next_tick(

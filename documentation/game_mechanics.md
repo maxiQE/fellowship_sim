@@ -64,6 +64,50 @@ However:
 - other mechanics might have good interactions with haste
 
 
+## Spirit generation
+
+Spirit is generated from the following sources:
+
+- time-based spirit generation,
+- damaging enemies,
+- some abilities and effects:
+    - spirit-procs,
+    - specific abilities (sometimes with talent),
+    - vision of grandeurs master weapon trait,
+    - etc.
+
+Time-based spirit generation:
+
+- Every 3 seconds, a fixed amount of spirit is added.
+- Without modifiers, 1 spirit is added.
+- This amount is scaled by:
+    - spirit percent,
+    - maximum spirit from blue gem effect 1 and 6 (in S2; could change in S3).
+- Formula: `spirit tick = 1 * (1 + spirit_percent) * (max_spirit / 100)`
+- With blue 6 and a decent amount of spirit, that's roughly 0.5-0.6 per second.
+
+Enemy-damage spirit generation:
+
+- Each enemy has a spirit value.
+- When they take damage, a small amount of spirit is generated equal to `percent_damage * spirit_value / 4` and given to all characters.
+- Spirit score is available through data mining and is fixed for each mob type. It is typically equal to kill score. Exceptions:
+    - Shadow Lord is 400 (yielding 100 spirit for every character over the duration of the fight).
+    - Winter minibosses are 100 (yielding 25 spirit for every character over the duration of the fight, enabling double ults).
+- Spirit generation is typically roughly 0.05 per second, except:
+    - When outgearing content (e.g. onesack farm).
+    - When fighting shadowlord or winter minibosses.
+
+Dying removes 25% of your current spirit.
+
+Scale:
+
+- in S2, for a character with 10-40% spirit and blue 6, spirit generation is roughly:
+    - 0.50 to 0.65 depending on spirit percent, from time and enemy damage generation,
+    - some additional value depending on class spirit proc value and extra spirit generation.
+        - elarion: 0.15 per s -> total 0.75 per s
+        - rime: 0.45 per s -> total 1.15 per s
+
+
 ## Channels and dots: damage
 
 

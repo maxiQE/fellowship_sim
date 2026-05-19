@@ -6,14 +6,7 @@ import pytest
 
 from fellowship_sim.base_classes import Enemy, State
 from fellowship_sim.base_classes.state import get_state
-
-
-class FixedRNG:
-    def __init__(self, value: float = 0.0) -> None:
-        self.value = value
-
-    def random(self) -> float:
-        return self.value
+from tests.conftest import FixedRNG
 
 
 class TestStateSelectTargets:

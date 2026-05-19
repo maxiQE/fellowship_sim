@@ -44,7 +44,7 @@ class TestVoidbringersTouchOnKill:
 
         # shift to all procs
         assert state_no_procs__st.rng.value == 1.0  # ty:ignore[unresolved-attribute]
-        state_no_procs__st.rng.value = 0.0  # ty:ignore[unresolved-attribute]
+        state_no_procs__st.rng.change_rng_values(0.0)  # ty:ignore[unresolved-attribute]
 
         target.kill()
 

@@ -476,7 +476,7 @@ class HeartseekerBarrage(ElarionAbility):
         num_ticks = math.floor(self.player_downtime / tick_interval + epsilon)
 
         # shaving a slight amount off tick_interval to ensure that when player is available, all shots have been fired
-        tick_interval *= elarion_config.HEARTSEEKER_BARRAGE_TICK_INTERVAL_FACTOR
+        tick_interval *= 0.999
 
         logger.debug(
             f"barrage channel start: scheduling {num_ticks} tick(s) on {target} (interval={tick_interval:.3f}s)"

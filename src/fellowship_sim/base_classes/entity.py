@@ -184,7 +184,7 @@ class Player(Entity):
     spirit_point_gain_on_proc: float = field(default=1.0, init=False)
 
     cooldown_reduction: float = field(default=1.0, init=False)
-    dot_tick_rate: float = field(default=1.0, init=False)
+    dot_tick_acceleration: float = field(default=1.0, init=False)
 
     owned_dots: list["DoTEffect"] = field(default_factory=list, init=False)
 
